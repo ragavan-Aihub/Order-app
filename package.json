@@ -1,0 +1,8 @@
+{
+  "name": "farm2flavour",
+  "private": true,
+  "scripts": {
+    "mobile": "npm start --prefix mobile",
+    "admin": "npm run dev --prefix admin"
+  }
+}
