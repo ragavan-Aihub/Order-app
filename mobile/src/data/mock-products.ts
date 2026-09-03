@@ -1,9 +1,11 @@
+import { MOCK_BUSINESS_ID } from '@/config/constants';
 import type { Product } from '@/types/product';
 
-/** Temporary local catalog used until Phase 2 loads products from Supabase. */
+/** Temporary local catalog used until products are loaded from Supabase. */
 export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'mock-1',
+    business_id: MOCK_BUSINESS_ID,
     name: 'Homemade Mango Pickle',
     description: 'Sun-ripened mango pickle made in small batches with traditional spices.',
     price: 220,
@@ -14,6 +16,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'mock-2',
+    business_id: MOCK_BUSINESS_ID,
     name: 'Millet Energy Laddoo',
     description: 'Roasted millet, jaggery, and ghee rolled into wholesome snack laddoos.',
     price: 180,
@@ -24,6 +27,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'mock-3',
+    business_id: MOCK_BUSINESS_ID,
     name: 'Farm Honey',
     description: 'Raw, unprocessed honey collected from local farm hives.',
     price: 350,
@@ -34,6 +38,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'mock-4',
+    business_id: MOCK_BUSINESS_ID,
     name: 'Seasonal Fruit Preserve',
     description: 'Limited seasonal preserve. Currently marked unavailable for customers.',
     price: 260,

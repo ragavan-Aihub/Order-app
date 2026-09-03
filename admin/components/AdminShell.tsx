@@ -4,9 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { LogoutButton } from '@/components/LogoutButton';
+import { isSupabaseConfigured } from '@/config/env';
+
 const links = [
   { href: '/', label: 'Dashboard' },
   { href: '/products', label: 'Products' },
+  { href: '/products/new', label: 'Add product' },
   { href: '/orders', label: 'Orders' },
   { href: '/settings', label: 'Business Settings' },
 ] as const;
@@ -35,6 +39,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
+          {isSupabaseConfigured ? <LogoutButton /> : null}
         </aside>
         <main className="flex-1 p-8">{children}</main>
       </div>

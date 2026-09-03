@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { Geist } from 'next/font/google';
-
-import { AdminShell } from '@/components/AdminShell';
 
 import './globals.css';
 
@@ -11,16 +10,14 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: 'Admin',
-  description: 'Administrator dashboard',
+  title: 'Farm 2 Flavours — Admin',
+  description: 'Business admin sign in',
 };
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full">
-        <AdminShell>{children}</AdminShell>
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }
