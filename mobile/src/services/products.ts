@@ -10,7 +10,7 @@ export async function getAvailableProducts(): Promise<Product[]> {
 
   const supabase = getSupabaseClient();
   if (!supabase) {
-    return MOCK_PRODUCTS.filter((product) => product.available);
+    return [];
   }
 
   const { data, error } = await supabase.rpc('get_available_products', {
@@ -18,7 +18,7 @@ export async function getAvailableProducts(): Promise<Product[]> {
   });
 
   if (error || !data) {
-    return MOCK_PRODUCTS.filter((product) => product.available);
+    return [];
   }
 
   return data as Product[];

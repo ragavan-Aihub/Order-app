@@ -1,25 +1,35 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/ProductCard';
+import { useCart } from '@/cart/CartContext';
 import { colors, spacing } from '@/config/theme';
+import { getBusiness } from '@/services/business';
 import { getAvailableProducts } from '@/services/products';
+import type { Business } from '@/types/business';
 import type { Product } from '@/types/product';
 
 export default function ProductListScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { addItem, itemCount } = useCart();
+  const [business, setBusiness] = useState<Business | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
 
-    getAvailableProducts()
-      .then((items) => {
-        if (isMounted) {
-          setProducts(items);
+    Promise.all([getBusiness(), getAvailableProducts()])
+      .then(([shop, items]) => {
+        if (!isMounted) {
+          return;
         }
+        setBusiness(shop);
+        setProducts(items);
       })
       .finally(() => {
         if (isMounted) {
@@ -41,21 +51,38 @@ export default function ProductListScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
+      ]}
+    >
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Products</Text>
+        <View style={styles.brand}>
+          {business?.logo_url ? (
+            <Image source={{ uri: business.logo_url }} style={styles.logo} contentFit="cover" />
+          ) : null}
+          <Text style={styles.heading}>{business?.business_name ?? 'Products'}</Text>
+        </View>
         <Pressable onPress={() => router.push('/cart')} accessibilityRole="button">
-          <Text style={styles.link}>Cart</Text>
+          <Text style={styles.link}>Cart{itemCount > 0 ? ` (${itemCount})` : ''}</Text>
         </Pressable>
       </View>
-      {products.map((product) => (
-        <ProductCard
-          key={product.id}
-          product={product}
-          onPress={() => router.push(`/product/${product.id}`)}
-          onAddToCart={() => router.push('/cart')}
-        />
-      ))}
+      {products.length === 0 ? (
+        <Text style={styles.empty}>No products are available right now.</Text>
+      ) : (
+        <View style={styles.grid}>
+          {products.map((product) => (
+            <View key={product.id} style={styles.gridItem}>
+              <ProductCard
+                product={product}
+                onPress={() => router.push(`/product/${product.id}`)}
+                onAddToCart={() => addItem(product, 1)}
+              />
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -70,9 +97,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
+  },
+  brand: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.border,
   },
   heading: {
-    fontSize: 28,
+    flex: 1,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
   },
@@ -80,6 +121,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.primary,
+  },
+  empty: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.textMuted,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  gridItem: {
+    width: '33.33%',
+    padding: 4,
   },
   centered: {
     flex: 1,

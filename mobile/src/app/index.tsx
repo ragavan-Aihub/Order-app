@@ -1,46 +1,24 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '@/config/theme';
+import { WelcomeSignup } from '@/components/WelcomeSignup';
+import { getSupabaseClient } from '@/services/supabase';
 
-export default function SplashScreen() {
+export default function WelcomeScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      router.replace('/products');
-    }, 700);
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return;
+    }
 
-    return () => clearTimeout(timeout);
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        router.replace('/products');
+      }
+    });
   }, [router]);
 
-  return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color={colors.primary} />
-      <Text style={styles.title}>Loading</Text>
-      <Text style={styles.subtitle}>Preparing your order app</Text>
-    </View>
-  );
+  return <WelcomeSignup allowSkip next="products" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: spacing.md,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-});
