@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const PRODUCT_IMAGES_BUCKET = 'product-images';
+const BUSINESS_LOGOS_BUCKET = 'business-logos';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
@@ -36,4 +37,48 @@ export async function uploadProductImage(
 
   const { data } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+async function uploadBusinessAsset(
+  supabase: SupabaseClient,
+  businessId: string,
+  file: File,
+  kind: 'logo' | 'banner',
+): Promise<string> {
+  if (!ALLOWED_TYPES.has(file.type)) {
+    throw new Error('Use a JPG, PNG, WebP, or GIF image.');
+  }
+
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error('Image must be 5 MB or smaller.');
+  }
+
+  const path = `${businessId}/${kind}/${crypto.randomUUID()}.${extensionFor(file)}`;
+  const { error } = await supabase.storage.from(BUSINESS_LOGOS_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  });
+
+  if (error) {
+    throw new Error(kind === 'banner' ? 'Could not upload the banner.' : 'Could not upload the logo.');
+  }
+
+  const { data } = supabase.storage.from(BUSINESS_LOGOS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function uploadBusinessLogo(
+  supabase: SupabaseClient,
+  businessId: string,
+  file: File,
+): Promise<string> {
+  return uploadBusinessAsset(supabase, businessId, file, 'logo');
+}
+
+export async function uploadBusinessBanner(
+  supabase: SupabaseClient,
+  businessId: string,
+  file: File,
+): Promise<string> {
+  return uploadBusinessAsset(supabase, businessId, file, 'banner');
 }

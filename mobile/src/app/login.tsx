@@ -5,9 +5,10 @@ import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { WelcomeSignup } from '@/components/WelcomeSignup';
 
 export default function LoginScreen() {
-  const { next } = useLocalSearchParams<{ next?: string }>();
+  const { next: nextParam } = useLocalSearchParams<{ next?: string }>();
+  const next = Array.isArray(nextParam) ? nextParam[0] : nextParam;
   const [initialMobile, setInitialMobile] = useState('');
-  const fromCheckout = next === 'checkout';
+  const requireSignIn = next === 'checkout' || next === 'orders';
 
   useEffect(() => {
     loadDeliveryDraft().then((draft) => {
@@ -19,8 +20,8 @@ export default function LoginScreen() {
 
   return (
     <WelcomeSignup
-      allowSkip={!fromCheckout}
-      next={next ?? 'checkout'}
+      allowSkip={!requireSignIn}
+      next={next ?? 'products'}
       initialMobile={initialMobile}
     />
   );

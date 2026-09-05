@@ -1,3 +1,5 @@
+import { cache } from 'react';
+
 import { MOCK_BUSINESS_ID } from '@/config/constants';
 import { isSupabaseConfigured } from '@/config/env';
 import { createServerSupabaseClient } from '@/services/supabase/server';
@@ -19,7 +21,7 @@ const localDevProfile: Profile = {
   updated_at: new Date(0).toISOString(),
 };
 
-export async function getAdminSession(): Promise<AdminSession | { error: 'unauthenticated' | 'unauthorized' }> {
+export const getAdminSession = cache(async (): Promise<AdminSession | { error: 'unauthenticated' | 'unauthorized' }> => {
   if (!isSupabaseConfigured) {
     return { userId: localDevProfile.id, profile: localDevProfile };
   }
@@ -51,4 +53,4 @@ export async function getAdminSession(): Promise<AdminSession | { error: 'unauth
     userId: user.id,
     profile: profile as Profile,
   };
-}
+});

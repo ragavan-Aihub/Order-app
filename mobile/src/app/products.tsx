@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,14 +23,16 @@ export default function ProductListScreen() {
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      getSignedInUser().then((user) => {
+        setSignedIn(Boolean(user));
+      });
+    }, []),
+  );
+
   useEffect(() => {
     let isMounted = true;
-
-    getSignedInUser().then((user) => {
-      if (isMounted) {
-        setSignedIn(Boolean(user));
-      }
-    });
 
     Promise.all([getBusiness(), getAvailableProducts()])
       .then(([shop, items]) => {
@@ -79,9 +81,21 @@ export default function ProductListScreen() {
           ) : null}
           <Text style={styles.heading}>{business?.business_name ?? 'Products'}</Text>
         </View>
-        <Pressable onPress={() => router.push('/cart')} accessibilityRole="button">
-          <Text style={styles.link}>Cart{itemCount > 0 ? ` (${itemCount})` : ''}</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() =>
+              signedIn
+                ? router.push('/orders')
+                : router.push({ pathname: '/login', params: { next: 'orders' } })
+            }
+            accessibilityRole="button"
+          >
+            <Text style={styles.link}>Orders</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/cart')} accessibilityRole="button">
+            <Text style={styles.link}>Cart{itemCount > 0 ? ` (${itemCount})` : ''}</Text>
+          </Pressable>
+        </View>
       </View>
       {signedIn ? (
         <Pressable
@@ -124,6 +138,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
   brand: {
     flex: 1,

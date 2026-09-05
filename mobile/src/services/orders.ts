@@ -1,7 +1,7 @@
 import type { CartItem } from '@/cart/CartContext';
 import { env } from '@/config/env';
 import { getSupabaseClient } from '@/services/supabase';
-import type { Order } from '@/types/order';
+import type { Order, OrderItem, OrderWithItems } from '@/types/order';
 
 export type DeliveryDetails = {
   name: string;
@@ -139,4 +139,73 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
     .eq('id', signedIn.id);
 
   return order as Order;
+}
+
+const ORDER_COLUMNS =
+  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, created_at, updated_at';
+
+export async function getMyOrders(): Promise<Order[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !env.businessId) {
+    return [];
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(ORDER_COLUMNS)
+    .eq('user_id', user.id)
+    .eq('business_id', env.businessId)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as Order[];
+}
+
+export async function getMyOrderById(id: string): Promise<OrderWithItems | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !env.businessId) {
+    return null;
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) {
+    return null;
+  }
+
+  const { data: order, error } = await supabase
+    .from('orders')
+    .select(ORDER_COLUMNS)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .eq('business_id', env.businessId)
+    .maybeSingle();
+
+  if (error || !order) {
+    return null;
+  }
+
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+    .eq('order_id', id)
+    .order('created_at', { ascending: true });
+
+  return {
+    ...(order as Order),
+    order_items: (items ?? []) as OrderItem[],
+  };
 }

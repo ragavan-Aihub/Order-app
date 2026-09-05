@@ -36,7 +36,9 @@ export default function VerifyScreen() {
     setVerifying(true);
     try {
       await verifyOtp(mobile, otp);
-      router.replace(next === 'checkout' ? '/checkout' : '/products');
+      const destination =
+        next === 'checkout' ? '/checkout' : next === 'orders' ? '/orders' : '/products';
+      router.replace(destination);
     } catch (verifyError) {
       setError(verifyError instanceof Error ? verifyError.message : 'Could not verify OTP.');
     } finally {

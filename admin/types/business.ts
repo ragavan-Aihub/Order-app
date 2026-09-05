@@ -6,6 +6,7 @@ export type Business = {
   email: string | null;
   address: string | null;
   description: string | null;
+  banner_url: string | null;
   created_at: string;
   updated_at: string;
 };

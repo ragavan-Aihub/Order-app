@@ -31,7 +31,7 @@ export default async function DashboardPage() {
       <div className="flex gap-4 text-base font-medium text-emerald-800">
         <Link href="/products">View products</Link>
         <Link href="/orders">View orders</Link>
-        <Link href="/settings">Business settings</Link>
+        <Link href="/settings/business-info">Settings</Link>
       </div>
     </div>
   );

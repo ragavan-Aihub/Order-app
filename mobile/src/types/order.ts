@@ -18,10 +18,15 @@ export type Order = {
 export type OrderItem = {
   id: string;
   order_id: string;
-  product_id: string;
+  product_id: string | null;
   product_name: string;
   product_price: number;
   quantity: number;
   subtotal: number;
   created_at: string;
 };
+
+export type OrderWithItems = Order & {
+  order_items: OrderItem[];
+};
+

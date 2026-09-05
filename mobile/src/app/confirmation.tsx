@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/config/theme';
 import { getSupabaseClient } from '@/services/supabase';
-import { formatOrderNumber } from '@/utils/format';
+import { formatOrderNumber, formatOrderStatus } from '@/utils/format';
 
 export default function ConfirmationScreen() {
   const router = useRouter();
@@ -47,8 +47,11 @@ export default function ConfirmationScreen() {
       <Text style={styles.meta}>Order number</Text>
       <Text style={styles.orderNumber}>{displayNumber ? formatOrderNumber(displayNumber) : '—'}</Text>
       <Text style={styles.meta}>Status</Text>
-      <Text style={styles.value}>{status ?? 'new'}</Text>
-      <PrimaryButton label="Back to products" onPress={() => router.replace('/products')} />
+      <Text style={styles.value}>{formatOrderStatus(status ?? 'new')}</Text>
+      <View style={styles.actions}>
+        <PrimaryButton label="View my orders" onPress={() => router.replace('/orders')} />
+        <PrimaryButton label="Back to products" onPress={() => router.replace('/products')} />
+      </View>
     </View>
   );
 }
@@ -88,5 +91,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  actions: {
+    gap: spacing.sm,
   },
 });

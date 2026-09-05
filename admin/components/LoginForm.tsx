@@ -1,13 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
 import { isSupabaseConfigured } from '@/config/env';
 import { createBrowserSupabaseClient } from '@/services/supabase/browser';
 
 export function LoginForm() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,23 +32,13 @@ export function LoginForm() {
       return;
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
-    if (signInError) {
-      setError('Could not sign in. Check the email and password.');
-      setSubmitting(false);
-      return;
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setError('Could not verify the session.');
+    if (signInError || !data.user) {
+      setError(signInError?.message ?? 'Could not sign in. Check the email and password.');
       setSubmitting(false);
       return;
     }
@@ -58,7 +46,7 @@ export function LoginForm() {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, business_id')
-      .eq('id', user.id)
+      .eq('id', data.user.id)
       .maybeSingle();
 
     if (!profile || profile.role !== 'admin' || !profile.business_id) {
@@ -68,8 +56,7 @@ export function LoginForm() {
       return;
     }
 
-    router.replace('/');
-    router.refresh();
+    window.location.assign('/');
   }
 
   return (
