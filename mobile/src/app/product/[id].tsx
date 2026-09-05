@@ -16,7 +16,8 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { addItem } = useCart();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: idParam } = useLocalSearchParams<{ id: string }>();
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function ProductDetailsScreen() {
 
     getProductById(id)
       .then(setProduct)
+      .catch(() => setProduct(null))
       .finally(() => setLoading(false));
   }, [id]);
 

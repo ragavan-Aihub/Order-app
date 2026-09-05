@@ -16,7 +16,7 @@ import { loadDeliveryDraft, saveDeliveryDraft } from '@/cart/delivery-draft';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/config/theme';
 import { getCustomerProfile, getLastDeliveryDetails, placeOrder } from '@/services/orders';
-import { getSupabaseClient } from '@/services/supabase';
+import { getSignedInUser } from '@/services/supabase';
 import { formatPrice } from '@/utils/format';
 import { isValidIndianMobile, isValidPincode } from '@/utils/validation';
 
@@ -88,10 +88,7 @@ export default function CheckoutScreen() {
     };
     await saveDeliveryDraft(details);
 
-    const supabase = getSupabaseClient();
-    const {
-      data: { user },
-    } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+    const user = await getSignedInUser();
 
     if (!user) {
       router.push({ pathname: '/login', params: { next: 'checkout' } });

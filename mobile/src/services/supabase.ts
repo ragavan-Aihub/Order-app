@@ -25,3 +25,17 @@ export function getSupabaseClient(): SupabaseClient | null {
 
   return client;
 }
+
+export async function getSignedInUser() {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return null;
+  }
+
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user ?? null;
+  } catch {
+    return null;
+  }
+}

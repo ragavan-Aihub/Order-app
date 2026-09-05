@@ -49,3 +49,12 @@ export async function verifyOtp(mobile: string, token: string) {
     throw new Error(profileError.message);
   }
 }
+
+export async function signOut() {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return;
+  }
+
+  await supabase.auth.signOut();
+}

@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/LogoutButton';
-import { isSupabaseConfigured } from '@/config/env';
 
 const links = [
   { href: '/', label: 'Dashboard' },
@@ -21,7 +20,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-[#F7F4EF] text-stone-900">
       <div className="mx-auto flex min-h-screen max-w-6xl">
-        <aside className="w-56 shrink-0 border-r border-stone-200 bg-white p-6">
+        <aside className="flex w-56 shrink-0 flex-col border-r border-stone-200 bg-white p-6">
           <p className="mb-8 text-lg font-semibold">Admin</p>
           <nav className="flex flex-col gap-2">
             {links.map((link) => {
@@ -39,7 +38,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-          {isSupabaseConfigured ? <LogoutButton /> : null}
+          <div className="mt-auto pt-8">
+            <LogoutButton />
+          </div>
         </aside>
         <main className="flex-1 p-8">{children}</main>
       </div>

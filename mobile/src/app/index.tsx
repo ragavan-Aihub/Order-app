@@ -2,19 +2,14 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
 import { WelcomeSignup } from '@/components/WelcomeSignup';
-import { getSupabaseClient } from '@/services/supabase';
+import { getSignedInUser } from '@/services/supabase';
 
 export default function WelcomeScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      return;
-    }
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+    getSignedInUser().then((user) => {
+      if (user) {
         router.replace('/products');
       }
     });

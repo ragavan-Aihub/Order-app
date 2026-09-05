@@ -20,9 +20,9 @@ export function LogoutButton() {
     <button
       type="button"
       onClick={onLogout}
-      className="mt-8 w-full rounded-lg px-3 py-2 text-left text-base text-stone-700 hover:bg-stone-100"
+      className="w-full rounded-lg border border-stone-200 px-3 py-2 text-left text-base font-medium text-stone-800 hover:bg-stone-100"
     >
-      Logout
+      Sign out
     </button>
   );
 }

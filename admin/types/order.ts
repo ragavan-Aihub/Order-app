@@ -14,3 +14,26 @@ export type Order = {
   created_at: string;
   updated_at: string;
 };
+
+export type OrderItem = {
+  id: string;
+  order_id: string;
+  product_id: string | null;
+  product_name: string;
+  product_price: number;
+  quantity: number;
+  subtotal: number;
+  created_at: string;
+};
+
+export type OrderWithItems = Order & {
+  order_items: OrderItem[];
+};
+
+export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
+  { value: 'new', label: 'New' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'preparing', label: 'Preparing' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'cancelled', label: 'Cancelled' },
+];

@@ -1,10 +1,14 @@
 import Link from 'next/link';
 
+import { getAllOrders } from '@/services/orders';
 import { getAllProducts } from '@/services/products';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
-  const products = await getAllProducts();
+  const [products, orders] = await Promise.all([getAllProducts(), getAllOrders()]);
   const availableCount = products.filter((product) => product.available).length;
+  const newCount = orders.filter((order) => order.status === 'new').length;
 
   return (
     <div className="space-y-6">
@@ -18,8 +22,10 @@ export default async function DashboardPage() {
         </div>
         <div className="rounded-xl border border-stone-200 bg-white p-5">
           <p className="text-sm text-stone-500">Orders</p>
-          <p className="text-3xl font-semibold">0</p>
-          <p className="text-sm text-stone-500">No orders yet</p>
+          <p className="text-3xl font-semibold">{orders.length}</p>
+          <p className="text-sm text-stone-500">
+            {newCount === 0 ? 'No new orders' : `${newCount} new`}
+          </p>
         </div>
       </div>
       <div className="flex gap-4 text-base font-medium text-emerald-800">

@@ -1,15 +1,60 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CartProvider } from '@/cart/CartContext';
 import { loadDeliveryDraft } from '@/cart/delivery-draft';
-import { colors } from '@/config/theme';
+import { colors, spacing } from '@/config/theme';
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <View style={errorStyles.screen}>
+      <Text style={errorStyles.title}>Something went wrong</Text>
+      <Text style={errorStyles.message}>{error.message}</Text>
+      <Pressable onPress={retry} style={errorStyles.button} accessibilityRole="button">
+        <Text style={errorStyles.buttonLabel}>Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const errorStyles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.background,
+    gap: spacing.md,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  message: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.danger,
+  },
+  button: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: 12,
+  },
+  buttonLabel: {
+    color: colors.primaryText,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});
 
 export default function RootLayout() {
   useEffect(() => {
-    loadDeliveryDraft();
+    loadDeliveryDraft().catch(() => undefined);
   }, []);
   return (
     <SafeAreaProvider>

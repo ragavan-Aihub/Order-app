@@ -16,15 +16,19 @@ export async function getCustomerProfile(): Promise<{ name: string | null; mobil
     return null;
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return null;
+    }
+
+    const { data } = await supabase.from('profiles').select('name, mobile').eq('id', user.id).maybeSingle();
+    return data ?? { name: null, mobile: user.phone ?? null };
+  } catch {
     return null;
   }
-
-  const { data } = await supabase.from('profiles').select('name, mobile').eq('id', user.id).maybeSingle();
-  return data ?? { name: null, mobile: user.phone ?? null };
 }
 
 export async function getLastDeliveryDetails(): Promise<DeliveryDetails | null> {
@@ -33,31 +37,36 @@ export async function getLastDeliveryDetails(): Promise<DeliveryDetails | null> 
     return null;
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) {
+      return null;
+    }
+
+    const { data } = await supabase
+      .from('orders')
+      .select('customer_name, mobile, delivery_address, pincode')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      name: data.customer_name ?? '',
+      mobile: data.mobile ?? '',
+      address: data.delivery_address ?? '',
+      pincode: data.pincode ?? '',
+    };
+  } catch {
     return null;
   }
-
-  const { data } = await supabase
-    .from('orders')
-    .select('customer_name, mobile, delivery_address, pincode')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!data) {
-    return null;
-  }
-
-  return {
-    name: data.customer_name ?? '',
-    mobile: data.mobile ?? '',
-    address: data.delivery_address ?? '',
-    pincode: data.pincode ?? '',
-  };
 }
 
 export async function placeOrder(details: DeliveryDetails, items: CartItem[]): Promise<Order> {
@@ -72,10 +81,8 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
     throw new Error('Your cart is empty.');
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const signedIn = (await supabase.auth.getSession()).data.session?.user;
+  if (!signedIn) {
     throw new Error('Please sign in with your mobile number.');
   }
 
@@ -85,7 +92,7 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
     .from('orders')
     .insert({
       business_id: env.businessId,
-      user_id: user.id,
+      user_id: signedIn.id,
       customer_name: details.name.trim(),
       mobile: details.mobile.trim(),
       delivery_address: details.address.trim(),
@@ -129,7 +136,7 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
   await supabase
     .from('profiles')
     .update({ name: details.name.trim(), mobile: details.mobile.trim() })
-    .eq('id', user.id);
+    .eq('id', signedIn.id);
 
   return order as Order;
 }

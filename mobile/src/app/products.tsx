@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProductCard } from '@/components/ProductCard';
 import { useCart } from '@/cart/CartContext';
 import { colors, spacing } from '@/config/theme';
+import { signOut } from '@/services/auth';
 import { getBusiness } from '@/services/business';
 import { getAvailableProducts } from '@/services/products';
+import { getSignedInUser } from '@/services/supabase';
 import type { Business } from '@/types/business';
 import type { Product } from '@/types/product';
 
@@ -19,9 +21,16 @@ export default function ProductListScreen() {
   const [business, setBusiness] = useState<Business | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+
+    getSignedInUser().then((user) => {
+      if (isMounted) {
+        setSignedIn(Boolean(user));
+      }
+    });
 
     Promise.all([getBusiness(), getAvailableProducts()])
       .then(([shop, items]) => {
@@ -30,6 +39,12 @@ export default function ProductListScreen() {
         }
         setBusiness(shop);
         setProducts(items);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setBusiness(null);
+          setProducts([]);
+        }
       })
       .finally(() => {
         if (isMounted) {
@@ -68,6 +83,17 @@ export default function ProductListScreen() {
           <Text style={styles.link}>Cart{itemCount > 0 ? ` (${itemCount})` : ''}</Text>
         </Pressable>
       </View>
+      {signedIn ? (
+        <Pressable
+          onPress={async () => {
+            await signOut();
+            router.replace('/');
+          }}
+          accessibilityRole="button"
+        >
+          <Text style={styles.signOut}>Sign out</Text>
+        </Pressable>
+      ) : null}
       {products.length === 0 ? (
         <Text style={styles.empty}>No products are available right now.</Text>
       ) : (
@@ -121,6 +147,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.primary,
+  },
+  signOut: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
   empty: {
     fontSize: 16,
