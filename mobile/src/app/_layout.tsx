@@ -9,10 +9,11 @@ import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { colors, spacing } from '@/config/theme';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  const detail = error?.message || String(error);
   return (
     <View style={errorStyles.screen}>
       <Text style={errorStyles.title}>Something went wrong</Text>
-      <Text style={errorStyles.message}>{error.message}</Text>
+      <Text style={errorStyles.message}>{detail}</Text>
       <Pressable onPress={retry} style={errorStyles.button} accessibilityRole="button">
         <Text style={errorStyles.buttonLabel}>Try again</Text>
       </Pressable>

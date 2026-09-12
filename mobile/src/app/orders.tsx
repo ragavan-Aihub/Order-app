@@ -22,22 +22,39 @@ export default function MyOrdersScreen() {
       let active = true;
       setLoading(true);
 
-      getSignedInUser().then(async (user) => {
-        if (!active) {
-          return;
-        }
-        setSignedIn(Boolean(user));
-        if (!user) {
-          setOrders([]);
-          setLoading(false);
-          return;
-        }
-        const rows = await getMyOrders();
-        if (active) {
-          setOrders(rows);
-          setLoading(false);
-        }
-      });
+      getSignedInUser()
+        .then(async (user) => {
+          if (!active) {
+            return;
+          }
+          setSignedIn(Boolean(user));
+          if (!user) {
+            setOrders([]);
+            setLoading(false);
+            return;
+          }
+          try {
+            const rows = await getMyOrders();
+            if (active) {
+              setOrders(rows);
+            }
+          } catch {
+            if (active) {
+              setOrders([]);
+            }
+          } finally {
+            if (active) {
+              setLoading(false);
+            }
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setSignedIn(false);
+            setOrders([]);
+            setLoading(false);
+          }
+        });
 
       return () => {
         active = false;
@@ -80,7 +97,7 @@ export default function MyOrdersScreen() {
         orders.map((order) => (
           <Pressable
             key={order.id}
-            onPress={() => router.push(`/order/${order.id}`)}
+            onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
             style={styles.card}
             accessibilityRole="button"
           >

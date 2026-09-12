@@ -1,9 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { createBrowserSupabaseClient } from '@/services/supabase/browser';
+import { updateOrderStatus } from '@/services/order-actions';
 import { ORDER_STATUSES, type OrderStatus } from '@/types/order';
 
 export function OrderStatusForm({ orderId, status }: { orderId: string; status: OrderStatus }) {
@@ -12,25 +12,19 @@ export function OrderStatusForm({ orderId, status }: { orderId: string; status: 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    setValue(status);
+  }, [status]);
+
   async function onSave() {
     setError(null);
     setSaving(true);
-    const supabase = createBrowserSupabaseClient();
-    if (!supabase) {
-      setError('Supabase is not configured.');
-      setSaving(false);
-      return;
-    }
-
-    const { error: updateError } = await supabase.from('orders').update({ status: value }).eq('id', orderId);
-
-    if (updateError) {
-      setError(updateError.message);
-      setSaving(false);
-      return;
-    }
-
+    const result = await updateOrderStatus(orderId, value);
     setSaving(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
     router.refresh();
   }
 
