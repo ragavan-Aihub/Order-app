@@ -19,8 +19,8 @@ export default function CartScreen() {
     return (
       <View style={styles.emptyWrap}>
         <Text style={styles.title}>Your cart is empty</Text>
-        <Text style={styles.message}>Add a product from the catalog to start an order.</Text>
-        <PrimaryButton label="Browse products" onPress={() => router.replace('/products')} />
+        <Text style={styles.message}>Add a product from Home to start an order.</Text>
+        <PrimaryButton label="Go to Home" onPress={() => router.replace('/home')} />
       </View>
     );
   }
@@ -55,7 +55,7 @@ export default function CartScreen() {
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: bottomPad }]}>
         <Text style={styles.total}>Total {formatPrice(totalAmount)}</Text>
-        <PrimaryButton label="Continue" onPress={() => router.push('/checkout')} />
+        <PrimaryButton label="Continue to delivery" onPress={() => router.push('/checkout')} />
       </View>
     </View>
   );

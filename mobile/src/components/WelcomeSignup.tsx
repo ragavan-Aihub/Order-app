@@ -16,9 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/config/theme';
 import { requestOtp } from '@/services/auth';
+import { getBusiness } from '@/services/business';
 import { isValidIndianMobile } from '@/utils/validation';
+import type { Business } from '@/types/business';
 
-const LOGO = require('../../assets/images/farm2flavours-label.jpg');
+const FALLBACK_LOGO = require('../../assets/images/farm2flavours-label.jpg');
 
 type WelcomeSignupProps = {
   allowSkip: boolean;
@@ -32,8 +34,13 @@ export function WelcomeSignup({ allowSkip, next = 'products', initialMobile = ''
   const [mobile, setMobile] = useState(initialMobile.replace(/\D/g, '').slice(-10));
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const canContinue = isValidIndianMobile(mobile) && !sending;
+
+  useEffect(() => {
+    getBusiness().then(setBusiness).catch(() => setBusiness(null));
+  }, []);
 
   useEffect(() => {
     const digits = initialMobile.replace(/\D/g, '').slice(-10);
@@ -93,7 +100,7 @@ export function WelcomeSignup({ allowSkip, next = 'products', initialMobile = ''
           <View />
           {allowSkip ? (
             <Pressable
-              onPress={() => router.replace('/products')}
+              onPress={() => router.replace('/home')}
               style={styles.skip}
               accessibilityRole="button"
             >
@@ -105,11 +112,17 @@ export function WelcomeSignup({ allowSkip, next = 'products', initialMobile = ''
         </View>
 
         <View style={styles.hero}>
-          <Image source={LOGO} style={keyboardVisible ? styles.logoCompact : styles.logo} contentFit="cover" />
+          <Image
+            source={business?.logo_url ? { uri: business.logo_url } : FALLBACK_LOGO}
+            style={keyboardVisible ? styles.logoCompact : styles.logo}
+            contentFit="cover"
+          />
           {keyboardVisible ? null : (
             <>
-              <Text style={styles.headline}>Fresh homemade food,{'\n'}delivered to your door</Text>
-              <Text style={styles.tagline}>Pure Nature. Pure Taste. Pure Trust.</Text>
+              <Text style={styles.headline}>{business?.business_name ?? 'Welcome'}</Text>
+              <Text style={styles.tagline}>
+                {business?.description?.trim() || 'Browse the catalog and place an order.'}
+              </Text>
             </>
           )}
         </View>
@@ -151,7 +164,7 @@ export function WelcomeSignup({ allowSkip, next = 'products', initialMobile = ''
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F4EEE3',
+    backgroundColor: colors.background,
   },
   content: {
     flexGrow: 1,
@@ -170,7 +183,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   skipLabel: {
-    color: '#B42318',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -181,23 +194,21 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   logo: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 6,
-    borderColor: '#C8A44A',
+    width: 160,
+    height: 160,
+    borderRadius: 32,
+    backgroundColor: colors.border,
   },
   logoCompact: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 4,
-    borderColor: '#C8A44A',
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    backgroundColor: colors.border,
   },
   headline: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#1B4D2E',
+    color: colors.text,
     textAlign: 'center',
     lineHeight: 34,
   },
@@ -235,7 +246,7 @@ const styles = StyleSheet.create({
   continue: {
     minHeight: 56,
     borderRadius: 14,
-    backgroundColor: '#1B4D2E',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -37,7 +37,7 @@ export default function VerifyScreen() {
     try {
       await verifyOtp(mobile, otp);
       const destination =
-        next === 'checkout' ? '/checkout' : next === 'orders' ? '/orders' : '/products';
+        next === 'checkout' ? '/checkout' : next === 'orders' ? '/orders' : next === 'account' ? '/account' : '/home';
       router.replace(destination);
     } catch (verifyError) {
       setError(verifyError instanceof Error ? verifyError.message : 'Could not verify OTP.');
@@ -60,6 +60,12 @@ export default function VerifyScreen() {
       >
         <Text style={styles.title}>Enter OTP</Text>
         <Text style={styles.message}>OTP sent to {mobile}</Text>
+        {__DEV__ ? (
+          <Text style={styles.testHint}>
+            Local test: use the phone and code saved in Supabase Auth → Phone → Test OTP. Other numbers
+            need a real SMS once Twilio is connected.
+          </Text>
+        ) : null}
         <TextInput
           value={otp}
           onChangeText={setOtp}
@@ -93,6 +99,11 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 16,
     lineHeight: 24,
+    color: colors.textMuted,
+  },
+  testHint: {
+    fontSize: 13,
+    lineHeight: 20,
     color: colors.textMuted,
   },
   input: {

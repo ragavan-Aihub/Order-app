@@ -43,14 +43,14 @@ export default function ConfirmationScreen() {
   return (
     <View style={[styles.screen, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
       <Text style={styles.title}>Order received</Text>
-      <Text style={styles.message}>Your order has been placed. Payment is not collected in the app.</Text>
+      <Text style={styles.message}>Your order has been placed. Payment is not collected in this app.</Text>
       <Text style={styles.meta}>Order number</Text>
       <Text style={styles.orderNumber}>{displayNumber ? formatOrderNumber(displayNumber) : '—'}</Text>
       <Text style={styles.meta}>Status</Text>
       <Text style={styles.value}>{formatOrderStatus(status ?? 'new')}</Text>
       <View style={styles.actions}>
         <PrimaryButton label="View my orders" onPress={() => router.replace('/orders')} />
-        <PrimaryButton label="Back to products" onPress={() => router.replace('/products')} />
+        <PrimaryButton label="Back to Home" onPress={() => router.replace('/home')} />
       </View>
     </View>
   );

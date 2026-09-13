@@ -12,6 +12,10 @@ function isSupabaseConfigured() {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.next();
   }

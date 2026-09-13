@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CartProvider } from '@/cart/CartContext';
+import { loadCart } from '@/cart/cart-storage';
 import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { colors, spacing } from '@/config/theme';
 
@@ -56,6 +57,7 @@ const errorStyles = StyleSheet.create({
 export default function RootLayout() {
   useEffect(() => {
     loadDeliveryDraft().catch(() => undefined);
+    loadCart().catch(() => undefined);
   }, []);
   return (
     <SafeAreaProvider>
@@ -71,9 +73,9 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false, title: 'Login' }} />
-          <Stack.Screen name="products" options={{ title: 'Products' }} />
-          <Stack.Screen name="product/[id]" options={{ title: 'Product details' }} />
-          <Stack.Screen name="cart" options={{ title: 'Cart' }} />
+          <Stack.Screen name="(shop)" options={{ headerShown: false }} />
+          <Stack.Screen name="products" options={{ headerShown: false }} />
+          <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
           <Stack.Screen name="checkout" options={{ title: 'Delivery details' }} />
           <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />
           <Stack.Screen name="confirmation" options={{ title: 'Order confirmation' }} />

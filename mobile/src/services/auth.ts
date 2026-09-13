@@ -9,6 +9,8 @@ export async function requestOtp(mobile: string) {
     throw new Error('Supabase is not configured.');
   }
 
+  // Test phones (Supabase Auth → Phone → Test OTP) skip Twilio and stay for local/Expo Go.
+  // All other numbers use the live SMS provider once Twilio is connected.
   const { error } = await supabase.auth.signInWithOtp({
     phone: toE164India(mobile),
   });

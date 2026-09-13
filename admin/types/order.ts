@@ -4,13 +4,15 @@ export type Order = {
   id: string;
   order_number: number;
   business_id: string;
-  user_id: string;
+  user_id: string | null;
   customer_name: string;
   mobile: string;
   delivery_address: string;
   pincode: string;
   total_amount: number;
   status: OrderStatus;
+  channel: string;
+  external_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -30,10 +32,16 @@ export type OrderWithItems = Order & {
   order_items: OrderItem[];
 };
 
+export const ORDER_CHANNELS: { value: string; label: string }[] = [
+  { value: 'app', label: 'App' },
+  { value: 'api', label: 'Partner API' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+];
+
 export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'new', label: 'New' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'preparing', label: 'Preparing' },
+  { value: 'preparing', label: 'Processing' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ];

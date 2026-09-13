@@ -16,6 +16,7 @@ const mainLinks = [
 const settingsLinks = [
   { href: '/settings/business-info', label: 'Business Info' },
   { href: '/settings/branding', label: 'Branding' },
+  { href: '/settings/api', label: 'API' },
 ] as const;
 
 function navClass(active: boolean) {

@@ -1,12 +1,13 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { StatusBadge } from '@/components/StatusBadge';
 import { colors, spacing } from '@/config/theme';
 import { getMyOrderById } from '@/services/orders';
 import type { OrderWithItems } from '@/types/order';
-import { formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
+import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
 
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -14,18 +15,37 @@ export default function OrderDetailScreen() {
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const [order, setOrder] = useState<OrderWithItems | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+      if (isRefresh) {
+        setRefreshing(true);
+      }
+      try {
+        const row = await getMyOrderById(id);
+        setOrder(row);
+      } catch {
+        if (!isRefresh) {
+          setOrder(null);
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [id],
+  );
 
-    getMyOrderById(id)
-      .then(setOrder)
-      .catch(() => setOrder(null))
-      .finally(() => setLoading(false));
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      load(false);
+    }, [load]),
+  );
 
   if (loading) {
     return (
@@ -49,9 +69,12 @@ export default function OrderDetailScreen() {
         styles.content,
         { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
       ]}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+      }
     >
       <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
-      <Text style={styles.status}>{formatOrderStatus(order.status)}</Text>
+      <StatusBadge status={order.status} />
       <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
 
       <Text style={styles.heading}>Delivery</Text>

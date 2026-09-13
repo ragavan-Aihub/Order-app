@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { OrderStatusForm } from '@/components/OrderStatusForm';
 import { getOrderById } from '@/services/orders';
+import { ORDER_CHANNELS } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,11 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           ← All orders
         </Link>
         <h1 className="mt-2 text-3xl font-bold">Order {formatOrderNumber(order.order_number)}</h1>
-        <p className="text-stone-600">Placed {formatDateTime(order.created_at)}</p>
+        <p className="text-stone-600">
+          {ORDER_CHANNELS.find((item) => item.value === order.channel)?.label ?? order.channel}
+          {' · '}
+          Placed {formatDateTime(order.created_at)}
+        </p>
       </div>
 
       <div className="rounded-xl border border-stone-200 bg-white p-6">

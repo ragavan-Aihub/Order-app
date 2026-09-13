@@ -10,7 +10,7 @@ export default function WelcomeScreen() {
   useEffect(() => {
     getSignedInUser().then((user) => {
       if (user) {
-        router.replace('/products');
+        router.replace('/home');
       }
     });
   }, [router]);

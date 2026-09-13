@@ -1,10 +1,14 @@
 import Link from 'next/link';
 
 import { getAllOrders } from '@/services/orders';
-import { ORDER_STATUSES } from '@/types/order';
+import { ORDER_CHANNELS, ORDER_STATUSES } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
 
 export const dynamic = 'force-dynamic';
+
+function channelLabel(channel: string) {
+  return ORDER_CHANNELS.find((item) => item.value === channel)?.label ?? channel;
+}
 
 function statusLabel(status: string) {
   return ORDER_STATUSES.find((item) => item.value === status)?.label ?? status;
@@ -18,7 +22,7 @@ export default async function OrdersPage() {
       <h1 className="text-3xl font-bold">Orders</h1>
       {orders.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
-          No orders yet. New customer orders will appear here.
+          No orders yet. New orders from the app, partner API, or WhatsApp will appear here.
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
@@ -29,6 +33,7 @@ export default async function OrdersPage() {
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Total</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Channel</th>
                 <th className="px-4 py-3 font-medium">Placed</th>
                 <th className="px-4 py-3 font-medium"> </th>
               </tr>
@@ -43,6 +48,7 @@ export default async function OrdersPage() {
                   </td>
                   <td className="px-4 py-3">{formatPrice(order.total_amount)}</td>
                   <td className="px-4 py-3">{statusLabel(order.status)}</td>
+                  <td className="px-4 py-3">{channelLabel(order.channel ?? 'app')}</td>
                   <td className="px-4 py-3 text-stone-600">{formatDateTime(order.created_at)}</td>
                   <td className="px-4 py-3">
                     <Link href={`/orders/${order.id}`} className="font-medium text-emerald-800">

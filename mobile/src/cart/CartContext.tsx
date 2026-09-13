@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { loadCart, saveCart } from '@/cart/cart-storage';
 import type { Product } from '@/types/product';
 
 export type CartItem = {
@@ -22,6 +23,21 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    loadCart()
+      .then(setItems)
+      .catch(() => setItems([]))
+      .finally(() => setReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    saveCart(items).catch(() => undefined);
+  }, [items, ready]);
 
   const value = useMemo<CartContextValue>(() => {
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
