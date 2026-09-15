@@ -1,10 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/config/theme';
 import { getMyOrders } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
@@ -57,14 +58,12 @@ export default function MyOrdersScreen() {
 
   if (!signedIn) {
     return (
-      <View style={[styles.centered, styles.padded]}>
-        <Text style={styles.title}>My orders</Text>
-        <Text style={styles.message}>Sign in with your mobile number to see your orders.</Text>
-        <PrimaryButton
-          label="Sign in"
-          onPress={() => router.push({ pathname: '/login', params: { next: 'orders' } })}
-        />
-      </View>
+      <EmptyState
+        title="My orders"
+        message="Sign in with your mobile number to see your orders."
+        actionLabel="Sign in"
+        onAction={() => router.push({ pathname: '/login', params: { next: 'orders' } })}
+      />
     );
   }
 
@@ -80,7 +79,7 @@ export default function MyOrdersScreen() {
     >
       <Text style={styles.title}>My orders</Text>
       {orders.length === 0 ? (
-        <Text style={styles.message}>You have not placed an order yet.</Text>
+        <Text style={styles.message}>You have not placed an order yet. Shop from Home to get started.</Text>
       ) : (
         orders.map((order) => (
           <Pressable
@@ -94,7 +93,10 @@ export default function MyOrdersScreen() {
               <StatusBadge status={order.status} />
             </View>
             <Text style={styles.meta}>{formatDateTime(order.created_at)}</Text>
-            <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+            <View style={styles.cardBottom}>
+              <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
           </Pressable>
         ))
       )}
@@ -109,9 +111,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.background,
     gap: spacing.md,
-  },
-  padded: {
-    padding: spacing.md,
   },
   content: {
     padding: spacing.md,
@@ -141,6 +140,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  cardBottom: {
+    marginTop: spacing.xs,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   number: {
     fontSize: 22,

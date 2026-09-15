@@ -6,6 +6,8 @@ The business owner does not get access to Supabase, API keys, or this repository
 
 Run `supabase/migrations/20260903000000_init.sql` in the Supabase SQL editor.
 
+For the customer contact book (saved addresses in Admin → Customers), also run `supabase/migrations/20260915000000_customer_addresses.sql`.
+
 ## 2. Create the business
 
 ```sql
@@ -57,3 +59,7 @@ Use only the anon key in:
 
 - `admin/.env` → `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `mobile/.env` → `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`
+
+## Customer OTP
+
+Phone login is configured in the dashboard, not in the apps. See `supabase/documentation/phone-otp.md`. Keep the test number; add Twilio (not Twilio Verify) for live SMS.

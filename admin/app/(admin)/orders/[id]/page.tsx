@@ -39,6 +39,9 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           <h2 className="mb-3 text-lg font-semibold">Customer</h2>
           <p className="font-medium">{order.customer_name}</p>
           <p className="text-stone-600">{order.mobile}</p>
+          <Link href={`/customers/${order.user_id}`} className="mt-3 inline-block font-medium text-emerald-800">
+            View contact book
+          </Link>
         </div>
         <div className="rounded-xl border border-stone-200 bg-white p-6">
           <h2 className="mb-3 text-lg font-semibold">Delivery</h2>

@@ -21,7 +21,7 @@ export default function LoginScreen() {
   return (
     <WelcomeSignup
       allowSkip={!requireSignIn}
-      next={next ?? 'products'}
+      next={next ?? 'home'}
       initialMobile={initialMobile}
     />
   );

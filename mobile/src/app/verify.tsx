@@ -3,6 +3,7 @@ import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/config/theme';
-import { verifyOtp } from '@/services/auth';
+import { requestOtp, verifyOtp } from '@/services/auth';
+import { markEnteredShop } from '@/nav/shop-entry';
 
 export default function VerifyScreen() {
   const router = useRouter();
@@ -21,6 +23,22 @@ export default function VerifyScreen() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  async function onResend() {
+    if (!mobile || resending) {
+      return;
+    }
+    setError(null);
+    setResending(true);
+    try {
+      await requestOtp(mobile);
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : 'Could not resend OTP.');
+    } finally {
+      setResending(false);
+    }
+  }
 
   async function onVerify() {
     setError(null);
@@ -28,14 +46,15 @@ export default function VerifyScreen() {
       setError('Mobile number is missing.');
       return;
     }
-    if (otp.trim().length < 4) {
-      setError('Enter the OTP sent to your phone.');
+    if (otp.trim().length < 6) {
+      setError('Enter the 6-digit OTP sent to your phone.');
       return;
     }
 
     setVerifying(true);
     try {
       await verifyOtp(mobile, otp);
+      await markEnteredShop();
       const destination =
         next === 'checkout' ? '/checkout' : next === 'orders' ? '/orders' : next === 'account' ? '/account' : '/home';
       router.replace(destination);
@@ -76,6 +95,9 @@ export default function VerifyScreen() {
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} disabled={verifying} onPress={onVerify} />
+        <Pressable onPress={onResend} disabled={resending} accessibilityRole="button">
+          <Text style={styles.resend}>{resending ? 'Sending…' : 'Resend OTP'}</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -119,5 +141,10 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 16,
     color: colors.danger,
+  },
+  resend: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

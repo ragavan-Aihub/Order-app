@@ -1,10 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
+import { getSelectedAddress, loadAddressBook } from '@/cart/address-book';
 import { getDeliveryDraft, loadDeliveryDraft } from '@/cart/delivery-draft';
 import { ProductCard } from '@/components/ProductCard';
 import { colors, radius, spacing } from '@/config/theme';
@@ -28,12 +30,13 @@ export default function HomeScreen() {
     useCallback(() => {
       loadDeliveryDraft()
         .then(async () => {
+          await loadAddressBook();
+          const selected = getSelectedAddress();
           const draft = getDeliveryDraft();
           const last = await getLastDeliveryDetails();
-          const line = [draft?.address || last?.address, draft?.pincode || last?.pincode]
-            .filter(Boolean)
-            .join(', ');
-          setDeliverTo(line || 'Add a delivery address in Account');
+          const source = selected ?? draft ?? last;
+          const line = [source?.address, source?.pincode].filter(Boolean).join(', ');
+          setDeliverTo(line || 'Add a delivery address');
         })
         .catch(() => undefined);
     }, []),
@@ -100,20 +103,29 @@ export default function HomeScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.deliverLabel}>Deliver to</Text>
-      <Text style={styles.deliverValue} numberOfLines={1}>
-        {deliverTo}
-      </Text>
+      <Pressable style={styles.deliverRow} onPress={() => router.push('/checkout')} accessibilityRole="button">
+        <Ionicons name="location-outline" size={18} color={colors.primary} />
+        <View style={styles.deliverText}>
+          <Text style={styles.deliverLabel}>Deliver to</Text>
+          <Text style={styles.deliverValue} numberOfLines={1}>
+            {deliverTo}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
       <Text style={styles.shopName} numberOfLines={1}>
         {business?.business_name ?? 'Shop'}
       </Text>
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search products"
-        placeholderTextColor={colors.textMuted}
-        style={styles.search}
-      />
+      <View style={styles.searchWrap}>
+        <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search products"
+          placeholderTextColor={colors.textMuted}
+          style={styles.search}
+        />
+      </View>
       {business?.banner_url ? (
         <Image source={{ uri: business.banner_url }} style={styles.banner} contentFit="cover" />
       ) : null}
@@ -145,34 +157,54 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.background,
   },
+  deliverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+  },
+  deliverText: {
+    flex: 1,
+  },
   deliverLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   deliverValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
   },
   shopName: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
     marginTop: spacing.xs,
   },
-  search: {
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  search: {
+    flex: 1,
     paddingVertical: 12,
     fontSize: 16,
     color: colors.text,
-    marginTop: spacing.xs,
   },
   banner: {
     width: '100%',

@@ -4,30 +4,33 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
+import { EmptyState } from '@/components/EmptyState';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { colors, spacing } from '@/config/theme';
+import { colors, radius, spacing } from '@/config/theme';
 import { formatPrice } from '@/utils/format';
 
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, totalAmount, increase, decrease, remove } = useCart();
+  const { items, itemCount, totalAmount, increase, decrease, remove } = useCart();
   const bottomPad = Math.max(insets.bottom, spacing.sm) + spacing.md;
 
   if (items.length === 0) {
     return (
-      <View style={styles.emptyWrap}>
-        <Text style={styles.title}>Your cart is empty</Text>
-        <Text style={styles.message}>Add a product from Home to start an order.</Text>
-        <PrimaryButton label="Go to Home" onPress={() => router.replace('/home')} />
-      </View>
+      <EmptyState
+        title="Your cart is empty"
+        message="Browse the catalog and tap Add to build an order."
+        actionLabel="Start shopping"
+        onAction={() => router.replace('/home')}
+      />
     );
   }
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.count}>{itemCount} {itemCount === 1 ? 'item' : 'items'}</Text>
         {items.map((item) => {
           const subtotal = item.product.price * item.quantity;
           return (
@@ -38,13 +41,19 @@ export default function CartScreen() {
                 contentFit="cover"
               />
               <View style={styles.details}>
-                <Text style={styles.name}>{item.product.name}</Text>
-                <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
-                <QuantityStepper
-                  value={item.quantity}
-                  onDecrease={() => decrease(item.product.id)}
-                  onIncrease={() => increase(item.product.id)}
-                />
+                <Text style={styles.name} numberOfLines={2}>
+                  {item.product.name}
+                </Text>
+                <Text style={styles.unit}>{formatPrice(item.product.price)} each</Text>
+                <View style={styles.rowBottom}>
+                  <QuantityStepper
+                    compact
+                    value={item.quantity}
+                    onDecrease={() => decrease(item.product.id)}
+                    onIncrease={() => increase(item.product.id)}
+                  />
+                  <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
+                </View>
                 <Pressable onPress={() => remove(item.product.id)} accessibilityRole="button">
                   <Text style={styles.remove}>Remove</Text>
                 </Pressable>
@@ -54,7 +63,10 @@ export default function CartScreen() {
         })}
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: bottomPad }]}>
-        <Text style={styles.total}>Total {formatPrice(totalAmount)}</Text>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>To pay</Text>
+          <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
+        </View>
         <PrimaryButton label="Continue to delivery" onPress={() => router.push('/checkout')} />
       </View>
     </View>
@@ -71,11 +83,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingBottom: spacing.xl,
   },
+  count: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
   row: {
     flexDirection: 'row',
     gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
@@ -88,20 +107,29 @@ const styles = StyleSheet.create({
   },
   details: {
     flex: 1,
-    gap: spacing.xs,
+    gap: 6,
   },
   name: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
   },
+  unit: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  rowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   subtotal: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
   remove: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.danger,
   },
@@ -113,26 +141,19 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     gap: spacing.md,
   },
-  total: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  emptyWrap: {
-    flex: 1,
-    backgroundColor: colors.background,
-    padding: spacing.lg,
-    justifyContent: 'center',
-    gap: spacing.md,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  message: {
+  totalLabel: {
     fontSize: 16,
-    lineHeight: 24,
     color: colors.textMuted,
+    fontWeight: '600',
+  },
+  total: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text,
   },
 });

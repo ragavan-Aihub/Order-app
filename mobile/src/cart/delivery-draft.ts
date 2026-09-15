@@ -40,3 +40,9 @@ export async function saveDeliveryDraft(details: DeliveryDetails) {
   loadPromise = Promise.resolve(details);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(details));
 }
+
+export async function clearDeliveryDraft() {
+  draft = null;
+  loadPromise = Promise.resolve(null);
+  await AsyncStorage.removeItem(STORAGE_KEY);
+}

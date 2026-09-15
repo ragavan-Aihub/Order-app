@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CartProvider } from '@/cart/CartContext';
+import { loadAddressBook } from '@/cart/address-book';
 import { loadCart } from '@/cart/cart-storage';
 import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { colors, spacing } from '@/config/theme';
@@ -57,6 +58,7 @@ const errorStyles = StyleSheet.create({
 export default function RootLayout() {
   useEffect(() => {
     loadDeliveryDraft().catch(() => undefined);
+    loadAddressBook().catch(() => undefined);
     loadCart().catch(() => undefined);
   }, []);
   return (
@@ -76,7 +78,8 @@ export default function RootLayout() {
           <Stack.Screen name="(shop)" options={{ headerShown: false }} />
           <Stack.Screen name="products" options={{ headerShown: false }} />
           <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
-          <Stack.Screen name="checkout" options={{ title: 'Delivery details' }} />
+          <Stack.Screen name="checkout" options={{ title: 'Saved addresses' }} />
+          <Stack.Screen name="address/form" options={{ title: 'Address details' }} />
           <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />
           <Stack.Screen name="confirmation" options={{ title: 'Order confirmation' }} />
           <Stack.Screen name="orders" options={{ title: 'My orders' }} />

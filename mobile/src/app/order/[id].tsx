@@ -4,7 +4,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StatusBadge } from '@/components/StatusBadge';
-import { colors, spacing } from '@/config/theme';
+import { colors, radius, spacing } from '@/config/theme';
 import { getMyOrderById } from '@/services/orders';
 import type { OrderWithItems } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
@@ -73,26 +73,35 @@ export default function OrderDetailScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
       }
     >
-      <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
-      <StatusBadge status={order.status} />
-      <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
+      <View style={styles.hero}>
+        <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
+        <StatusBadge status={order.status} />
+        <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
+      </View>
 
-      <Text style={styles.heading}>Delivery</Text>
-      <Text style={styles.body}>{order.customer_name}</Text>
-      <Text style={styles.body}>{order.mobile}</Text>
-      <Text style={styles.body}>{order.delivery_address}</Text>
-      <Text style={styles.body}>Pincode {order.pincode}</Text>
+      <View style={styles.card}>
+        <Text style={styles.heading}>Delivery</Text>
+        <Text style={styles.body}>{order.customer_name}</Text>
+        <Text style={styles.body}>{order.mobile}</Text>
+        <Text style={styles.body}>{order.delivery_address}</Text>
+        <Text style={styles.body}>Pincode {order.pincode}</Text>
+      </View>
 
-      <Text style={styles.heading}>Items</Text>
-      {order.order_items.map((item) => (
-        <View key={item.id} style={styles.itemRow}>
-          <Text style={styles.body}>
-            {item.product_name} × {item.quantity}
-          </Text>
-          <Text style={styles.body}>{formatPrice(item.subtotal)}</Text>
+      <View style={styles.card}>
+        <Text style={styles.heading}>Items</Text>
+        {order.order_items.map((item) => (
+          <View key={item.id} style={styles.itemRow}>
+            <Text style={[styles.body, styles.itemName]}>
+              {item.product_name} × {item.quantity}
+            </Text>
+            <Text style={styles.body}>{formatPrice(item.subtotal)}</Text>
+          </View>
+        ))}
+        <View style={styles.itemRow}>
+          <Text style={styles.total}>Total</Text>
+          <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
         </View>
-      ))}
-      <Text style={styles.total}>Total {formatPrice(order.total_amount)}</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -111,29 +120,34 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.md,
     backgroundColor: colors.background,
+  },
+  hero: {
+    gap: spacing.sm,
   },
   number: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
-  },
-  status: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primary,
   },
   meta: {
     fontSize: 15,
     color: colors.textMuted,
-    marginBottom: spacing.md,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 6,
   },
   heading: {
-    marginTop: spacing.md,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: colors.text,
+    marginBottom: 4,
   },
   body: {
     fontSize: 16,
@@ -144,11 +158,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.md,
+    paddingVertical: 4,
+  },
+  itemName: {
+    flex: 1,
   },
   total: {
-    marginTop: spacing.md,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
   },
 });

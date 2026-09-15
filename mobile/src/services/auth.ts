@@ -3,20 +3,35 @@ import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { getSupabaseClient } from '@/services/supabase';
 import { toE164India } from '@/utils/validation';
 
+function mapOtpError(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes('rate') || lower.includes('after 60') || lower.includes('too many')) {
+    return 'Wait about a minute, then request a new OTP.';
+  }
+  if (
+    lower.includes('unsupported phone provider') ||
+    lower.includes('sms provider') ||
+    lower.includes('error sending confirmation sms')
+  ) {
+    return 'Live SMS is not connected yet. Use the test mobile number, or add Twilio in Supabase Auth.';
+  }
+  return message;
+}
+
 export async function requestOtp(mobile: string) {
   const supabase = getSupabaseClient();
   if (!supabase) {
     throw new Error('Supabase is not configured.');
   }
 
-  // Test phones (Supabase Auth → Phone → Test OTP) skip Twilio and stay for local/Expo Go.
-  // All other numbers use the live SMS provider once Twilio is connected.
+  // Test phones (Supabase Auth → Phone → Test OTP) skip the SMS provider.
+  // All other numbers use Twilio (or Textlocal) once it is connected in the dashboard.
   const { error } = await supabase.auth.signInWithOtp({
     phone: toE164India(mobile),
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mapOtpError(error.message));
   }
 }
 
@@ -33,7 +48,7 @@ export async function verifyOtp(mobile: string, token: string) {
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mapOtpError(error.message));
   }
 
   if (!env.businessId) {

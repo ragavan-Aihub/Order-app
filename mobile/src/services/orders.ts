@@ -98,7 +98,6 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
       delivery_address: details.address.trim(),
       pincode: details.pincode.trim(),
       total_amount: totalAmount,
-      total_amount: totalAmount,
       status: 'new',
     })
     .select()

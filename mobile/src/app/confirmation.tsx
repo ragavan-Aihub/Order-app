@@ -1,12 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors, spacing } from '@/config/theme';
+import { SecondaryButton } from '@/components/SecondaryButton';
+import { StatusBadge } from '@/components/StatusBadge';
+import { colors, radius, spacing } from '@/config/theme';
 import { getSupabaseClient } from '@/services/supabase';
-import { formatOrderNumber, formatOrderStatus } from '@/utils/format';
+import { formatOrderNumber } from '@/utils/format';
 
 export default function ConfirmationScreen() {
   const router = useRouter();
@@ -42,15 +45,19 @@ export default function ConfirmationScreen() {
 
   return (
     <View style={[styles.screen, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-      <Text style={styles.title}>Order received</Text>
-      <Text style={styles.message}>Your order has been placed. Payment is not collected in this app.</Text>
-      <Text style={styles.meta}>Order number</Text>
-      <Text style={styles.orderNumber}>{displayNumber ? formatOrderNumber(displayNumber) : '—'}</Text>
-      <Text style={styles.meta}>Status</Text>
-      <Text style={styles.value}>{formatOrderStatus(status ?? 'new')}</Text>
+      <View style={styles.iconWrap}>
+        <Ionicons name="checkmark-circle" size={64} color={colors.success} />
+      </View>
+      <Text style={styles.title}>Order placed</Text>
+      <Text style={styles.message}>We received your order. Pay when you receive it — this app does not collect payment.</Text>
+      <View style={styles.card}>
+        <Text style={styles.meta}>Order number</Text>
+        <Text style={styles.orderNumber}>{displayNumber ? formatOrderNumber(displayNumber) : '—'}</Text>
+        <StatusBadge status={status ?? 'new'} />
+      </View>
       <View style={styles.actions}>
         <PrimaryButton label="View my orders" onPress={() => router.replace('/orders')} />
-        <PrimaryButton label="Back to Home" onPress={() => router.replace('/home')} />
+        <SecondaryButton label="Continue shopping" onPress={() => router.replace('/home')} />
       </View>
     </View>
   );
@@ -61,38 +68,47 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     padding: spacing.md,
-    gap: spacing.sm,
     justifyContent: 'center',
+    gap: spacing.md,
+  },
+  iconWrap: {
+    alignItems: 'center',
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
+    textAlign: 'center',
   },
   message: {
     fontSize: 16,
     lineHeight: 24,
     color: colors.textMuted,
-    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+    alignItems: 'flex-start',
   },
   meta: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.textMuted,
+    textTransform: 'uppercase',
   },
   orderNumber: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     letterSpacing: 1,
     color: colors.text,
-    marginBottom: spacing.md,
-  },
-  value: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.md,
   },
   actions: {
     gap: spacing.sm,
+    marginTop: spacing.sm,
   },
 });

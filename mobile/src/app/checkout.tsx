@@ -1,100 +1,98 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  MAX_SAVED_ADDRESSES,
+  deleteAddress,
+  formatAddressForOrder,
+  getSelectedAddress,
+  hydrateAddressBook,
+  loadAddressBook,
+  selectAddress,
+  type SavedAddress,
+} from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
-import { loadDeliveryDraft, saveDeliveryDraft } from '@/cart/delivery-draft';
+import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors, spacing } from '@/config/theme';
-import { getCustomerProfile, getLastDeliveryDetails, placeOrder } from '@/services/orders';
+import { colors, radius, spacing } from '@/config/theme';
+import { getLastDeliveryDetails, placeOrder } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import { formatPrice } from '@/utils/format';
-import { isValidIndianMobile, isValidPincode } from '@/utils/validation';
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { items, totalAmount, clearCart } = useCart();
-  const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [address, setAddress] = useState('');
-  const [pincode, setPincode] = useState('');
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const selected = useMemo(
+    () => addresses.find((item) => item.id === selectedId) ?? addresses[0] ?? null,
+    [addresses, selectedId],
+  );
 
-    async function loadSavedDelivery() {
-      const [draft, profile, lastOrder] = await Promise.all([
-        loadDeliveryDraft(),
-        getCustomerProfile(),
-        getLastDeliveryDetails(),
-      ]);
-      if (cancelled) {
-        return;
-      }
-
-      setName((current) => current || draft?.name || lastOrder?.name || profile?.name || '');
-      setMobile((current) => current || draft?.mobile || lastOrder?.mobile || profile?.mobile || '');
-      setAddress((current) => current || draft?.address || lastOrder?.address || '');
-      setPincode((current) => current || draft?.pincode || lastOrder?.pincode || '');
-    }
-
-    loadSavedDelivery();
-    return () => {
-      cancelled = true;
-    };
+  const reload = useCallback(async () => {
+    const [draft, lastOrder] = await Promise.all([loadDeliveryDraft(), getLastDeliveryDetails()]);
+    await hydrateAddressBook([draft, lastOrder]);
+    const list = await loadAddressBook();
+    setAddresses(list);
+    setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      reload().catch(() => undefined);
+    }, [reload]),
+  );
+
+  async function onDelete(id: string) {
+    Alert.alert('Delete address', 'Remove this address from the list?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteAddress(id);
+          const list = await loadAddressBook();
+          setAddresses(list);
+          setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
+        },
+      },
+    ]);
+  }
+
+  async function onSelect(id: string) {
+    setError(null);
+    setSelectedId(id);
+    await selectAddress(id);
+  }
 
   async function onPlaceOrder() {
     setError(null);
-
     if (items.length === 0) {
       setError('Your cart is empty.');
       return;
     }
-    if (!name.trim()) {
-      setError('Enter the customer name.');
+    if (!selected) {
+      setError('Add a delivery address.');
       return;
     }
-    if (!isValidIndianMobile(mobile)) {
-      setError('Enter a valid 10-digit mobile number.');
-      return;
-    }
-    if (!address.trim()) {
-      setError('Enter the delivery address.');
-      return;
-    }
-    if (!isValidPincode(pincode)) {
-      setError('Enter a valid 6-digit pincode.');
-      return;
-    }
-
     const details = {
-      name: name.trim(),
-      mobile: mobile.trim(),
-      address: address.trim(),
-      pincode: pincode.trim(),
+      name: selected.name,
+      mobile: selected.mobile,
+      address: formatAddressForOrder(selected),
+      pincode: selected.pincode,
     };
-    await saveDeliveryDraft(details);
-
     const user = await getSignedInUser();
-
     if (!user) {
       router.push({ pathname: '/login', params: { next: 'checkout' } });
       return;
     }
-
     setSubmitting(true);
     try {
       const order = await placeOrder(details, items);
@@ -120,77 +118,85 @@ export default function CheckoutScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, spacing.md) + 88 },
+          { paddingBottom: Math.max(insets.bottom, spacing.md) + 108 },
         ]}
-        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Delivery details</Text>
-        <Text style={styles.total}>Order total {formatPrice(totalAmount)}</Text>
-        <Field label="Customer name">
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Full name"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-          />
-        </Field>
-        <Field label="Mobile number">
-          <TextInput
-            value={mobile}
-            onChangeText={setMobile}
-            placeholder="10-digit mobile number"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="phone-pad"
-            style={styles.input}
-          />
-        </Field>
-        <Field label="Delivery address">
-          <TextInput
-            value={address}
-            onChangeText={setAddress}
-            placeholder="House / street / area"
-            placeholderTextColor={colors.textMuted}
-            multiline
-            style={[styles.input, styles.multiline]}
-          />
-        </Field>
-        <Field label="Pincode">
-          <TextInput
-            value={pincode}
-            onChangeText={setPincode}
-            placeholder="6-digit pincode"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            maxLength={6}
-            style={styles.input}
-          />
-        </Field>
+        {addresses.length < MAX_SAVED_ADDRESSES ? (
+          <Pressable style={styles.addNew} onPress={() => router.push('/address/form')} accessibilityRole="button">
+            <Text style={styles.addNewLabel}>+ Add new</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+          </Pressable>
+        ) : (
+          <Text style={styles.limit}>Maximum 3 addresses. Delete one to add another.</Text>
+        )}
+        <Text style={styles.kicker}>Saved addresses</Text>
+        {addresses.length === 0 ? (
+          <Text style={styles.muted}>No saved address yet. Add one to continue.</Text>
+        ) : (
+          addresses.map((item) => {
+            const isSelected = item.id === selected?.id;
+            const line = [item.house, item.locality || item.address].filter(Boolean).join(', ');
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => onSelect(item.id)}
+                style={[styles.card, isSelected && styles.cardOn]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+              >
+                <View style={styles.iconWrap}>
+                  <Ionicons
+                    name={item.label === 'work' ? 'briefcase-outline' : 'home-outline'}
+                    size={22}
+                    color={colors.primaryDark}
+                  />
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardName}>{item.name}</Text>
+                  <Text style={styles.cardLine} numberOfLines={2}>
+                    {line}
+                  </Text>
+                  <View style={styles.phoneRow}>
+                    <Ionicons name="call-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.phone}>{item.mobile}</Text>
+                  </View>
+                </View>
+                <View style={styles.actions}>
+                  <Pressable
+                    onPress={() => router.push({ pathname: '/address/form', params: { id: item.id } })}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit address"
+                  >
+                    <Ionicons name="create-outline" size={20} color={colors.textMuted} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => onDelete(item.id)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete address"
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  </Pressable>
+                </View>
+              </Pressable>
+            );
+          })
+        )}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
+        <Text style={styles.total}>To pay {formatPrice(totalAmount)}</Text>
         <PrimaryButton
           label={submitting ? 'Placing order…' : 'Place order'}
-          disabled={submitting}
+          disabled={submitting || !selected}
           onPress={onPlaceOrder}
         />
       </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      {children}
     </View>
   );
 }
@@ -204,37 +210,84 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
+  addNew: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    minHeight: 48,
   },
-  total: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  field: {
-    gap: spacing.xs,
-  },
-  label: {
+  addNewLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
-  input: {
+  kicker: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  muted: {
+    fontSize: 15,
+    color: colors.textMuted,
+  },
+  limit: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  card: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  cardOn: {
+    borderColor: colors.primary,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    fontSize: 16,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardBody: {
+    flex: 1,
+    gap: 4,
+  },
+  cardName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
+    textTransform: 'uppercase',
+  },
+  cardLine: {
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.text,
   },
-  multiline: {
-    minHeight: 96,
-    textAlignVertical: 'top',
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  phone: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  actions: {
+    gap: spacing.md,
+    paddingTop: 2,
   },
   error: {
     fontSize: 16,
@@ -246,5 +299,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  total: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
 });

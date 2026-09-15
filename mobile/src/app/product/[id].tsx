@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,52 +50,63 @@ export default function ProductDetailsScreen() {
     );
   }
 
+  const lineTotal = product.price * quantity;
+
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
-      ]}
-    >
-      <Image
-        source={product.image_url ? { uri: product.image_url } : undefined}
-        style={styles.image}
-        contentFit="cover"
-      />
-      <Text style={styles.name}>{product.name}</Text>
-      <Text style={styles.description}>{product.description}</Text>
-      <Text style={styles.price}>{formatPrice(product.price)}</Text>
-      <QuantityStepper
-        value={quantity}
-        onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
-        onIncrease={() => setQuantity((value) => value + 1)}
-      />
-      <PrimaryButton
-        label="Add to Cart"
-        onPress={() => {
-          addItem(product, quantity);
-          router.push('/cart');
-        }}
-      />
-    </ScrollView>
+    <View style={styles.screen}>
+      <Stack.Screen options={{ title: product.name }} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Image
+          source={product.image_url ? { uri: product.image_url } : undefined}
+          style={styles.image}
+          contentFit="cover"
+        />
+        <View style={styles.body}>
+          <Text style={styles.name}>{product.name}</Text>
+          {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
+          <Text style={styles.price}>{formatPrice(product.price)}</Text>
+        </View>
+      </ScrollView>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
+        <QuantityStepper
+          value={quantity}
+          onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
+          onIncrease={() => setQuantity((value) => value + 1)}
+        />
+        <View style={styles.footerAction}>
+          <PrimaryButton
+            label={`Add · ${formatPrice(lineTotal)}`}
+            onPress={() => {
+              addItem(product, quantity);
+              router.push('/cart');
+            }}
+          />
+        </View>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   content: {
-    padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   image: {
     width: '100%',
-    height: 240,
-    borderRadius: 16,
+    aspectRatio: 1,
     backgroundColor: colors.border,
   },
+  body: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
   name: {
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: colors.text,
   },
   description: {
@@ -105,8 +116,21 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
+    fontWeight: '800',
+    color: colors.primaryDark,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  footerAction: {
+    flex: 1,
   },
   centered: {
     flex: 1,

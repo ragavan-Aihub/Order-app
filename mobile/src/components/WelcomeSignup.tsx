@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/config/theme';
+import { markEnteredShop } from '@/nav/shop-entry';
 import { requestOtp } from '@/services/auth';
 import { getBusiness } from '@/services/business';
 import { isValidIndianMobile } from '@/utils/validation';
@@ -28,7 +29,7 @@ type WelcomeSignupProps = {
   initialMobile?: string;
 };
 
-export function WelcomeSignup({ allowSkip, next = 'products', initialMobile = '' }: WelcomeSignupProps) {
+export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: WelcomeSignupProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [mobile, setMobile] = useState(initialMobile.replace(/\D/g, '').slice(-10));
@@ -100,7 +101,10 @@ export function WelcomeSignup({ allowSkip, next = 'products', initialMobile = ''
           <View />
           {allowSkip ? (
             <Pressable
-              onPress={() => router.replace('/home')}
+              onPress={async () => {
+                await markEnteredShop();
+                router.replace('/home');
+              }}
               style={styles.skip}
               accessibilityRole="button"
             >
@@ -177,15 +181,13 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   skip: {
-    backgroundColor: '#E8E4DC',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
   },
   skipLabel: {
-    color: colors.primary,
+    color: colors.textMuted,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   hero: {
     flex: 1,
@@ -251,7 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   continueDisabled: {
-    backgroundColor: '#D6D3D1',
+    backgroundColor: colors.border,
   },
   continueLabel: {
     fontSize: 18,
@@ -259,7 +261,7 @@ const styles = StyleSheet.create({
     color: colors.primaryText,
   },
   continueLabelDisabled: {
-    color: '#78716C',
+    color: colors.textMuted,
   },
   error: {
     fontSize: 15,

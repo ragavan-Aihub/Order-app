@@ -11,6 +11,7 @@ const mainLinks = [
   { href: '/products', label: 'Products' },
   { href: '/products/new', label: 'Add product' },
   { href: '/orders', label: 'Orders' },
+  { href: '/customers', label: 'Customers' },
 ] as const;
 
 const settingsLinks = [
@@ -36,7 +37,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <p className="mb-8 text-lg font-semibold">Admin</p>
           <nav className="flex flex-col gap-2">
             {mainLinks.map((link) => {
-              const isActive = pathname === link.href;
+              const isActive =
+                link.href === '/'
+                  ? pathname === '/'
+                  : pathname === link.href || pathname.startsWith(`${link.href}/`);
               return (
                 <Link key={link.href} href={link.href} className={navClass(isActive)}>
                   {link.label}
