@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PaymentBadge } from '@/components/PaymentBadge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -14,11 +15,12 @@ import { formatOrderNumber } from '@/utils/format';
 export default function ConfirmationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id, orderNumber, number, status } = useLocalSearchParams<{
+  const { id, orderNumber, number, status, payment } = useLocalSearchParams<{
     id?: string;
     orderNumber?: string;
     number?: string;
     status?: string;
+    payment?: string;
   }>();
   const passedNumber = [orderNumber, number].flat().find((value) => value && value !== 'undefined');
   const [displayNumber, setDisplayNumber] = useState(passedNumber ?? '');
@@ -54,6 +56,10 @@ export default function ConfirmationScreen() {
         <Text style={styles.meta}>Order number</Text>
         <Text style={styles.orderNumber}>{displayNumber ? formatOrderNumber(displayNumber) : '—'}</Text>
         <StatusBadge status={status ?? 'new'} />
+        <View style={styles.payRow}>
+          <Text style={styles.meta}>Payment</Text>
+          <PaymentBadge method={Array.isArray(payment) ? payment[0] : payment ?? 'pending'} />
+        </View>
       </View>
       <View style={styles.actions}>
         <PrimaryButton label="View my orders" onPress={() => router.replace('/orders')} />
@@ -106,6 +112,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
     color: colors.text,
+  },
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   actions: {
     gap: spacing.sm,

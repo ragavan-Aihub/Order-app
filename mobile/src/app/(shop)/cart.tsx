@@ -61,6 +61,10 @@ export default function CartScreen() {
             </View>
           );
         })}
+        <Pressable style={styles.addMore} onPress={() => router.push('/home')} accessibilityRole="button">
+          <Text style={styles.addMoreLabel}>+ Add more</Text>
+          <Text style={styles.addMoreHint}>Keep shopping</Text>
+        </Pressable>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: bottomPad }]}>
         <View style={styles.totalRow}>
@@ -132,6 +136,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.danger,
+  },
+  addMore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  addMoreLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  addMoreHint: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
   footer: {
     paddingHorizontal: spacing.md,

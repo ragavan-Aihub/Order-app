@@ -142,7 +142,7 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
 }
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, created_at, updated_at';
 
 export async function getMyOrders(): Promise<Order[]> {
   const supabase = getSupabaseClient();

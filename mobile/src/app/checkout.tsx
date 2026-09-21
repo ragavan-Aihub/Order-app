@@ -103,6 +103,7 @@ export default function CheckoutScreen() {
           id: order.id,
           orderNumber: order.order_number != null ? String(order.order_number) : '',
           status: order.status,
+          payment: order.payment_method ?? 'pending',
         },
       });
     } catch (placeError) {

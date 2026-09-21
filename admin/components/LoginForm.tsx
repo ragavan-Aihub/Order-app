@@ -32,31 +32,35 @@ export function LoginForm() {
       return;
     }
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (signInError || !data.user) {
-      setError(signInError?.message ?? 'Could not sign in. Check the email and password.');
+      if (signInError || !data.user) {
+        setError(signInError?.message ?? 'Could not sign in. Check the email and password.');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, business_id')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      if (!profile || profile.role !== 'admin' || !profile.business_id) {
+        await supabase.auth.signOut();
+        setError('This account is not authorized for the admin panel.');
+        return;
+      }
+
+      window.location.assign('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign in.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, business_id')
-      .eq('id', data.user.id)
-      .maybeSingle();
-
-    if (!profile || profile.role !== 'admin' || !profile.business_id) {
-      await supabase.auth.signOut();
-      setError('This account is not authorized for the admin panel.');
-      setSubmitting(false);
-      return;
-    }
-
-    window.location.assign('/');
   }
 
   return (

@@ -1,5 +1,9 @@
 export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled';
 
+export type PaymentMethod = 'pending' | 'cash' | 'upi';
+
+export type RefundStatus = 'pending' | 'refunded';
+
 export type Order = {
   id: string;
   order_number: number;
@@ -11,6 +15,9 @@ export type Order = {
   pincode: string;
   total_amount: number;
   status: OrderStatus;
+  payment_method: PaymentMethod;
+  cancel_reason: string | null;
+  refund_status: RefundStatus | null;
   created_at: string;
   updated_at: string;
 };
@@ -29,4 +36,3 @@ export type OrderItem = {
 export type OrderWithItems = Order & {
   order_items: OrderItem[];
 };
-

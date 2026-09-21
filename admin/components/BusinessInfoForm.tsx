@@ -93,7 +93,7 @@ export function BusinessInfoForm({ business }: { business: Business }) {
   const fieldClass = 'w-full rounded-lg border border-stone-300 px-3 py-2';
 
   return (
-    <form onSubmit={onSubmit} className="max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-6">
+    <form onSubmit={onSubmit} className="max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
       <h2 className="text-xl font-semibold">Business info</h2>
       <label className="block">
         <span className="mb-1 block font-medium">
@@ -164,7 +164,7 @@ export function BusinessInfoForm({ business }: { business: Business }) {
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60"
+        className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
         {submitting ? 'Saving…' : 'Save business info'}
       </button>

@@ -38,6 +38,8 @@ export type CustomerDetail = {
     order_number: number | string | null;
     total_amount: number;
     status: string;
+    payment_method?: string;
+    refund_status?: string | null;
     delivery_address: string;
     pincode: string;
     created_at: string;
@@ -144,7 +146,9 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
       .order('is_default', { ascending: false }),
     supabase
       .from('orders')
-      .select('id, order_number, total_amount, status, delivery_address, pincode, created_at')
+      .select(
+        'id, order_number, total_amount, status, payment_method, refund_status, delivery_address, pincode, created_at',
+      )
       .eq('user_id', id)
       .eq('business_id', businessId)
       .order('created_at', { ascending: false })

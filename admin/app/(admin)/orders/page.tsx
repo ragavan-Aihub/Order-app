@@ -1,66 +1,20 @@
-import Link from 'next/link';
-
+import { OrdersBoard } from '@/components/OrdersBoard';
 import { getAllOrders } from '@/services/orders';
-import { ORDER_CHANNELS, ORDER_STATUSES } from '@/types/order';
-import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
 
 export const dynamic = 'force-dynamic';
-
-function channelLabel(channel: string) {
-  return ORDER_CHANNELS.find((item) => item.value === channel)?.label ?? channel;
-}
-
-function statusLabel(status: string) {
-  return ORDER_STATUSES.find((item) => item.value === status)?.label ?? status;
-}
 
 export default async function OrdersPage() {
   const orders = await getAllOrders();
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Orders</h1>
-      {orders.length === 0 ? (
-        <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
-          No orders yet. New orders from the app, partner API, or WhatsApp will appear here.
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold md:text-3xl">Orders ({orders.length})</h1>
+          <p className="mt-1 text-stone-600">Manage and track all your orders</p>
         </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-          <table className="w-full text-left text-base">
-            <thead className="bg-stone-50 text-stone-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Order</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Channel</th>
-                <th className="px-4 py-3 font-medium">Placed</th>
-                <th className="px-4 py-3 font-medium"> </th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order.id} className="border-t border-stone-200">
-                  <td className="px-4 py-3 font-semibold">{formatOrderNumber(order.order_number)}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{order.customer_name}</p>
-                    <p className="text-sm text-stone-500">{order.mobile}</p>
-                  </td>
-                  <td className="px-4 py-3">{formatPrice(order.total_amount)}</td>
-                  <td className="px-4 py-3">{statusLabel(order.status)}</td>
-                  <td className="px-4 py-3">{channelLabel(order.channel ?? 'app')}</td>
-                  <td className="px-4 py-3 text-stone-600">{formatDateTime(order.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <Link href={`/orders/${order.id}`} className="font-medium text-emerald-800">
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
+      <OrdersBoard orders={orders} />
     </div>
   );
 }

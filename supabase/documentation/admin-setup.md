@@ -8,6 +8,14 @@ Run `supabase/migrations/20260903000000_init.sql` in the Supabase SQL editor.
 
 For the customer contact book (saved addresses in Admin → Customers), also run `supabase/migrations/20260915000000_customer_addresses.sql`.
 
+For payment tracking (Pending / Cash / UPI, separate from order status), run `supabase/migrations/20260921000000_order_payment_method.sql`.
+
+For order status workflow (cancel reason), run `supabase/migrations/20260921010000_order_status_workflow.sql`.
+
+For the order timeline on the admin order page, also run `supabase/migrations/20260921020000_order_status_events.sql`.
+
+For refund tracking on paid cancelled orders, run `supabase/migrations/20260921030000_order_refund_status.sql`.
+
 ## 2. Create the business
 
 ```sql

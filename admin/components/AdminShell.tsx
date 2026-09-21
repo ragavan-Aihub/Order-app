@@ -2,15 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/LogoutButton';
 
 const mainLinks = [
   { href: '/', label: 'Dashboard' },
-  { href: '/products', label: 'Products' },
-  { href: '/products/new', label: 'Add product' },
   { href: '/orders', label: 'Orders' },
+  { href: '/products', label: 'Products' },
   { href: '/customers', label: 'Customers' },
 ] as const;
 
@@ -21,49 +20,130 @@ const settingsLinks = [
 ] as const;
 
 function navClass(active: boolean) {
-  return `rounded-lg px-3 py-2 text-base ${
+  return `flex min-h-11 items-center rounded-lg px-3 py-2 text-base ${
     active ? 'bg-emerald-800 text-white' : 'text-stone-700 hover:bg-stone-100'
   }`;
 }
 
-export function AdminShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+function BrandMark() {
+  return (
+    <Link href="/" className="flex items-center gap-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/farm2flavours-label.jpg"
+        alt=""
+        className="h-10 w-10 rounded-full border-2 border-[#C8A44A] object-cover"
+      />
+      <span>
+        <span className="block text-base font-semibold text-emerald-900">Farm2Flavours</span>
+        <span className="block text-xs text-stone-500">Admin</span>
+      </span>
+    </Link>
+  );
+}
+
+function NavLinks({ pathname }: { pathname: string }) {
   const settingsActive = pathname.startsWith('/settings');
 
   return (
-    <div className="min-h-screen bg-[#F7F4EF] text-stone-900">
-      <div className="mx-auto flex min-h-screen max-w-6xl">
-        <aside className="flex w-56 shrink-0 flex-col border-r border-stone-200 bg-white p-6">
-          <p className="mb-8 text-lg font-semibold">Admin</p>
-          <nav className="flex flex-col gap-2">
-            {mainLinks.map((link) => {
-              const isActive =
-                link.href === '/'
-                  ? pathname === '/'
-                  : pathname === link.href || pathname.startsWith(`${link.href}/`);
-              return (
-                <Link key={link.href} href={link.href} className={navClass(isActive)}>
-                  {link.label}
-                </Link>
-              );
-            })}
-            <p className={`mt-2 px-3 text-sm font-semibold ${settingsActive ? 'text-emerald-800' : 'text-stone-500'}`}>
-              Settings
-            </p>
-            {settingsLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link key={link.href} href={link.href} className={`ml-3 ${navClass(isActive)}`}>
-                  {link.label}
-                </Link>
-              );
-            })}
+    <>
+      {mainLinks.map((link) => {
+        const isActive =
+          link.href === '/'
+            ? pathname === '/'
+            : pathname === link.href || pathname.startsWith(`${link.href}/`);
+        return (
+          <Link key={link.href} href={link.href} className={navClass(isActive)}>
+            {link.label}
+          </Link>
+        );
+      })}
+      <p className={`mt-4 px-3 text-sm font-semibold ${settingsActive ? 'text-emerald-800' : 'text-stone-500'}`}>
+        Settings
+      </p>
+      {settingsLinks.map((link) => {
+        const isActive = pathname === link.href;
+        return (
+          <Link key={link.href} href={link.href} className={navClass(isActive)}>
+            {link.label}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+export function AdminShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="min-h-dvh bg-[#F7F4EF] text-stone-900">
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
+        <BrandMark />
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="admin-nav"
+          onClick={() => setMenuOpen((open) => !open)}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-200 px-3 text-base font-medium"
+        >
+          {menuOpen ? 'Close' : 'Menu'}
+        </button>
+      </header>
+
+      {menuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-stone-900/40 md:hidden"
+          aria-label="Close menu"
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+
+      <div className="mx-auto flex min-h-dvh max-w-[90rem]">
+        <aside
+          id="admin-nav"
+          className={`fixed inset-y-0 left-0 z-50 flex w-[min(18rem,calc(100vw-2.5rem))] flex-col border-r border-stone-200 bg-white p-5 pt-[max(1.25rem,env(safe-area-inset-top))] transition-transform md:static md:z-0 md:flex md:w-60 md:translate-x-0 md:shrink-0 ${
+            menuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          }`}
+        >
+          <div className="mb-8 hidden md:block">
+            <BrandMark />
+          </div>
+          <nav className="flex flex-col gap-1">
+            <NavLinks pathname={pathname} />
           </nav>
-          <div className="mt-auto pt-8">
+          <div className="mt-auto space-y-2 border-t border-stone-100 pt-6">
+            <p className="px-3 text-sm font-medium text-stone-700">Admin</p>
             <LogoutButton />
           </div>
         </aside>
-        <main className="flex-1 p-8">{children}</main>
+        <main className="min-w-0 flex-1 p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:p-8">
+          {children}
+        </main>
       </div>
     </div>
   );

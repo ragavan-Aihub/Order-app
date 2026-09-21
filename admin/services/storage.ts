@@ -39,6 +39,35 @@ export async function uploadProductImage(
   return data.publicUrl;
 }
 
+export async function uploadProductImageBytes(
+  supabase: SupabaseClient,
+  businessId: string,
+  bytes: Buffer,
+  contentType: string,
+  extension: string,
+): Promise<string> {
+  if (!ALLOWED_TYPES.has(contentType)) {
+    throw new Error('Use a JPG, PNG, WebP, or GIF image.');
+  }
+  if (bytes.length > MAX_IMAGE_BYTES) {
+    throw new Error('Image must be 5 MB or smaller.');
+  }
+
+  const path = `${businessId}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from(PRODUCT_IMAGES_BUCKET).upload(path, bytes, {
+    contentType,
+    cacheControl: '3600',
+    upsert: false,
+  });
+
+  if (error) {
+    throw new Error('Could not upload the image.');
+  }
+
+  const { data } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 async function uploadBusinessAsset(
   supabase: SupabaseClient,
   businessId: string,

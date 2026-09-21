@@ -33,11 +33,17 @@ export function formatDateTime(value: string): string {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  new: 'New',
+  new: 'Placed',
   confirmed: 'Confirmed',
-  preparing: 'Processing',
+  preparing: 'Preparing',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
+};
+
+const PAYMENT_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  cash: 'Paid · Cash',
+  upi: 'Paid · UPI',
 };
 
 export function formatOrderStatus(status: string): string {
@@ -57,4 +63,70 @@ export function orderStatusTone(status: string): { bg: string; fg: string } {
     default:
       return { bg: '#CCFBF1', fg: '#0F766E' };
   }
+}
+
+export function formatPaymentMethod(method: string): string {
+  return PAYMENT_LABELS[method] ?? method;
+}
+
+export function formatRefundStatus(status: string | null | undefined): string | null {
+  if (status === 'pending') {
+    return 'Refund pending';
+  }
+  if (status === 'refunded') {
+    return 'Refunded';
+  }
+  return null;
+}
+
+export function displayPaymentStatus(order: {
+  status?: string;
+  payment_method?: string | null;
+  refund_status?: string | null;
+}): 'pending' | 'paid' | 'not_applicable' | 'refund_pending' | 'refunded' {
+  const collected = order.payment_method === 'cash' || order.payment_method === 'upi';
+  if (order.status === 'cancelled') {
+    if (!collected) {
+      return 'not_applicable';
+    }
+    return order.refund_status === 'refunded' ? 'refunded' : 'refund_pending';
+  }
+  return collected ? 'paid' : 'pending';
+}
+
+export function formatDisplayPayment(order: {
+  status?: string;
+  payment_method?: string | null;
+  refund_status?: string | null;
+}): string {
+  switch (displayPaymentStatus(order)) {
+    case 'paid':
+      return order.payment_method === 'upi' ? 'Paid · UPI' : 'Paid · Cash';
+    case 'not_applicable':
+      return 'Not applicable';
+    case 'refund_pending':
+      return 'Refund pending';
+    case 'refunded':
+      return 'Refunded';
+    default:
+      return 'Pending';
+  }
+}
+
+export function displayPaymentTone(status: ReturnType<typeof displayPaymentStatus>): { bg: string; fg: string } {
+  switch (status) {
+    case 'paid':
+      return { bg: '#DCFCE7', fg: '#15803D' };
+    case 'refunded':
+    case 'refund_pending':
+      return { bg: '#EDE9FE', fg: '#6D28D9' };
+    case 'not_applicable':
+      return { bg: '#F5F5F4', fg: '#57534E' };
+    default:
+      return { bg: '#FFEDD5', fg: '#C2410C' };
+  }
+}
+
+export function paymentMethodTone(method: string): { bg: string; fg: string } {
+  return displayPaymentTone(method === 'cash' || method === 'upi' ? 'paid' : 'pending');
 }

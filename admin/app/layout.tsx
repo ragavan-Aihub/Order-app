@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Geist } from 'next/font/google';
 
@@ -12,6 +12,14 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: 'Farm 2 Flavours — Admin',
   description: 'Business admin sign in',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: '#1B4D2E',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

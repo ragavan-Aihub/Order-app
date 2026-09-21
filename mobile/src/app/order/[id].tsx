@@ -3,6 +3,8 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { OrderProgress } from '@/components/OrderProgress';
+import { PaymentBadge } from '@/components/PaymentBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { colors, radius, spacing } from '@/config/theme';
 import { getMyOrderById } from '@/services/orders';
@@ -76,8 +78,35 @@ export default function OrderDetailScreen() {
       <View style={styles.hero}>
         <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
         <StatusBadge status={order.status} />
+        <View style={styles.payRow}>
+          <Text style={styles.meta}>Payment</Text>
+          <PaymentBadge
+            method={order.payment_method ?? 'pending'}
+            orderStatus={order.status}
+            refundStatus={order.refund_status}
+          />
+        </View>
         <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
       </View>
+
+      {order.status === 'cancelled' ? (
+        <View style={styles.card}>
+          <Text style={styles.heading}>Cancelled</Text>
+          <Text style={styles.body}>{order.cancel_reason || 'This order was cancelled.'}</Text>
+          <View style={styles.payRow}>
+            <PaymentBadge
+              method={order.payment_method ?? 'pending'}
+              orderStatus={order.status}
+              refundStatus={order.refund_status}
+            />
+          </View>
+        </View>
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.heading}>Progress</Text>
+          <OrderProgress status={order.status} />
+        </View>
+      )}
 
       <View style={styles.card}>
         <Text style={styles.heading}>Delivery</Text>
@@ -134,6 +163,11 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 15,
     color: colors.textMuted,
+  },
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   card: {
     backgroundColor: colors.surface,

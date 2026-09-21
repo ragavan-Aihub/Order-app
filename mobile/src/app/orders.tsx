@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/EmptyState';
+import { PaymentBadge } from '@/components/PaymentBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { colors, spacing } from '@/config/theme';
 import { getMyOrders } from '@/services/orders';
@@ -92,6 +93,14 @@ export default function MyOrdersScreen() {
               <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
               <StatusBadge status={order.status} />
             </View>
+            <View style={styles.payRow}>
+              <Text style={styles.meta}>Payment</Text>
+              <PaymentBadge
+                method={order.payment_method ?? 'pending'}
+                orderStatus={order.status}
+                refundStatus={order.refund_status}
+              />
+            </View>
             <Text style={styles.meta}>{formatDateTime(order.created_at)}</Text>
             <View style={styles.cardBottom}>
               <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
@@ -138,6 +147,11 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  payRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },

@@ -139,7 +139,7 @@ export function ProductForm({ product }: ProductFormProps) {
             Browse
           </span>
           <p className="text-sm text-stone-500">
-            {imageFile ? imageFile.name : 'Choose a photo from your computer. JPG, PNG, WebP, or GIF. Max 5 MB.'}
+            {imageFile ? imageFile.name : 'Choose a photo. JPG, PNG, WebP, or GIF. Max 5 MB.'}
           </p>
         </button>
       </div>
@@ -199,7 +199,7 @@ export function ProductForm({ product }: ProductFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60"
+        className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
         {submitting ? 'Saving…' : 'Save product'}
       </button>

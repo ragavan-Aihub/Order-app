@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Order, OrderItem, OrderWithItems } from '@/types/order';
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, channel, external_id, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, created_at, updated_at';
 
 export async function getAllOrders(): Promise<Order[]> {
   const session = await getAdminSession();
@@ -40,6 +40,9 @@ export async function getAllOrders(): Promise<Order[]> {
 
   return fallback.data.map((order) => ({
     ...(order as Order),
+    payment_method: 'pending' as const,
+    cancel_reason: null,
+    refund_status: null,
     channel: 'app',
     external_id: null,
   }));
@@ -64,7 +67,32 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
     .maybeSingle();
 
   if (orderError || !order) {
-    return null;
+    const fallback = await supabase
+      .from('orders')
+      .select(
+        'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, created_at, updated_at',
+      )
+      .eq('id', id)
+      .eq('business_id', session.profile.business_id)
+      .maybeSingle();
+    if (fallback.error || !fallback.data) {
+      return null;
+    }
+    const { data: fallbackItems } = await supabase
+      .from('order_items')
+      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+      .eq('order_id', id)
+      .order('created_at', { ascending: true });
+    return {
+      ...(fallback.data as Order),
+      payment_method: 'pending',
+      cancel_reason: null,
+      refund_status: null,
+      channel: 'app',
+      external_id: null,
+      order_items: (fallbackItems ?? []) as OrderItem[],
+      status_events: [],
+    };
   }
 
   const { data: items } = await supabase
@@ -76,5 +104,6 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
   return {
     ...(order as Order),
     order_items: (items ?? []) as OrderItem[],
+    status_events: [],
   };
 }
