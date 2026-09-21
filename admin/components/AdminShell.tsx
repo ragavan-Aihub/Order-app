@@ -1,26 +1,35 @@
 'use client';
 
+import {
+  Image,
+  KeyRound,
+  LayoutGrid,
+  Package,
+  ShoppingBag,
+  Store,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/LogoutButton';
 
-const mainLinks = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/orders', label: 'Orders' },
-  { href: '/products', label: 'Products' },
-  { href: '/customers', label: 'Customers' },
-] as const;
+const ICON = { size: 18, strokeWidth: 2, className: 'shrink-0', 'aria-hidden': true } as const;
 
-const settingsLinks = [
-  { href: '/settings/business-info', label: 'Business Info' },
-  { href: '/settings/branding', label: 'Branding' },
-  { href: '/settings/api', label: 'API' },
-] as const;
+const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: '/', label: 'Dashboard', icon: LayoutGrid },
+  { href: '/orders', label: 'Orders', icon: ShoppingBag },
+  { href: '/products', label: 'Products', icon: Package },
+  { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/settings/business-info', label: 'Business Info', icon: Store },
+  { href: '/settings/branding', label: 'Branding', icon: Image },
+  { href: '/settings/api', label: 'API', icon: KeyRound },
+];
 
 function navClass(active: boolean) {
-  return `flex min-h-11 items-center rounded-lg px-3 py-2 text-base ${
+  return `flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-base ${
     active ? 'bg-emerald-800 text-white' : 'text-stone-700 hover:bg-stone-100'
   }`;
 }
@@ -43,8 +52,6 @@ function BrandMark() {
 }
 
 function NavLinks({ pathname }: { pathname: string }) {
-  const settingsActive = pathname.startsWith('/settings');
-
   return (
     <>
       {mainLinks.map((link) => {
@@ -52,19 +59,10 @@ function NavLinks({ pathname }: { pathname: string }) {
           link.href === '/'
             ? pathname === '/'
             : pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const Icon = link.icon;
         return (
           <Link key={link.href} href={link.href} className={navClass(isActive)}>
-            {link.label}
-          </Link>
-        );
-      })}
-      <p className={`mt-4 px-3 text-sm font-semibold ${settingsActive ? 'text-emerald-800' : 'text-stone-500'}`}>
-        Settings
-      </p>
-      {settingsLinks.map((link) => {
-        const isActive = pathname === link.href;
-        return (
-          <Link key={link.href} href={link.href} className={navClass(isActive)}>
+            <Icon {...ICON} />
             {link.label}
           </Link>
         );

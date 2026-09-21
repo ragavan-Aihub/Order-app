@@ -9,6 +9,7 @@ export type Order = {
   order_number: number;
   business_id: string;
   user_id: string | null;
+  customer_id: string | null;
   customer_name: string;
   mobile: string;
   delivery_address: string;
@@ -50,6 +51,7 @@ export type OrderStatusEvent = {
 
 export const ORDER_CHANNELS: { value: string; label: string }[] = [
   { value: 'app', label: 'App' },
+  { value: 'admin', label: 'Admin' },
   { value: 'api', label: 'Partner API' },
   { value: 'whatsapp', label: 'WhatsApp' },
 ];

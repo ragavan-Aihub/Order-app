@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { TableScroll } from '@/components/TableScroll';
 import type { CustomerListItem } from '@/services/customers';
+import { customerSourceLabel } from '@/types/customer';
 import { formatDateTime } from '@/utils/format';
 
 export function CustomersBoard({ customers }: { customers: CustomerListItem[] }) {
@@ -15,7 +16,10 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
       return customers;
     }
     return customers.filter((customer) =>
-      [customer.name ?? '', customer.mobile ?? '', customer.defaultAddress ?? ''].join(' ').toLowerCase().includes(needle),
+      [customer.name ?? '', customer.mobile ?? '', customer.defaultAddress ?? '', customer.source ?? '']
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
     );
   }, [customers, query]);
 
@@ -43,6 +47,7 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                   <p className="text-sm font-medium text-emerald-800">View</p>
                 </div>
                 <p className="text-sm text-stone-500">{customer.mobile || '—'}</p>
+                <p className="mt-1 text-sm text-emerald-800">{customerSourceLabel(customer.source)}</p>
                 <p className="mt-2 text-sm text-stone-700">{customer.defaultAddress || 'No saved address'}</p>
                 <p className="mt-1 text-sm text-stone-500">
                   {customer.addressCount}/3 addresses · {customer.orderCount} orders
@@ -57,6 +62,7 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                 <thead className="bg-stone-50 text-stone-600">
                   <tr>
                     <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium">Source</th>
                     <th className="px-4 py-3 font-medium">Default address</th>
                     <th className="px-4 py-3 font-medium">Saved</th>
                     <th className="px-4 py-3 font-medium">Orders</th>
@@ -71,6 +77,7 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                         <p className="font-medium">{customer.name || 'No name'}</p>
                         <p className="text-sm text-stone-500">{customer.mobile || '—'}</p>
                       </td>
+                      <td className="px-4 py-3 text-stone-700">{customerSourceLabel(customer.source)}</td>
                       <td className="max-w-xs px-4 py-3 text-stone-700">
                         {customer.defaultAddress || 'No saved address'}
                       </td>

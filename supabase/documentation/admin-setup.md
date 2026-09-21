@@ -16,6 +16,8 @@ For the order timeline on the admin order page, also run `supabase/migrations/20
 
 For refund tracking on paid cancelled orders, run `supabase/migrations/20260921030000_order_refund_status.sql`.
 
+For admin-created customers (WhatsApp / walk-in) and placing orders from the admin panel, run `supabase/migrations/20260922000000_admin_customers.sql`.
+
 ## 2. Create the business
 
 ```sql

@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Order, OrderItem, OrderWithItems } from '@/types/order';
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, created_at, updated_at';
 
 export async function getAllOrders(): Promise<Order[]> {
   const session = await getAdminSession();
@@ -45,6 +45,7 @@ export async function getAllOrders(): Promise<Order[]> {
     refund_status: null,
     channel: 'app',
     external_id: null,
+    customer_id: null,
   }));
 }
 
@@ -90,6 +91,7 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
       refund_status: null,
       channel: 'app',
       external_id: null,
+      customer_id: null,
       order_items: (fallbackItems ?? []) as OrderItem[],
       status_events: [],
     };

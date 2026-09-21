@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { CustomerAddressForm } from '@/components/CustomerAddressForm';
+import { CustomerDeleteButton } from '@/components/CustomerDeleteButton';
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
 import { TableScroll } from '@/components/TableScroll';
 import { getCustomerById } from '@/services/customers';
+import { customerSourceLabel } from '@/types/customer';
 import { paymentModeLabel } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
 
@@ -25,40 +28,44 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </Link>
         <h1 className="mt-2 text-2xl font-bold md:text-3xl">{customer.name || 'Customer'}</h1>
         <p className="text-stone-600">
-          {customer.mobile || 'No mobile'} · Joined {formatDateTime(customer.created_at)}
+          {customer.mobile || 'No mobile'} · {customerSourceLabel(customer.source)} · Added{' '}
+          {formatDateTime(customer.created_at)}
         </p>
+        {customer.notes ? <p className="mt-2 text-stone-700">{customer.notes}</p> : null}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href={`/customers/${customer.id}/orders/new`}
+            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white"
+          >
+            Place order
+          </Link>
+          <Link
+            href={`/customers/${customer.id}/edit`}
+            className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-4 py-2 font-medium"
+          >
+            Edit
+          </Link>
+          <CustomerDeleteButton customerId={customer.id} disabled={customer.orders.length > 0} />
+        </div>
       </div>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Saved addresses</h2>
         {customer.addresses.length === 0 ? (
-          <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
-            This customer has not saved an address book yet. Order delivery details still appear on each order.
-          </div>
+          <p className="text-stone-600">No saved address yet. Add one below, or enter an address when placing an order.</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {customer.addresses.map((address) => (
-              <div key={address.id} className="rounded-xl border border-stone-200 bg-white p-5">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800">
-                    {address.label}
-                    {address.is_default ? ' · Default' : ''}
-                  </p>
-                </div>
-                <p className="font-medium">{address.name}</p>
-                <p className="text-stone-600">{address.mobile}</p>
-                {address.alt_mobile ? <p className="text-stone-500">Alt {address.alt_mobile}</p> : null}
-                <p className="mt-2 whitespace-pre-wrap text-stone-800">
-                  {[address.house, address.locality, address.address].filter(Boolean).join(', ')}
-                </p>
-                <p className="mt-1 text-stone-600">Pincode {address.pincode}</p>
-                {address.instructions ? (
-                  <p className="mt-2 text-sm text-stone-500">{address.instructions}</p>
-                ) : null}
-              </div>
+              <CustomerAddressForm key={address.id} customerId={customer.id} address={address} />
             ))}
           </div>
         )}
+        {customer.addresses.length < 3 ? (
+          <div>
+            <h3 className="mb-2 text-base font-medium">Add address</h3>
+            <CustomerAddressForm customerId={customer.id} />
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-3">
