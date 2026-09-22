@@ -103,7 +103,7 @@ export function formatDisplayPayment(order: {
     case 'paid':
       return order.payment_method === 'upi' ? 'Paid · UPI' : 'Paid · Cash';
     case 'not_applicable':
-      return 'Not applicable';
+      return 'Not Applicable';
     case 'refund_pending':
       return 'Refund pending';
     case 'refunded':

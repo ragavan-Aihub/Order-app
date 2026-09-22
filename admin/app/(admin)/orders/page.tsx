@@ -9,17 +9,14 @@ export default async function OrdersPage() {
   const orders = await getAllOrders();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold md:text-3xl">Orders ({orders.length})</h1>
-          <p className="mt-1 text-stone-600">Manage and track all your orders</p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Orders</h1>
         <Link
           href="/orders/new"
-          className="inline-flex min-h-11 items-center rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white"
+          className="inline-flex min-h-10 items-center rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white"
         >
-          Place order
+          Create order
         </Link>
       </div>
       <OrdersBoard orders={orders} />

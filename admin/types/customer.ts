@@ -1,14 +1,13 @@
 export const CUSTOMER_SOURCES = [
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'walk_in', label: 'Walk-in' },
   { value: 'phone', label: 'Phone' },
+  { value: 'walk_in', label: 'Direct' },
+  { value: 'app', label: 'App' },
+  { value: 'web', label: 'Web' },
   { value: 'other', label: 'Other' },
 ] as const;
 
-export const ALL_CUSTOMER_SOURCES = [
-  { value: 'app', label: 'App' },
-  ...CUSTOMER_SOURCES,
-] as const;
+export const ALL_CUSTOMER_SOURCES = CUSTOMER_SOURCES;
 
 export type CustomerSource = (typeof ALL_CUSTOMER_SOURCES)[number]['value'];
 

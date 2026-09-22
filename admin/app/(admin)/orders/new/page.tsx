@@ -14,24 +14,14 @@ export default async function NewOrderPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <Link href="/orders" className="text-base font-medium text-emerald-800">
-          ← All orders
+        <Link href="/orders" className="text-sm font-medium text-emerald-800">
+          ← Orders
         </Link>
-        <h1 className="mt-2 text-2xl font-bold md:text-3xl">Place order</h1>
-        <p className="mt-1 text-stone-600">Create an order for a WhatsApp, walk-in, or app customer.</p>
+        <h1 className="mt-1 text-2xl font-bold">Create order</h1>
       </div>
-      {customers.length === 0 ? (
-        <div className="rounded-xl border border-stone-200 bg-white p-6">
-          <p className="text-stone-600">Add a customer first, then place the order here.</p>
-          <Link href="/customers/new" className="mt-3 inline-block font-medium text-emerald-800">
-            Add customer
-          </Link>
-        </div>
-      ) : (
-        <AdminOrderForm customers={customers} addresses={addresses} products={products} />
-      )}
+      <AdminOrderForm customers={customers} addresses={addresses} products={products} />
     </div>
   );
 }

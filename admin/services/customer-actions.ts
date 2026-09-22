@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { isSupabaseConfigured } from '@/config/env';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import { CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
-import type { PaymentMethod } from '@/types/order';
+import { ORDER_CHANNELS, type PaymentMethod } from '@/types/order';
 
 type AdminContext = {
   supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>;
@@ -63,7 +63,7 @@ export async function createCustomer(input: {
   pincode?: string;
   house?: string;
   locality?: string;
-}): Promise<{ error: string | null; id?: string }> {
+}): Promise<{ error: string | null; id?: string; addressId?: string }> {
   const ctx = await requireAdmin();
   if ('error' in ctx) {
     return { error: ctx.error };
@@ -100,6 +100,12 @@ export async function createCustomer(input: {
     if (error?.code === '23505') {
       return { error: 'A customer with this mobile number already exists.' };
     }
+    if (error?.code === '23514') {
+      return {
+        error:
+          'That customer source is not enabled yet. In the SQL editor, run supabase/migrations/20260923000000_order_channels_sources.sql, then try again.',
+      };
+    }
     if (error?.message?.includes('schema cache') || error?.code === 'PGRST205') {
       return {
         error:
@@ -111,27 +117,33 @@ export async function createCustomer(input: {
 
   const address = input.address?.trim() ?? '';
   const pincode = input.pincode?.trim() ?? '';
+  let addressId: string | undefined;
   if (address && pincode) {
-    const { error: addressError } = await ctx.supabase.from('customer_addresses').insert({
-      customer_id: data.id,
-      user_id: null,
-      business_id: ctx.businessId,
-      label: 'home',
-      name,
-      mobile,
-      house: input.house?.trim() || null,
-      locality: input.locality?.trim() || null,
-      address,
-      pincode,
-      is_default: true,
-    });
+    const { data: book, error: addressError } = await ctx.supabase
+      .from('customer_addresses')
+      .insert({
+        customer_id: data.id,
+        user_id: null,
+        business_id: ctx.businessId,
+        label: 'home',
+        name,
+        mobile,
+        house: input.house?.trim() || null,
+        locality: input.locality?.trim() || null,
+        address,
+        pincode,
+        is_default: true,
+      })
+      .select('id')
+      .maybeSingle();
     if (addressError) {
       return { error: `Customer saved, but the address was not: ${addressError.message}`, id: data.id };
     }
+    addressId = book?.id;
   }
 
   revalidateCustomers(data.id);
-  return { error: null, id: data.id };
+  return { error: null, id: data.id, addressId };
 }
 
 export async function updateCustomer(
@@ -145,7 +157,7 @@ export async function updateCustomer(
 
   const name = input.name.trim();
   const mobile = normalizeMobile(input.mobile);
-  const sourceOk = [...CUSTOMER_SOURCES, { value: 'app' as const }].some((item) => item.value === input.source);
+  const sourceOk = CUSTOMER_SOURCES.some((item) => item.value === input.source);
   const notes = input.notes?.trim() || null;
 
   if (name.length < 2) {
@@ -310,6 +322,8 @@ export async function createAdminOrder(input: {
   addressId?: string;
   address?: string;
   pincode?: string;
+  notes?: string;
+  channel?: string;
   items: Array<{ productId: string; quantity: number }>;
   paymentMethod?: PaymentMethod;
 }): Promise<{ error: string | null; orderId?: string }> {
@@ -348,6 +362,11 @@ export async function createAdminOrder(input: {
 
   if (deliveryAddress.length < 4 || pincode.length < 4) {
     return { error: 'Enter a delivery address and pincode.' };
+  }
+
+  const notes = input.notes?.trim();
+  if (notes) {
+    deliveryAddress = `${deliveryAddress}\n\nOrder notes: ${notes}`;
   }
 
   const qtyByProduct = new Map<string, number>();
@@ -390,6 +409,7 @@ export async function createAdminOrder(input: {
   const total = lines.reduce((sum, line) => sum + line.subtotal, 0);
   const paymentMethod: PaymentMethod =
     input.paymentMethod === 'cash' || input.paymentMethod === 'upi' ? input.paymentMethod : 'pending';
+  const channel = ORDER_CHANNELS.find((item) => item.value === input.channel)?.value ?? 'admin';
 
   const { data: order, error: orderError } = await ctx.supabase
     .from('orders')
@@ -403,13 +423,19 @@ export async function createAdminOrder(input: {
       pincode,
       total_amount: total,
       status: 'new',
-      channel: 'admin',
+      channel,
       payment_method: paymentMethod,
     })
     .select('id')
     .maybeSingle();
 
   if (orderError || !order) {
+    if (orderError?.code === '23503') {
+      return {
+        error:
+          'That order channel is not enabled yet. In the SQL editor, run supabase/migrations/20260923000000_order_channels_sources.sql, then try again.',
+      };
+    }
     return { error: orderError?.message ?? 'Could not create the order.' };
   }
 

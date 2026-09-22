@@ -51,10 +51,17 @@ export type OrderStatusEvent = {
 
 export const ORDER_CHANNELS: { value: string; label: string }[] = [
   { value: 'app', label: 'App' },
+  { value: 'web', label: 'Web' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'direct', label: 'Direct' },
   { value: 'admin', label: 'Admin' },
   { value: 'api', label: 'Partner API' },
-  { value: 'whatsapp', label: 'WhatsApp' },
 ];
+
+export function orderChannelLabel(channel: string | null | undefined) {
+  return ORDER_CHANNELS.find((item) => item.value === channel)?.label ?? channel ?? '—';
+}
 
 export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'new', label: 'New' },

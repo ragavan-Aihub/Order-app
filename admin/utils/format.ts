@@ -19,3 +19,16 @@ export function formatDateTime(value: string): string {
     timeStyle: 'short',
   }).format(date);
 }
+
+const ORDER_NOTES_MARKER = '\n\nOrder notes: ';
+
+export function splitDeliveryNotes(deliveryAddress: string) {
+  const index = deliveryAddress.indexOf(ORDER_NOTES_MARKER);
+  if (index === -1) {
+    return { address: deliveryAddress, notes: null as string | null };
+  }
+  return {
+    address: deliveryAddress.slice(0, index),
+    notes: deliveryAddress.slice(index + ORDER_NOTES_MARKER.length),
+  };
+}

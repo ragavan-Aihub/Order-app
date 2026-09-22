@@ -6,9 +6,10 @@ import {
   paymentStatusLabel,
 } from '@/types/order';
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'sm' | 'lg' }) {
+  const sizeClass = size === 'lg' ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs';
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-sm font-semibold ${orderStatusBadgeClass(status)}`}>
+    <span className={`inline-flex rounded-full font-semibold ${sizeClass} ${orderStatusBadgeClass(status)}`}>
       {orderStatusLabel(status)}
     </span>
   );
@@ -26,7 +27,7 @@ export function PaymentStatusBadge({
   const order = { status, payment_method: paymentMethod, refund_status: refundStatus };
   const value = displayPaymentStatus(order);
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-sm font-semibold ${paymentStatusBadgeClass(value)}`}>
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${paymentStatusBadgeClass(value)}`}>
       {paymentStatusLabel(order)}
     </span>
   );

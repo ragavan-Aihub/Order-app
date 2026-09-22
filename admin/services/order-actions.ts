@@ -71,12 +71,13 @@ export async function updateOrderStatus(
   }
 
   const paid = current.payment_method === 'cash' || current.payment_method === 'upi';
-  const refundStatus =
-    current.refund_status === 'refunded'
-      ? 'refunded'
-      : status === 'cancelled' && paid
-        ? 'pending'
-        : current.refund_status ?? null;
+  let refundStatus = current.refund_status ?? null;
+  if (status === 'cancelled' && paid && refundStatus !== 'refunded') {
+    refundStatus = 'pending';
+  }
+  if (status !== 'cancelled' && refundStatus !== 'refunded') {
+    refundStatus = null;
+  }
 
   const { data, error } = await supabase
     .from('orders')
@@ -147,12 +148,13 @@ export async function updateOrderPayment(
     return { error: 'Could not update this order.' };
   }
 
-  if (current.payment_method && current.payment_method !== 'pending') {
-    return { error: 'Payment mode cannot be changed after it is recorded.' };
-  }
-
   if (current.status === 'cancelled') {
-    return { error: 'Cancelled unpaid orders stay Not Applicable.' };
+    const collected = current.payment_method === 'cash' || current.payment_method === 'upi';
+    return {
+      error: collected
+        ? 'Use Mark refunded for paid cancelled orders.'
+        : 'Cancelled unpaid orders stay Not Applicable.',
+    };
   }
 
   const { data, error } = await supabase
@@ -160,7 +162,6 @@ export async function updateOrderPayment(
     .update({ payment_method: paymentMethod, refund_status: null })
     .eq('id', orderId)
     .eq('business_id', profile.business_id)
-    .eq('payment_method', 'pending')
     .select('id')
     .maybeSingle();
 

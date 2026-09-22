@@ -33,7 +33,7 @@ export function OrderPaymentForm({
     payment_method: paymentMethod,
     refund_status: refundStatus,
   });
-  const canMarkPaid = status !== 'cancelled' && !collected;
+  const canCollect = status !== 'cancelled';
   const canMarkRefunded = paymentState === 'refund_pending';
   const [value, setValue] = useState<Exclude<PaymentMethod, 'pending'>>(
     paymentMethod === 'upi' ? 'upi' : 'cash',
@@ -71,34 +71,36 @@ export function OrderPaymentForm({
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Payment</h2>
-      <dl className="space-y-3 text-base">
+    <div className="space-y-3">
+      <h2 className="text-base font-semibold">Payment</h2>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-sm font-medium text-stone-600">Payment status</dt>
+          <dt className="text-xs font-medium text-stone-500">Payment status</dt>
           <dd className="mt-1">
             <PaymentStatusBadge status={status} paymentMethod={paymentMethod} refundStatus={refundStatus} />
           </dd>
         </div>
-        {collected ? (
-          <div>
-            <dt className="text-sm font-medium text-stone-600">Mode of payment</dt>
-            <dd className="text-xl font-semibold">{paymentModeLabel(paymentMethod)}</dd>
-          </div>
-        ) : null}
+        <div>
+          <dt className="text-xs font-medium text-stone-500">Payment method</dt>
+          <dd className="mt-1 font-medium">{collected ? paymentModeLabel(paymentMethod) : '—'}</dd>
+        </div>
       </dl>
 
-      {canMarkPaid ? (
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-stone-600" htmlFor="payment-mode">
-            Mode of payment
+      {paymentState === 'not_applicable' ? (
+        <p className="text-sm text-stone-500">No payment was collected, so this stays Not Applicable.</p>
+      ) : null}
+
+      {canCollect ? (
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-stone-500" htmlFor="payment-mode">
+            {collected ? 'Update method' : 'Collect payment'}
           </label>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               id="payment-mode"
               value={value}
               onChange={(event) => setValue(event.target.value as Exclude<PaymentMethod, 'pending'>)}
-              className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base sm:w-auto"
+              className="min-h-10 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm sm:w-auto"
             >
               {COLLECTABLE_PAYMENT_METHODS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -109,10 +111,14 @@ export function OrderPaymentForm({
             <button
               type="button"
               onClick={onSave}
-              disabled={saving}
-              className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-50 sm:w-auto"
+              disabled={saving || (collected && value === paymentMethod)}
+              className={
+                collected
+                  ? 'min-h-10 w-full rounded-md border border-stone-400 px-4 text-sm font-semibold text-stone-800 disabled:opacity-50 sm:w-auto'
+                  : 'min-h-10 w-full rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto'
+              }
             >
-              {saving ? 'Saving…' : 'Mark paid'}
+              {saving ? 'Saving…' : collected ? 'Update payment' : 'Mark paid'}
             </button>
           </div>
         </div>
@@ -123,7 +129,7 @@ export function OrderPaymentForm({
           type="button"
           onClick={onRefund}
           disabled={refunding}
-          className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-50 sm:w-auto"
+          className="min-h-10 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white disabled:opacity-50"
         >
           {refunding ? 'Saving…' : 'Mark refunded'}
         </button>
