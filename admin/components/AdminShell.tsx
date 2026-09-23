@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Building2,
   Image,
   KeyRound,
   LayoutGrid,
@@ -23,6 +24,7 @@ const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/orders', label: 'Orders', icon: ShoppingBag },
   { href: '/products', label: 'Products', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/communities', label: 'Communities', icon: Building2 },
   { href: '/settings/business-info', label: 'Business Info', icon: Store },
   { href: '/settings/branding', label: 'Branding', icon: Image },
   { href: '/settings/api', label: 'API', icon: KeyRound },

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
 import { TableScroll } from '@/components/TableScroll';
+import { deliveryTypeLabel, type CommunityListItem } from '@/types/community';
 import {
   DISPLAY_PAYMENT_STATUSES,
   ORDER_CHANNELS,
@@ -37,12 +38,14 @@ function csvEscape(value: string) {
   return value;
 }
 
-export function OrdersBoard({ orders }: { orders: Order[] }) {
+export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; communities?: CommunityListItem[] }) {
   const [tab, setTab] = useState<'all' | OrderStatus>('all');
   const [query, setQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<DisplayPaymentStatus | ''>('');
   const [methodFilter, setMethodFilter] = useState('');
   const [channelFilter, setChannelFilter] = useState('');
+  const [communityFilter, setCommunityFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'community' | 'individual'>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(1);
@@ -79,6 +82,15 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
       if (channelFilter && (order.channel ?? 'app') !== channelFilter) {
         return false;
       }
+      if (typeFilter === 'community' && !order.community_name && !order.community_id) {
+        return false;
+      }
+      if (typeFilter === 'individual' && (order.community_name || order.community_id)) {
+        return false;
+      }
+      if (communityFilter && order.community_id !== communityFilter) {
+        return false;
+      }
       if (fromDate && toDateInput(order.created_at) < fromDate) {
         return false;
       }
@@ -98,7 +110,7 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [orders, tab, query, paymentFilter, methodFilter, channelFilter, fromDate, toDate]);
+  }, [orders, tab, query, paymentFilter, methodFilter, channelFilter, typeFilter, communityFilter, fromDate, toDate]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -106,7 +118,7 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
 
   useEffect(() => {
     setPage(1);
-  }, [tab, query, paymentFilter, methodFilter, channelFilter, fromDate, toDate]);
+  }, [tab, query, paymentFilter, methodFilter, channelFilter, typeFilter, communityFilter, fromDate, toDate]);
 
   function clearFilters() {
     setTab('all');
@@ -114,6 +126,8 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
     setPaymentFilter('');
     setMethodFilter('');
     setChannelFilter('');
+    setCommunityFilter('');
+    setTypeFilter('all');
     setFromDate('');
     setToDate('');
   }
@@ -128,6 +142,8 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
       'Payment Status',
       'Payment Method',
       'Channel',
+      'Type',
+      'Community',
       'Placed',
     ];
     const rows = filtered.map((order) => [
@@ -139,6 +155,8 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
       DISPLAY_PAYMENT_STATUSES.find((item) => item.value === displayPaymentStatus(order))?.label ?? '',
       paymentModeLabel(order.payment_method),
       orderChannelLabel(order.channel ?? 'app'),
+      deliveryTypeLabel(order.community_name),
+      order.community_name ?? '',
       formatDateTime(order.created_at),
     ]);
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
@@ -264,6 +282,33 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
           </select>
         </label>
         <label>
+          <span className="mb-1 block text-xs font-medium text-stone-500">Type</span>
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value as 'all' | 'community' | 'individual')}
+            className={fieldClass}
+          >
+            <option value="all">All</option>
+            <option value="community">Community</option>
+            <option value="individual">Individual</option>
+          </select>
+        </label>
+        <label>
+          <span className="mb-1 block text-xs font-medium text-stone-500">Community</span>
+          <select
+            value={communityFilter}
+            onChange={(event) => setCommunityFilter(event.target.value)}
+            className={fieldClass}
+          >
+            <option value="">All</option>
+            {communities.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           <span className="mb-1 block text-xs font-medium text-stone-500">From</span>
           <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className={fieldClass} />
         </label>
@@ -312,8 +357,9 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
                   />
                 </div>
                 <p className="mt-2 text-xs text-stone-500">
-                  {paymentModeLabel(order.payment_method)} · {orderChannelLabel(order.channel ?? 'app')} ·{' '}
-                  {formatDateTime(order.created_at)}
+                  {deliveryTypeLabel(order.community_name)}
+                  {order.community_name ? ` · ${order.community_name}` : ''} · {paymentModeLabel(order.payment_method)} ·{' '}
+                  {orderChannelLabel(order.channel ?? 'app')} · {formatDateTime(order.created_at)}
                 </p>
               </Link>
             ))}
@@ -330,6 +376,8 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
                     <th className="px-3 py-2 font-medium">Payment Status</th>
                     <th className="px-3 py-2 font-medium">Payment Method</th>
                     <th className="px-3 py-2 font-medium">Channel</th>
+                    <th className="px-3 py-2 font-medium">Type</th>
+                    <th className="px-3 py-2 font-medium">Community</th>
                     <th className="px-3 py-2 font-medium">Placed</th>
                     <th className="px-3 py-2 font-medium">Actions</th>
                   </tr>
@@ -355,6 +403,8 @@ export function OrdersBoard({ orders }: { orders: Order[] }) {
                       </td>
                       <td className="px-3 py-2">{paymentModeLabel(order.payment_method)}</td>
                       <td className="px-3 py-2">{orderChannelLabel(order.channel ?? 'app')}</td>
+                      <td className="px-3 py-2">{deliveryTypeLabel(order.community_name)}</td>
+                      <td className="px-3 py-2">{order.community_name || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-stone-600">{formatDateTime(order.created_at)}</td>
                       <td className="px-3 py-2">
                         <Link href={`/orders/${order.id}`} className="font-semibold text-emerald-800">

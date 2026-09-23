@@ -1,12 +1,13 @@
 import Link from 'next/link';
 
 import { OrdersBoard } from '@/components/OrdersBoard';
+import { getCommunities } from '@/services/communities';
 import { getAllOrders } from '@/services/orders';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OrdersPage() {
-  const orders = await getAllOrders();
+  const [orders, communities] = await Promise.all([getAllOrders(), getCommunities()]);
 
   return (
     <div className="space-y-4">
@@ -19,7 +20,7 @@ export default async function OrdersPage() {
           Create order
         </Link>
       </div>
-      <OrdersBoard orders={orders} />
+      <OrdersBoard orders={orders} communities={communities} />
     </div>
   );
 }

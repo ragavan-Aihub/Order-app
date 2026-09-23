@@ -6,7 +6,7 @@ export type AddressRow = {
   id: string;
   user_id: string;
   business_id: string;
-  label: 'home' | 'work';
+  label: 'home' | 'work' | 'other';
   name: string;
   mobile: string;
   alt_mobile: string | null;
@@ -30,7 +30,7 @@ export function rowToSavedAddress(row: AddressRow): SavedAddress {
     instructions: row.instructions || undefined,
     house: row.house || undefined,
     locality: row.locality || undefined,
-    label: row.label,
+    label: row.label === 'work' || row.label === 'other' ? row.label : 'home',
     altMobile: row.alt_mobile || undefined,
     lat: row.lat ?? undefined,
     lng: row.lng ?? undefined,

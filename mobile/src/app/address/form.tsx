@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,17 +17,29 @@ import {
   MAX_SAVED_ADDRESSES,
   loadAddressBook,
   upsertAddress,
-  type AddressLabel,
   type SavedAddress,
 } from '@/cart/address-book';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/config/theme';
 import { getCustomerProfile } from '@/services/orders';
+import {
+  ADDRESS_FIELD_COPY,
+  ADDRESS_LABELS,
+  lookupPincodeState,
+  stateFromPincode,
+  type AddressLabel,
+} from '@/utils/address';
 import { isValidIndianMobile, isValidPincode } from '@/utils/validation';
 
 function firstParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value ?? '';
 }
+
+const LABEL_ICONS: Record<AddressLabel, keyof typeof Ionicons.glyphMap> = {
+  home: 'home-outline',
+  work: 'briefcase-outline',
+  other: 'location-outline',
+};
 
 export default function AddressFormScreen() {
   const router = useRouter();
@@ -40,14 +53,23 @@ export default function AddressFormScreen() {
   }>();
   const editingId = firstParam(params.id);
   const [house, setHouse] = useState('');
-  const [locality, setLocality] = useState(firstParam(params.locality));
+  const [area, setArea] = useState('');
+  const [landmark, setLandmark] = useState(firstParam(params.locality));
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [altMobile, setAltMobile] = useState('');
   const [pincode, setPincode] = useState(firstParam(params.pincode));
+  const [stateName, setStateName] = useState(stateFromPincode(firstParam(params.pincode)));
   const [label, setLabel] = useState<AddressLabel>('home');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const canSave =
+    Boolean(house.trim()) &&
+    Boolean(area.trim()) &&
+    isValidPincode(pincode) &&
+    Boolean(name.trim()) &&
+    isValidIndianMobile(mobile);
 
   useEffect(() => {
     getCustomerProfile()
@@ -56,7 +78,8 @@ export default function AddressFormScreen() {
           setName((current) => current || profile.name || '');
         }
         if (profile?.mobile) {
-          setMobile((current) => current || profile.mobile || '');
+          const digits = profile.mobile.replace(/\D/g, '').slice(-10);
+          setMobile((current) => current || digits);
         }
       })
       .catch(() => undefined);
@@ -75,35 +98,54 @@ export default function AddressFormScreen() {
         return;
       }
       setHouse(row.house ?? '');
-      setLocality(row.locality ?? row.address);
+      setArea(row.address ?? '');
+      setLandmark(row.locality ?? '');
       setName(row.name);
-      setMobile(row.mobile);
+      setMobile(row.mobile.replace(/\D/g, '').slice(-10));
       setAltMobile(row.altMobile ?? '');
       setPincode(row.pincode);
-      setLabel(row.label ?? 'home');
+      setStateName(stateFromPincode(row.pincode));
+      setLabel(row.label === 'work' || row.label === 'other' ? row.label : 'home');
     });
   }, [editingId]);
+
+  const phoneDigits = useMemo(() => mobile.replace(/\D/g, '').slice(0, 10), [mobile]);
+
+  useEffect(() => {
+    const pin = pincode.trim();
+    const local = stateFromPincode(pin);
+    if (!isValidPincode(pin)) {
+      setStateName('');
+      return;
+    }
+    setStateName(local);
+    let cancelled = false;
+    lookupPincodeState(pin).then((remote) => {
+      if (!cancelled && remote) {
+        setStateName(remote);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pincode]);
 
   async function onSave() {
     setError(null);
     if (!house.trim()) {
-      setError('Enter flat / house / building.');
+      setError('Enter flat / house no. / building / block no.');
       return;
     }
-    if (!locality.trim()) {
-      setError('Enter area / locality.');
+    if (!area.trim()) {
+      setError('Enter area / street / village.');
       return;
     }
     if (!name.trim()) {
-      setError('Enter your full name.');
+      setError("Enter the receiver's name.");
       return;
     }
     if (!isValidIndianMobile(mobile)) {
       setError('Enter a valid 10-digit mobile number.');
-      return;
-    }
-    if (altMobile.trim() && !isValidIndianMobile(altMobile)) {
-      setError('Enter a valid alternate mobile number, or leave it blank.');
       return;
     }
     if (!isValidPincode(pincode)) {
@@ -115,11 +157,11 @@ export default function AddressFormScreen() {
       const payload: Omit<SavedAddress, 'id'> & { id?: string } = {
         id: editingId || undefined,
         name: name.trim(),
-        mobile: mobile.trim(),
-        address: `${house.trim()}, ${locality.trim()}`,
+        mobile: phoneDigits,
+        address: area.trim(),
         pincode: pincode.trim(),
         house: house.trim(),
-        locality: locality.trim(),
+        locality: landmark.trim() || undefined,
         label,
         altMobile: altMobile.trim() || undefined,
         lat: params.lat ? Number(params.lat) : undefined,
@@ -140,81 +182,106 @@ export default function AddressFormScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, spacing.md) + 88 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Field label="Flat / house / building name *">
-          <TextInput value={house} onChangeText={setHouse} style={styles.input} placeholder="E-204, SSPDL Crescent" placeholderTextColor={colors.textMuted} />
-        </Field>
-        <Field label="Area / sector / locality *">
-          <TextInput
-            value={locality}
-            onChangeText={setLocality}
-            style={[styles.input, styles.multiline]}
-            multiline
-            placeholder="Street, area, city"
-            placeholderTextColor={colors.textMuted}
-          />
-        </Field>
-        <Field label="Pincode *">
-          <TextInput
-            value={pincode}
-            onChangeText={setPincode}
-            style={styles.input}
-            keyboardType="number-pad"
-            maxLength={6}
-            placeholder="6-digit pincode"
-            placeholderTextColor={colors.textMuted}
-          />
-        </Field>
-        <Field label="Full name *">
-          <TextInput value={name} onChangeText={setName} style={styles.input} placeholderTextColor={colors.textMuted} placeholder="Recipient name" />
-        </Field>
-        <Field label="10-digit mobile number *">
-          <TextInput
-            value={mobile}
-            onChangeText={setMobile}
-            style={styles.input}
-            keyboardType="phone-pad"
-            maxLength={10}
-            placeholderTextColor={colors.textMuted}
-            placeholder="Mobile number"
-          />
-        </Field>
-        <Field label="Alternate phone (optional)">
-          <TextInput
-            value={altMobile}
-            onChangeText={setAltMobile}
-            style={styles.input}
-            keyboardType="phone-pad"
-            maxLength={10}
-            placeholderTextColor={colors.textMuted}
-            placeholder="Optional"
-          />
-        </Field>
-        <Text style={styles.label}>Type of address</Text>
+        <Text style={styles.section}>Add address</Text>
+        <TextInput
+          value={house}
+          onChangeText={setHouse}
+          style={styles.input}
+          placeholder={ADDRESS_FIELD_COPY.house}
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          value={area}
+          onChangeText={setArea}
+          style={styles.input}
+          placeholder={ADDRESS_FIELD_COPY.area}
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          value={landmark}
+          onChangeText={setLandmark}
+          style={styles.input}
+          placeholder={ADDRESS_FIELD_COPY.landmark}
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          value={pincode}
+          onChangeText={setPincode}
+          style={styles.input}
+          keyboardType="number-pad"
+          maxLength={6}
+          placeholder={ADDRESS_FIELD_COPY.pincode}
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          value={stateName}
+          editable={false}
+          style={[styles.input, styles.readonly]}
+          placeholder={ADDRESS_FIELD_COPY.state}
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Text style={styles.section}>{ADDRESS_FIELD_COPY.label}</Text>
         <View style={styles.chips}>
-          <Chip active={label === 'home'} title="Home" onPress={() => setLabel('home')} />
-          <Chip active={label === 'work'} title="Work" onPress={() => setLabel('work')} />
+          {ADDRESS_LABELS.map((item) => (
+            <Chip
+              key={item.value}
+              active={label === item.value}
+              title={item.label}
+              icon={LABEL_ICONS[item.value]}
+              onPress={() => setLabel(item.value)}
+            />
+          ))}
+        </View>
+
+        <Text style={styles.section}>{ADDRESS_FIELD_COPY.receiver}</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          style={styles.input}
+          placeholder={ADDRESS_FIELD_COPY.receiverName}
+          placeholderTextColor={colors.textMuted}
+          autoComplete="name"
+        />
+        <View style={styles.phoneRow}>
+          <Text style={styles.prefix}>+91</Text>
+          <TextInput
+            value={phoneDigits}
+            onChangeText={setMobile}
+            style={styles.phoneInput}
+            keyboardType="phone-pad"
+            maxLength={10}
+            placeholder={ADDRESS_FIELD_COPY.receiverPhone}
+            placeholderTextColor={colors.textMuted}
+          />
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-        <PrimaryButton label={saving ? 'Saving…' : 'Save address'} disabled={saving} onPress={onSave} />
+        <PrimaryButton
+          label={saving ? 'Saving…' : 'Save Address'}
+          disabled={saving || !canSave}
+          onPress={onSave}
+        />
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Chip({ active, title, onPress }: { active: boolean; title: string; onPress: () => void }) {
+function Chip({
+  active,
+  title,
+  icon,
+  onPress,
+}: {
+  active: boolean;
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+}) {
   return (
     <Pressable onPress={onPress} style={[styles.chip, active && styles.chipOn]} accessibilityRole="button">
+      <Ionicons name={icon} size={16} color={active ? colors.primaryDark : colors.textMuted} />
       <Text style={[styles.chipLabel, active && styles.chipLabelOn]}>{title}</Text>
     </Pressable>
   );
@@ -223,41 +290,68 @@ function Chip({ active, title, onPress }: { active: boolean; title: string; onPr
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   content: {
     padding: spacing.md,
-    gap: spacing.md,
+    gap: spacing.sm,
   },
-  field: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 13,
+  section: {
+    marginTop: spacing.sm,
+    marginBottom: 4,
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: colors.text,
   },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
     color: colors.text,
   },
-  multiline: {
-    minHeight: 72,
-    textAlignVertical: 'top',
+  readonly: {
+    backgroundColor: '#FAFAFA',
+    color: colors.textMuted,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
+  },
+  prefix: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    paddingRight: spacing.sm,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+    marginRight: spacing.sm,
+    paddingVertical: 14,
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    paddingVertical: 14,
   },
   chips: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
   chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    flex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderRadius: radius.pill,
     borderWidth: 1.5,
     borderColor: colors.border,

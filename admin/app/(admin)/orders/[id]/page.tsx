@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/OrderBadges';
 import { TableScroll } from '@/components/TableScroll';
 import { getCustomerById } from '@/services/customers';
 import { getOrderById } from '@/services/orders';
+import { deliveryTypeLabel } from '@/types/community';
 import { customerSourceLabel } from '@/types/customer';
 import { orderChannelLabel } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatPrice, splitDeliveryNotes } from '@/utils/format';
@@ -35,7 +36,9 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           <StatusBadge status={order.status} size="lg" />
         </div>
         <p className="mt-1 text-sm text-stone-600">
-          Placed {formatDateTime(order.created_at)} · Channel {orderChannelLabel(order.channel)}
+          Placed {formatDateTime(order.created_at)} · Channel {orderChannelLabel(order.channel)} ·{' '}
+          {deliveryTypeLabel(order.community_name)}
+          {order.community_name ? ` · ${order.community_name}` : ''}
         </p>
       </div>
 

@@ -56,14 +56,24 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {customer.addresses.map((address) => (
-              <CustomerAddressForm key={address.id} customerId={customer.id} address={address} />
+              <CustomerAddressForm
+                key={address.id}
+                customerId={customer.id}
+                address={address}
+                receiverName={customer.name ?? ''}
+                receiverPhone={customer.mobile ?? ''}
+              />
             ))}
           </div>
         )}
         {customer.addresses.length < 3 ? (
           <div>
             <h3 className="mb-2 text-base font-medium">Add address</h3>
-            <CustomerAddressForm customerId={customer.id} />
+            <CustomerAddressForm
+              customerId={customer.id}
+              receiverName={customer.name ?? ''}
+              receiverPhone={customer.mobile ?? ''}
+            />
           </div>
         ) : null}
       </section>

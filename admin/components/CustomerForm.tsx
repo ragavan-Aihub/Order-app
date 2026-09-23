@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
 
-import { createCustomer, updateCustomer } from '@/services/customer-actions';
-import { ALL_CUSTOMER_SOURCES, CUSTOMER_SOURCES, type CustomerSource } from '@/types/customer';
+import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
+import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
+import { createCustomer, findCustomerByMobile, updateCustomer } from '@/services/customer-actions';
+import { ALL_CUSTOMER_SOURCES, CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
 
 type CustomerFormProps = {
   customer?: {
@@ -22,13 +24,57 @@ export function CustomerForm({ customer }: CustomerFormProps) {
   const [mobile, setMobile] = useState(customer?.mobile ?? '');
   const [source, setSource] = useState<CustomerSource>((customer?.source as CustomerSource) ?? 'whatsapp');
   const [notes, setNotes] = useState(customer?.notes ?? '');
-  const [address, setAddress] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [house, setHouse] = useState('');
-  const [locality, setLocality] = useState('');
+  const [addressFields, setAddressFields] = useState<AddressFieldsValue>({
+    house: '',
+    area: '',
+    landmark: '',
+    pincode: '',
+    state: '',
+    label: 'home',
+    receiverName: '',
+    receiverPhone: '',
+  });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [duplicate, setDuplicate] = useState<{
+    id: string;
+    name: string | null;
+    mobile: string | null;
+    orderCount: number;
+  } | null>(null);
+  const [ignoredMobile, setIgnoredMobile] = useState('');
   const sources = customer ? ALL_CUSTOMER_SOURCES : CUSTOMER_SOURCES;
+  const creating = !customer;
+
+  useEffect(() => {
+    if (!creating) {
+      setDuplicate(null);
+      return;
+    }
+    const digits = normalizeMobile(mobile);
+    if (digits.length !== 10) {
+      setDuplicate(null);
+      return;
+    }
+    if (ignoredMobile === digits) {
+      return;
+    }
+    let cancelled = false;
+    findCustomerByMobile(digits).then((result) => {
+      if (cancelled || !result.customer) {
+        return;
+      }
+      setDuplicate({
+        id: result.customer.id,
+        name: result.customer.name,
+        mobile: result.customer.mobile,
+        orderCount: result.customer.orderCount,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [creating, mobile, ignoredMobile]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,10 +83,31 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
     const result = customer
       ? await updateCustomer(customer.id, { name, mobile, source, notes })
-      : await createCustomer({ name, mobile, source, notes, address, pincode, house, locality });
+      : await createCustomer({
+          name,
+          mobile,
+          source,
+          notes,
+          house: addressFields.house,
+          address: addressFields.area,
+          locality: addressFields.landmark,
+          pincode: addressFields.pincode,
+        });
 
     setSubmitting(false);
     if (result.error) {
+      if (creating && result.error.toLowerCase().includes('already exists')) {
+        const match = await findCustomerByMobile(mobile);
+        if (match.customer) {
+          setDuplicate({
+            id: match.customer.id,
+            name: match.customer.name,
+            mobile: match.customer.mobile,
+            orderCount: match.customer.orderCount,
+          });
+          return;
+        }
+      }
       setError(result.error);
       return;
     }
@@ -53,7 +120,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-5">
+    <form onSubmit={onSubmit} autoComplete="off" className="max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-5">
       <label className="block">
         <span className="mb-1 block text-sm text-stone-500">Name</span>
         <input
@@ -67,7 +134,10 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         <span className="mb-1 block text-sm text-stone-500">Mobile</span>
         <input
           value={mobile}
-          onChange={(event) => setMobile(event.target.value)}
+          onChange={(event) => {
+            setIgnoredMobile('');
+            setMobile(event.target.value.replace(/\D/g, '').slice(0, 10));
+          }}
           inputMode="numeric"
           required
           className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2"
@@ -98,34 +168,30 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         />
       </label>
       {customer ? null : (
-        <fieldset className="space-y-3 border-t border-stone-100 pt-4">
-          <legend className="text-sm font-medium text-stone-700">First address (optional)</legend>
-          <label className="block">
-            <span className="mb-1 block text-sm text-stone-500">House / street</span>
-            <input value={house} onChange={(event) => setHouse(event.target.value)} className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-stone-500">Locality</span>
-            <input value={locality} onChange={(event) => setLocality(event.target.value)} className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-stone-500">Address</span>
-            <textarea value={address} onChange={(event) => setAddress(event.target.value)} rows={2} className="w-full rounded-lg border border-stone-300 px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-stone-500">Pincode</span>
-            <input value={pincode} onChange={(event) => setPincode(event.target.value)} inputMode="numeric" className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2" />
-          </label>
-        </fieldset>
+        <div className="border-t border-stone-100 pt-4">
+          <AddressFields value={addressFields} onChange={setAddressFields} showReceiver={false} />
+        </div>
       )}
       {error ? <p className="text-red-700">{error}</p> : null}
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || Boolean(duplicate)}
         className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-60"
       >
         {submitting ? 'Saving…' : customer ? 'Save customer' : 'Add customer'}
       </button>
+      {duplicate ? (
+        <DuplicateCustomerDialog
+          name={duplicate.name}
+          mobile={duplicate.mobile}
+          orderCount={duplicate.orderCount}
+          onLoad={() => router.push(`/customers/${duplicate.id}`)}
+          onDismiss={() => {
+            setIgnoredMobile(normalizeMobile(duplicate.mobile ?? mobile));
+            setDuplicate(null);
+          }}
+        />
+      ) : null}
     </form>
   );
 }

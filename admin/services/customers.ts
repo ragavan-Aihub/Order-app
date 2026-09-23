@@ -16,6 +16,7 @@ export type CustomerAddress = {
   pincode: string;
   instructions: string | null;
   is_default: boolean;
+  community_id?: string | null;
 };
 
 export type CustomerListItem = {
@@ -155,7 +156,7 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
     supabase
       .from('customer_addresses')
       .select(
-        'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default',
+        'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default, community_id',
       )
       .eq('customer_id', id)
       .eq('business_id', businessId)
@@ -198,7 +199,7 @@ export async function getCustomerAddresses(): Promise<CustomerAddress[]> {
   const { data } = await supabase
     .from('customer_addresses')
     .select(
-      'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default',
+      'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default, community_id',
     )
     .eq('business_id', session.profile.business_id);
 

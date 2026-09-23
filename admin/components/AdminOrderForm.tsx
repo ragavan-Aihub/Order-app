@@ -1,14 +1,17 @@
 'use client';
 
 import { Minus, Plus, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { BrowserAddressDecoy, NoFillInput, NoFillTextarea } from '@/components/NoBrowserFill';
-import { createAdminOrder, createCustomer } from '@/services/customer-actions';
+import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
+import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
+import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
+import { createAdminOrder, createCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
+import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
 import { CUSTOMER_SOURCES, customerSourceLabel, normalizeMobile, type CustomerSource } from '@/types/customer';
-import { ORDER_CHANNELS } from '@/types/order';
+import { MANUAL_ORDER_CHANNELS } from '@/types/order';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
@@ -27,7 +30,41 @@ type AdminOrderFormProps = {
 const fieldClass = 'min-h-10 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
 
 function addressLine(address: CustomerAddress) {
-  return [address.house, address.locality, address.address, address.pincode].filter(Boolean).join(', ');
+  return composeAddressLine(
+    address.house ?? '',
+    address.address ?? '',
+    address.locality ?? '',
+    stateFromPincode(address.pincode),
+  );
+}
+
+function emptyAddress(person?: CustomerOption | null): AddressFieldsValue {
+  return {
+    house: '',
+    area: '',
+    landmark: '',
+    pincode: '',
+    state: '',
+    label: 'home',
+    receiverName: person?.name ?? '',
+    receiverPhone: (person?.mobile ?? '').replace(/\D/g, '').slice(-10),
+  };
+}
+
+function fromBook(row?: CustomerAddress | null, person?: CustomerOption | null): AddressFieldsValue {
+  if (!row) {
+    return emptyAddress(person);
+  }
+  return {
+    house: row.house ?? '',
+    area: row.address ?? '',
+    landmark: row.locality ?? '',
+    pincode: row.pincode ?? '',
+    state: stateFromPincode(row.pincode),
+    label: (row.label as AddressLabel) ?? 'home',
+    receiverName: row.name || person?.name || '',
+    receiverPhone: (row.mobile || person?.mobile || '').replace(/\D/g, '').slice(-10),
+  };
 }
 
 export function AdminOrderForm({
@@ -45,15 +82,13 @@ export function AdminOrderForm({
   const [books, setBooks] = useState(initialAddresses);
   const [customerId, setCustomerId] = useState(selectedCustomerId ?? '');
   const [customerQuery, setCustomerQuery] = useState('');
-  const [customerOpen, setCustomerOpen] = useState(false);
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [name, setName] = useState(initialPerson?.name ?? '');
   const [mobile, setMobile] = useState(initialPerson?.mobile ?? '');
   const [source, setSource] = useState<CustomerSource>((initialPerson?.source as CustomerSource) || 'whatsapp');
-  const [channel, setChannel] = useState('admin');
+  const [channel, setChannel] = useState('');
   const [addressId, setAddressId] = useState(initialPreferred?.id ?? '');
-  const [address, setAddress] = useState(initialPreferred ? addressLine(initialPreferred) : '');
-  const [pincode, setPincode] = useState(initialPreferred?.pincode ?? '');
+  const [ship, setShip] = useState(fromBook(initialPreferred, initialPerson));
   const [productQuery, setProductQuery] = useState('');
   const [qty, setQty] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState<'pending' | 'cash' | 'upi'>('pending');
@@ -61,6 +96,10 @@ export function AdminOrderForm({
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [duplicate, setDuplicate] = useState<CustomerOption | null>(null);
+  const [ignoredMobile, setIgnoredMobile] = useState('');
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
 
   const selected = people.find((person) => person.id === customerId) ?? null;
   const book = useMemo(
@@ -72,12 +111,15 @@ export function AdminOrderForm({
 
   const customerMatches = useMemo(() => {
     const needle = customerQuery.trim().toLowerCase();
-    if (!needle) {
+    if (!needle && customerQuery.length === 0) {
       return [];
     }
-    return people
-      .filter((person) => [person.name ?? '', person.mobile ?? ''].join(' ').toLowerCase().includes(needle))
-      .slice(0, 8);
+    if (!needle) {
+      return people;
+    }
+    return people.filter((person) =>
+      [person.name ?? '', person.mobile ?? ''].join(' ').toLowerCase().includes(needle),
+    );
   }, [people, customerQuery]);
 
   const productMatches = useMemo(() => {
@@ -102,9 +144,17 @@ export function AdminOrderForm({
 
   const phoneOk = normalizeMobile(mobile).length === 10;
   const nameOk = name.trim().length >= 2;
-  const addressOk = address.trim().length >= 4 && pincode.trim().length >= 4;
+  const structuredOk =
+    ship.house.trim().length >= 1 &&
+    ship.area.trim().length >= 2 &&
+    isValidPincode(ship.pincode) &&
+    (creatingCustomer ||
+      (ship.receiverName.trim().length >= 2 && normalizeMobile(ship.receiverPhone).length === 10));
+  const savedOk = Boolean(selected) && !creatingCustomer && !differentAddress && Boolean(activeAddressId);
+  const addressOk = savedOk || structuredOk;
   const customerOk = creatingCustomer ? nameOk && phoneOk : Boolean(selected);
-  const canCreate = customerOk && addressOk && lines.length > 0 && !submitting;
+  const channelOk = MANUAL_ORDER_CHANNELS.some((item) => item.value === channel);
+  const canCreate = customerOk && addressOk && channelOk && lines.length > 0 && !submitting && !duplicate;
 
   function applyCustomer(person: CustomerOption) {
     const nextBook = books.filter((item) => item.customer_id === person.id);
@@ -112,29 +162,87 @@ export function AdminOrderForm({
     setCustomerId(person.id);
     setCreatingCustomer(false);
     setCustomerQuery('');
-    setCustomerOpen(false);
+    setDuplicate(null);
+    setIgnoredMobile('');
     setName(person.name ?? '');
     setMobile(person.mobile ?? '');
     setSource((person.source as CustomerSource) || 'whatsapp');
     setAddressId(preferred?.id ?? '');
-    setAddress(preferred ? addressLine(preferred) : '');
-    setPincode(preferred?.pincode ?? '');
+    setShip(fromBook(preferred, person));
     setDifferentAddress(!preferred);
+  }
+
+  function mergeFoundCustomer(match: {
+    id: string;
+    name: string | null;
+    mobile: string | null;
+    source: string;
+    orderCount: number;
+    defaultAddress: string | null;
+    addresses: CustomerAddress[];
+  }): CustomerOption {
+    const person: CustomerOption = {
+      id: match.id,
+      name: match.name,
+      mobile: match.mobile,
+      source: match.source,
+      orderCount: match.orderCount,
+      defaultAddress: match.defaultAddress,
+    };
+    setPeople((current) => (current.some((item) => item.id === person.id) ? current : [person, ...current]));
+    setBooks((current) => {
+      const ids = new Set(match.addresses.map((item) => item.id));
+      return [...match.addresses, ...current.filter((item) => !ids.has(item.id))];
+    });
+    return person;
   }
 
   function startNewCustomer() {
     setCustomerId('');
     setCreatingCustomer(true);
-    setCustomerOpen(false);
     setCustomerQuery('');
+    setDuplicate(null);
+    setIgnoredMobile('');
     setName('');
     setMobile('');
     setSource('whatsapp');
     setAddressId('');
-    setAddress('');
-    setPincode('');
+    setShip(emptyAddress());
     setDifferentAddress(false);
   }
+
+  useEffect(() => {
+    if (!creatingCustomer) {
+      setDuplicate(null);
+      return;
+    }
+    const digits = normalizeMobile(mobile);
+    if (digits.length !== 10) {
+      setDuplicate(null);
+      return;
+    }
+    if (ignoredMobile === digits) {
+      return;
+    }
+    const local = peopleRef.current.find((person) => normalizeMobile(person.mobile ?? '') === digits);
+    if (local) {
+      setDuplicate(local);
+      return;
+    }
+    let cancelled = false;
+    findCustomerByMobile(digits).then((result) => {
+      if (cancelled || !result.customer) {
+        return;
+      }
+      const person = mergeFoundCustomer(result.customer);
+      if (!cancelled) {
+        setDuplicate(person);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [creatingCustomer, mobile, ignoredMobile]);
 
   function addProduct(product: Product) {
     if (!product.available) {
@@ -165,10 +273,19 @@ export function AdminOrderForm({
       name,
       mobile,
       source,
-      address,
-      pincode,
+      house: ship.house,
+      address: ship.area,
+      locality: ship.landmark,
+      pincode: ship.pincode,
     });
     if (result.error || !result.id) {
+      if (result.error?.toLowerCase().includes('already exists')) {
+        const match = await findCustomerByMobile(mobile);
+        if (match.customer) {
+          setDuplicate(mergeFoundCustomer(match.customer));
+          return { error: '' };
+        }
+      }
       return { error: result.error ?? 'Could not save the customer.' };
     }
 
@@ -178,7 +295,7 @@ export function AdminOrderForm({
       mobile: normalizeMobile(mobile),
       source,
       orderCount: 0,
-      defaultAddress: [address, pincode].filter(Boolean).join(', ') || null,
+      defaultAddress: composeAddressLine(ship.house, ship.area, ship.landmark, ship.state) || null,
     };
     setPeople((current) => [created, ...current]);
     if (result.addressId) {
@@ -191,10 +308,10 @@ export function AdminOrderForm({
           name: created.name ?? '',
           mobile: created.mobile ?? '',
           alt_mobile: null,
-          house: null,
-          locality: null,
-          address: address.trim(),
-          pincode: pincode.trim(),
+          house: ship.house.trim() || null,
+          locality: ship.landmark.trim() || null,
+          address: ship.area.trim(),
+          pincode: ship.pincode.trim(),
           instructions: null,
           is_default: true,
         },
@@ -217,7 +334,9 @@ export function AdminOrderForm({
     const customer = await ensureCustomer();
     if ('error' in customer) {
       setSubmitting(false);
-      setError(customer.error);
+      if (customer.error) {
+        setError(customer.error);
+      }
       return;
     }
 
@@ -225,8 +344,10 @@ export function AdminOrderForm({
     const result = await createAdminOrder({
       customerId: customer.id,
       addressId: useTypedAddress ? undefined : customer.addressId,
-      address: useTypedAddress ? address : undefined,
-      pincode: useTypedAddress ? pincode : undefined,
+      house: useTypedAddress ? ship.house : undefined,
+      area: useTypedAddress ? ship.area : undefined,
+      landmark: useTypedAddress ? ship.landmark : undefined,
+      pincode: useTypedAddress ? ship.pincode : undefined,
       notes,
       channel,
       items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
@@ -252,10 +373,11 @@ export function AdminOrderForm({
               type="button"
               onClick={() => {
                 setCreatingCustomer(false);
+                setDuplicate(null);
+                setIgnoredMobile('');
                 setName('');
                 setMobile('');
-                setAddress('');
-                setPincode('');
+                setShip(emptyAddress());
               }}
               className="text-sm font-medium text-stone-600"
             >
@@ -269,27 +391,35 @@ export function AdminOrderForm({
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-stone-400" aria-hidden />
-              <NoFillInput
-                type="search"
-                value={customerQuery}
-                onChange={(event) => {
-                  setCustomerQuery(event.target.value);
-                  setCustomerOpen(true);
-                }}
-                onFocus={() => setCustomerOpen(true)}
-                name="q-cust"
-                placeholder="Search name or phone"
-                className={`${fieldClass} pl-9`}
-              />
-              {customerOpen && customerQuery.trim() ? (
-                <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-stone-200 bg-white shadow-sm">
+            {!creatingCustomer ? (
+            <div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-stone-400" aria-hidden />
+                <NoFillInput
+                  type="search"
+                  value={customerQuery}
+                  onChange={(event) => setCustomerQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (customerMatches.length === 1) {
+                      applyCustomer(customerMatches[0]);
+                    }
+                  }}
+                  name="q-cust"
+                  placeholder="Search name or phone, or press space to list"
+                  className={`${fieldClass} pl-9`}
+                />
+              </div>
+              {customerQuery.length > 0 ? (
+                <ul className="mt-2 max-h-56 overflow-y-auto rounded-md border border-stone-100">
                   {customerMatches.length === 0 ? (
                     <li className="px-3 py-2.5 text-sm text-stone-500">No match. Use + New Customer.</li>
                   ) : (
                     customerMatches.map((person) => (
-                      <li key={person.id}>
+                      <li key={person.id} className="border-b border-stone-100 last:border-b-0">
                         <button
                           type="button"
                           onClick={() => applyCustomer(person)}
@@ -306,6 +436,7 @@ export function AdminOrderForm({
                 </ul>
               ) : null}
             </div>
+            ) : null}
 
             {selected && !creatingCustomer ? (
               <div className="rounded-md bg-stone-50 px-3 py-2.5">
@@ -330,7 +461,10 @@ export function AdminOrderForm({
                   <span className="mb-1 block text-xs font-medium text-stone-500">Phone</span>
                   <NoFillInput
                     value={mobile}
-                    onChange={(event) => setMobile(event.target.value)}
+                    onChange={(event) => {
+                      setIgnoredMobile('');
+                      setMobile(event.target.value.replace(/\D/g, '').slice(0, 10));
+                    }}
                     inputMode="numeric"
                     name="cust-ph"
                     className={fieldClass}
@@ -358,7 +492,8 @@ export function AdminOrderForm({
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-stone-500">Order channel</span>
               <select value={channel} onChange={(event) => setChannel(event.target.value)} className={fieldClass}>
-                {ORDER_CHANNELS.filter((item) => item.value !== 'api').map((item) => (
+                <option value="">Select channel</option>
+                {MANUAL_ORDER_CHANNELS.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
                   </option>
@@ -377,8 +512,7 @@ export function AdminOrderForm({
                     const next = book.find((item) => item.id === event.target.value);
                     setAddressId(event.target.value);
                     if (next) {
-                      setAddress(addressLine(next));
-                      setPincode(next.pincode);
+                      setShip(fromBook(next, selected));
                     }
                   }}
                   className={fieldClass}
@@ -393,28 +527,7 @@ export function AdminOrderForm({
             ) : null}
 
             {needAddressFields ? (
-              <div className="space-y-3">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-stone-500">Address</span>
-                  <NoFillTextarea
-                    value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    rows={3}
-                    name="ship-line"
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-stone-500">Pincode</span>
-                  <NoFillInput
-                    value={pincode}
-                    onChange={(event) => setPincode(event.target.value)}
-                    inputMode="numeric"
-                    name="ship-code"
-                    className={fieldClass}
-                  />
-                </label>
-              </div>
+              <AddressFields compact value={ship} onChange={setShip} showReceiver={!creatingCustomer} />
             ) : null}
 
             {selected && !creatingCustomer ? (
@@ -424,13 +537,11 @@ export function AdminOrderForm({
                   setDifferentAddress((open) => {
                     const next = !open;
                     if (next) {
-                      setAddress('');
-                      setPincode('');
+                      setShip(emptyAddress(selected));
                     } else {
                       const preferred = book.find((item) => item.is_default) ?? book[0];
                       setAddressId(preferred?.id ?? '');
-                      setAddress(preferred ? addressLine(preferred) : '');
-                      setPincode(preferred?.pincode ?? '');
+                      setShip(fromBook(preferred, selected));
                     }
                     return next;
                   });
@@ -454,6 +565,15 @@ export function AdminOrderForm({
                 type="search"
                 value={productQuery}
                 onChange={(event) => setProductQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') {
+                    return;
+                  }
+                  event.preventDefault();
+                  if (productMatches.length === 1) {
+                    addProduct(productMatches[0]);
+                  }
+                }}
                 name="q-prod"
                 placeholder="Search product name"
                 className={`${fieldClass} pl-9`}
@@ -581,12 +701,26 @@ export function AdminOrderForm({
             {!customerOk
               ? 'Select or add a customer.'
               : !addressOk
-                ? 'Add a valid delivery address and pincode.'
-                : 'Add at least one product.'}
+                ? 'Add house, area, pincode, and receiver details.'
+                : !channelOk
+                  ? 'Select WhatsApp, Phone, or Direct.'
+                  : 'Add at least one product.'}
           </p>
         ) : null}
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
       </section>
+      {duplicate ? (
+        <DuplicateCustomerDialog
+          name={duplicate.name}
+          mobile={duplicate.mobile}
+          orderCount={duplicate.orderCount}
+          onLoad={() => applyCustomer(duplicate)}
+          onDismiss={() => {
+            setIgnoredMobile(normalizeMobile(duplicate.mobile ?? mobile));
+            setDuplicate(null);
+          }}
+        />
+      ) : null}
     </form>
   );
 }

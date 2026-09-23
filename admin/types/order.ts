@@ -21,6 +21,8 @@ export type Order = {
   refund_status: RefundStatus | null;
   channel: string;
   external_id: string | null;
+  community_id?: string | null;
+  community_name?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -58,6 +60,10 @@ export const ORDER_CHANNELS: { value: string; label: string }[] = [
   { value: 'admin', label: 'Admin' },
   { value: 'api', label: 'Partner API' },
 ];
+
+export const MANUAL_ORDER_CHANNELS = ORDER_CHANNELS.filter((item) =>
+  item.value === 'whatsapp' || item.value === 'phone' || item.value === 'direct',
+);
 
 export function orderChannelLabel(channel: string | null | undefined) {
   return ORDER_CHANNELS.find((item) => item.value === channel)?.label ?? channel ?? '—';

@@ -1,11 +1,29 @@
 -- Extra order channels and customer sources used by admin manual orders.
 -- Source (how the contact was acquired) stays on customers; channel (how this order arrived) stays on orders.
 
-insert into public.order_channels (id, label) values
-  ('web', 'Web'),
-  ('phone', 'Phone'),
-  ('direct', 'Direct')
-on conflict (id) do nothing;
+create or replace function public.ensure_order_channels()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.order_channels (id, label) values
+    ('app', 'App'),
+    ('api', 'Partner API'),
+    ('whatsapp', 'WhatsApp'),
+    ('web', 'Web'),
+    ('phone', 'Phone'),
+    ('direct', 'Direct'),
+    ('admin', 'Admin')
+  on conflict (id) do nothing;
+end;
+$$;
+
+revoke all on function public.ensure_order_channels() from public;
+grant execute on function public.ensure_order_channels() to authenticated;
+
+select public.ensure_order_channels();
 
 do $$
 declare
@@ -27,6 +45,6 @@ end $$;
 
 alter table public.customers
   add constraint customers_source_check
-  check (source in ('app', 'whatsapp', 'walk_in', 'phone', 'web', 'other'));
+    check (source in ('app', 'whatsapp', 'walk_in', 'phone', 'web', 'other'));
 
 notify pgrst, 'reload schema';

@@ -3,8 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearDeliveryDraft, saveDeliveryDraft } from '@/cart/delivery-draft';
 import { fetchRemoteAddresses, replaceRemoteAddresses } from '@/services/addresses';
 import type { DeliveryDetails } from '@/services/orders';
+import { composeAddressLine, stateFromPincode, type AddressLabel } from '@/utils/address';
 
-export type AddressLabel = 'home' | 'work';
+export type { AddressLabel };
 
 export type SavedAddress = DeliveryDetails & {
   id: string;
@@ -53,7 +54,12 @@ export function splitDeliveryAddress(raw: string): { address: string; instructio
 }
 
 export function formatAddressForOrder(details: SavedAddress): string {
-  const line = [details.house, details.locality, details.address].filter(Boolean).join(', ');
+  const line = composeAddressLine(
+    details.house ?? '',
+    details.address,
+    details.locality ?? '',
+    stateFromPincode(details.pincode),
+  );
   const unique = line
     .split(',')
     .map((part) => part.trim())

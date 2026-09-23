@@ -8,6 +8,7 @@ export type DeliveryDetails = {
   mobile: string;
   address: string;
   pincode: string;
+  addressId?: string;
 };
 
 export async function getCustomerProfile(): Promise<{ name: string | null; mobile: string | null } | null> {
@@ -88,20 +89,34 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
 
   const totalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
-    .insert({
-      business_id: env.businessId,
-      user_id: signedIn.id,
-      customer_name: details.name.trim(),
-      mobile: details.mobile.trim(),
-      delivery_address: details.address.trim(),
-      pincode: details.pincode.trim(),
-      total_amount: totalAmount,
-      status: 'new',
-    })
-    .select()
-    .single();
+  let communityId: string | null = null;
+  if (details.addressId) {
+    const { data: saved } = await supabase
+      .from('customer_addresses')
+      .select('community_id')
+      .eq('id', details.addressId)
+      .eq('user_id', signedIn.id)
+      .maybeSingle();
+    communityId = (saved?.community_id as string | null) ?? null;
+  }
+
+  const base = {
+    business_id: env.businessId,
+    user_id: signedIn.id,
+    customer_name: details.name.trim(),
+    mobile: details.mobile.trim(),
+    delivery_address: details.address.trim(),
+    pincode: details.pincode.trim(),
+    total_amount: totalAmount,
+    status: 'new',
+  };
+  const first = communityId ? { ...base, community_id: communityId } : base;
+  let inserted = await supabase.from('orders').insert(first as typeof base).select().single();
+  if ((inserted.error || !inserted.data) && communityId) {
+    inserted = await supabase.from('orders').insert(base).select().single();
+  }
+  const order = inserted.data;
+  const orderError = inserted.error;
 
   if (orderError || !order) {
     throw new Error(orderError?.message ?? 'Could not create the order.');

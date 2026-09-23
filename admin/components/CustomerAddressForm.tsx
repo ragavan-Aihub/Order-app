@@ -3,23 +3,33 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
+import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { deleteCustomerAddress, saveCustomerAddress } from '@/services/customer-actions';
 import type { CustomerAddress } from '@/services/customers';
+import { stateFromPincode, type AddressLabel } from '@/types/address';
 
 export function CustomerAddressForm({
   customerId,
   address,
+  receiverName = '',
+  receiverPhone = '',
 }: {
   customerId: string;
   address?: CustomerAddress;
+  receiverName?: string;
+  receiverPhone?: string;
 }) {
   const router = useRouter();
-  const [label, setLabel] = useState<'home' | 'work' | 'other'>((address?.label as 'home' | 'work' | 'other') ?? 'home');
-  const [house, setHouse] = useState(address?.house ?? '');
-  const [locality, setLocality] = useState(address?.locality ?? '');
-  const [line, setLine] = useState(address?.address ?? '');
-  const [pincode, setPincode] = useState(address?.pincode ?? '');
-  const [instructions, setInstructions] = useState(address?.instructions ?? '');
+  const [fields, setFields] = useState<AddressFieldsValue>({
+    house: address?.house ?? '',
+    area: address?.address ?? '',
+    landmark: address?.locality ?? '',
+    pincode: address?.pincode ?? '',
+    state: stateFromPincode(address?.pincode ?? ''),
+    label: (address?.label as AddressLabel) ?? 'home',
+    receiverName: address?.name || receiverName,
+    receiverPhone: (address?.mobile || receiverPhone).replace(/\D/g, '').slice(-10),
+  });
   const [isDefault, setIsDefault] = useState(address?.is_default ?? false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -30,12 +40,13 @@ export function CustomerAddressForm({
     setSubmitting(true);
     const result = await saveCustomerAddress(customerId, {
       id: address?.id,
-      label,
-      house,
-      locality,
-      address: line,
-      pincode,
-      instructions,
+      label: fields.label,
+      house: fields.house,
+      area: fields.area,
+      landmark: fields.landmark,
+      pincode: fields.pincode,
+      name: fields.receiverName,
+      mobile: fields.receiverPhone,
       isDefault,
     });
     setSubmitting(false);
@@ -60,20 +71,8 @@ export function CustomerAddressForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-stone-200 bg-white p-5">
-      <div className="flex flex-wrap gap-2">
-        {(['home', 'work', 'other'] as const).map((item) => (
-          <label key={item} className="inline-flex items-center gap-2 text-sm">
-            <input type="radio" name={`label-${address?.id ?? 'new'}`} checked={label === item} onChange={() => setLabel(item)} />
-            {item === 'home' ? 'Home' : item === 'work' ? 'Work' : 'Other'}
-          </label>
-        ))}
-      </div>
-      <input value={house} onChange={(event) => setHouse(event.target.value)} placeholder="House / street" className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2" />
-      <input value={locality} onChange={(event) => setLocality(event.target.value)} placeholder="Locality" className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2" />
-      <textarea value={line} onChange={(event) => setLine(event.target.value)} required placeholder="Address" rows={2} className="w-full rounded-lg border border-stone-300 px-3 py-2" />
-      <input value={pincode} onChange={(event) => setPincode(event.target.value)} required placeholder="Pincode" inputMode="numeric" className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2" />
-      <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Delivery notes (optional)" rows={2} className="w-full rounded-lg border border-stone-300 px-3 py-2" />
+    <form onSubmit={onSubmit} autoComplete="off" className="relative space-y-4 rounded-xl border border-stone-200 bg-white p-5">
+      <AddressFields value={fields} onChange={setFields} />
       <label className="inline-flex items-center gap-2 text-sm">
         <input type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />
         Default address
@@ -81,7 +80,7 @@ export function CustomerAddressForm({
       {error ? <p className="text-red-700">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={submitting} className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-60">
-          {submitting ? 'Saving…' : address ? 'Save address' : 'Add address'}
+          {submitting ? 'Saving…' : 'Save Address'}
         </button>
         {address ? (
           <button type="button" onClick={onDelete} className="min-h-11 rounded-lg border border-stone-300 px-4 py-2">

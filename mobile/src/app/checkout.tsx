@@ -20,6 +20,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/config/theme';
 import { getLastDeliveryDetails, placeOrder } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
+import { composeAddressLine, stateFromPincode } from '@/utils/address';
 import { formatPrice } from '@/utils/format';
 
 export default function CheckoutScreen() {
@@ -87,6 +88,7 @@ export default function CheckoutScreen() {
       mobile: selected.mobile,
       address: formatAddressForOrder(selected),
       pincode: selected.pincode,
+      addressId: selected.id,
     };
     const user = await getSignedInUser();
     if (!user) {
@@ -140,7 +142,12 @@ export default function CheckoutScreen() {
         ) : (
           addresses.map((item) => {
             const isSelected = item.id === selected?.id;
-            const line = [item.house, item.locality || item.address].filter(Boolean).join(', ');
+            const line = [
+              composeAddressLine(item.house ?? '', item.address, item.locality ?? '', stateFromPincode(item.pincode)),
+              item.pincode,
+            ]
+              .filter(Boolean)
+              .join(', ');
             return (
               <Pressable
                 key={item.id}
@@ -151,7 +158,13 @@ export default function CheckoutScreen() {
               >
                 <View style={styles.iconWrap}>
                   <Ionicons
-                    name={item.label === 'work' ? 'briefcase-outline' : 'home-outline'}
+                    name={
+                      item.label === 'work'
+                        ? 'briefcase-outline'
+                        : item.label === 'other'
+                          ? 'location-outline'
+                          : 'home-outline'
+                    }
                     size={22}
                     color={colors.primaryDark}
                   />
