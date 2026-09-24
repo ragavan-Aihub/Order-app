@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 
 import { importProductsFromCsv, type ProductImportIssue } from '@/services/product-actions';
 
@@ -18,6 +18,19 @@ export function ProductImport() {
   const [skipped, setSkipped] = useState(0);
   const [errors, setErrors] = useState<ProductImportIssue[]>([]);
   const [errorLogCsv, setErrorLogCsv] = useState<string | null>(null);
+
+  function resetResult() {
+    setCreated(null);
+    setSkipped(0);
+    setErrors([]);
+    setErrorLogCsv(null);
+  }
+
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const next = event.target.files?.[0] ?? null;
+    setFile(next);
+    resetResult();
+  }
 
   function downloadTemplate() {
     const blob = new Blob([TEMPLATE], { type: 'text/csv;charset=utf-8;' });
@@ -44,19 +57,13 @@ export function ProductImport() {
 
   async function onImport() {
     if (!file) {
-      setErrors([{ row: 0, field: 'file', message: 'Choose the filled CSV file.' }]);
-      setCreated(null);
-      setSkipped(0);
-      setErrorLogCsv(null);
       return;
     }
     setSaving(true);
-    setCreated(null);
-    setSkipped(0);
-    setErrors([]);
-    setErrorLogCsv(null);
+    resetResult();
     const formData = new FormData();
     formData.set('file', file);
+    formData.set('csv', await file.text());
     const result = await importProductsFromCsv(formData);
     setSaving(false);
     setCreated(result.created);
@@ -71,11 +78,14 @@ export function ProductImport() {
   return (
     <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-5">
       <h2 className="text-lg font-semibold">Import products</h2>
-      <p className="text-sm text-stone-600">
-        Download the template. <span className="font-medium">available</span> must be exactly <span className="font-medium">Yes</span> or{' '}
-        <span className="font-medium">No</span>. Put <span className="font-medium">image_path</span> as a full path on this Mac
-        (home folder). Valid rows are imported; invalid rows are skipped and listed in the error log.
-      </p>
+      <ol className="list-decimal space-y-1 pl-5 text-sm text-stone-600">
+        <li>Export the template and fill one row per product.</li>
+        <li>
+          <span className="font-medium">available</span> is Yes or No.{' '}
+          <span className="font-medium">image_path</span> is a full path on this Mac (home folder).
+        </li>
+        <li>Choose the CSV, then import. Invalid rows are skipped.</li>
+      </ol>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <button
           type="button"
@@ -84,35 +94,35 @@ export function ProductImport() {
         >
           Export template
         </button>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          className="min-h-11 max-w-full text-sm"
-        />
+        <label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800">
+          {file ? file.name : 'Choose CSV'}
+          <input type="file" accept=".csv,text/csv" onChange={onFileChange} className="sr-only" />
+        </label>
         <button
           type="button"
           onClick={onImport}
-          disabled={saving}
-          className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 font-semibold text-white disabled:opacity-50"
+          disabled={!file || saving}
+          className="min-h-11 rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {saving ? 'Importing…' : 'Import CSV'}
         </button>
       </div>
       {created != null ? (
-        <p className="text-sm text-emerald-800">
+        <p className={`text-sm ${created > 0 ? 'text-emerald-800' : 'text-stone-700'}`}>
           Imported {created}. Skipped {skipped}.
         </p>
       ) : null}
       {errors.length > 0 ? (
         <div className="space-y-2">
-          <button
-            type="button"
-            onClick={downloadErrorLog}
-            className="text-sm font-semibold text-emerald-800"
-          >
-            Download error log
-          </button>
+          {errorLogCsv ? (
+            <button
+              type="button"
+              onClick={downloadErrorLog}
+              className="text-sm font-semibold text-emerald-800"
+            >
+              Download error log
+            </button>
+          ) : null}
           <ul className="max-h-40 list-disc space-y-1 overflow-auto pl-5 text-sm text-red-700">
             {errors.map((error) => (
               <li key={`${error.row}-${error.field}-${error.message}`}>

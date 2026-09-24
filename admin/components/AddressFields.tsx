@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-import { NoFillInput } from '@/components/NoBrowserFill';
+import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import {
   ADDRESS_FIELD_COPY,
   ADDRESS_LABELS,
@@ -69,7 +69,8 @@ export function AddressFields({
   }, [value.pincode]);
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <BrowserAddressDecoy />
       <div className="space-y-3">
         <p className={headingClass}>Add address</p>
         <label className="block">
@@ -77,7 +78,8 @@ export function AddressFields({
           <NoFillInput
             value={value.house}
             onChange={(event) => patch({ house: event.target.value })}
-            name="addr-house"
+            name="f2f_h"
+            autoComplete="off"
             placeholder={ADDRESS_FIELD_COPY.house}
             className={fieldClass}
           />
@@ -87,7 +89,8 @@ export function AddressFields({
           <NoFillInput
             value={value.area}
             onChange={(event) => patch({ area: event.target.value })}
-            name="addr-area"
+            name="f2f_ar"
+            autoComplete="off"
             placeholder={ADDRESS_FIELD_COPY.area}
             className={fieldClass}
           />
@@ -97,7 +100,8 @@ export function AddressFields({
           <NoFillInput
             value={value.landmark}
             onChange={(event) => patch({ landmark: event.target.value })}
-            name="addr-land"
+            name="f2f_lm"
+            autoComplete="off"
             placeholder={ADDRESS_FIELD_COPY.landmark}
             className={fieldClass}
           />
@@ -108,22 +112,18 @@ export function AddressFields({
             value={value.pincode}
             onChange={(event) => patch({ pincode: event.target.value.replace(/\D/g, '').slice(0, 6) })}
             inputMode="numeric"
-            name="addr-pin"
+            name="f2f_pc"
+            autoComplete="one-time-code"
             placeholder={ADDRESS_FIELD_COPY.pincode}
             className={fieldClass}
           />
         </label>
-        <label className="block">
+        <div className="block">
           <span className={labelClass}>{ADDRESS_FIELD_COPY.state}</span>
-          <input
-            value={value.state}
-            readOnly
-            tabIndex={-1}
-            name="addr-state"
-            placeholder={isValidPincode(value.pincode) ? 'Looking up…' : 'Filled from pincode'}
-            className={`${fieldClass} bg-stone-50 text-stone-700`}
-          />
-        </label>
+          <div className={`${fieldClass} flex items-center bg-stone-50 text-stone-700`}>
+            {value.state || (isValidPincode(value.pincode) ? 'Looking up…' : 'Filled from pincode')}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -155,7 +155,8 @@ export function AddressFields({
             <NoFillInput
               value={value.receiverName}
               onChange={(event) => patch({ receiverName: event.target.value })}
-              name="addr-recv-nm"
+              name="f2f_rn"
+              autoComplete="off"
               placeholder={ADDRESS_FIELD_COPY.receiverName}
               className={fieldClass}
             />
@@ -168,7 +169,8 @@ export function AddressFields({
                 value={value.receiverPhone}
                 onChange={(event) => patch({ receiverPhone: event.target.value.replace(/\D/g, '').slice(0, 10) })}
                 inputMode="numeric"
-                name="addr-recv-ph"
+                name="f2f_rp"
+                autoComplete="one-time-code"
                 placeholder={ADDRESS_FIELD_COPY.receiverPhone}
                 className="min-h-10 min-w-0 flex-1 border-0 px-3 py-1.5 text-sm outline-none"
               />

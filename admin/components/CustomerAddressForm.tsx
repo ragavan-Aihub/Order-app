@@ -13,11 +13,13 @@ export function CustomerAddressForm({
   address,
   receiverName = '',
   receiverPhone = '',
+  onDone,
 }: {
   customerId: string;
   address?: CustomerAddress;
   receiverName?: string;
   receiverPhone?: string;
+  onDone?: (address?: CustomerAddress) => void;
 }) {
   const router = useRouter();
   const [fields, setFields] = useState<AddressFieldsValue>({
@@ -54,6 +56,7 @@ export function CustomerAddressForm({
       setError(result.error);
       return;
     }
+    onDone?.(result.address);
     router.refresh();
   }
 
@@ -82,7 +85,7 @@ export function CustomerAddressForm({
         <button type="submit" disabled={submitting} className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60">
           {submitting ? 'Saving…' : 'Save Address'}
         </button>
-        {address ? (
+        {address && !onDone ? (
           <button type="button" onClick={onDelete} className="min-h-11 rounded-lg border border-stone-300 px-4 py-2">
             Delete
           </button>

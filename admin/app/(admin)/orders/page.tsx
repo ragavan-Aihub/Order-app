@@ -8,8 +8,11 @@ import { getAllOrders } from '@/services/orders';
 export const dynamic = 'force-dynamic';
 
 export default async function OrdersPage() {
-  const [orders, enabled] = await Promise.all([getAllOrders(), isCommunitiesEnabled()]);
-  const communities = enabled ? await getCommunities() : [];
+  const enabled = await isCommunitiesEnabled();
+  const [orders, communities] = await Promise.all([
+    getAllOrders({ hydrateCommunity: enabled }),
+    enabled ? getCommunities() : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-4">

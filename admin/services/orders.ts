@@ -1,3 +1,4 @@
+import { isCommunitiesEnabled } from '@/services/business';
 import { getAdminSession } from '@/services/supabase/admin-session';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Order, OrderItem, OrderWithItems } from '@/types/order';
@@ -72,7 +73,7 @@ async function withMappedCommunity(
   return orders.map((order) => applyMappedCommunity(order, mapped, names, authByCustomer, customerByAuth));
 }
 
-export async function getAllOrders(): Promise<Order[]> {
+export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Promise<Order[]> {
   const session = await getAdminSession();
   if ('error' in session || !session.profile.business_id) {
     return [];
@@ -90,8 +91,10 @@ export async function getAllOrders(): Promise<Order[]> {
     .eq('business_id', businessId)
     .order('created_at', { ascending: false });
 
+  const hydrate = options?.hydrateCommunity ?? (await isCommunitiesEnabled());
+
   if (!error && data) {
-    return withMappedCommunity(supabase, businessId, data as Order[]);
+    return hydrate ? withMappedCommunity(supabase, businessId, data as Order[]) : (data as Order[]);
   }
 
   const fallback = await supabase
@@ -106,20 +109,17 @@ export async function getAllOrders(): Promise<Order[]> {
     return [];
   }
 
-  return withMappedCommunity(
-    supabase,
-    businessId,
-    fallback.data.map((order) => ({
-      ...(order as Order),
-      payment_method: 'pending' as const,
-      cancel_reason: null,
-      refund_status: null,
-      channel: 'app',
-      external_id: null,
-      community_id: null,
-      community_name: null,
-    })),
-  );
+  const mapped = fallback.data.map((order) => ({
+    ...(order as Order),
+    payment_method: 'pending' as const,
+    cancel_reason: null,
+    refund_status: null,
+    channel: 'app',
+    external_id: null,
+    community_id: null,
+    community_name: null,
+  }));
+  return hydrate ? withMappedCommunity(supabase, businessId, mapped) : mapped;
 }
 
 export async function getOrderById(id: string): Promise<OrderWithItems | null> {

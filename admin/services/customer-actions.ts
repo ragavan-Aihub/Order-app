@@ -298,6 +298,13 @@ export async function deleteCustomer(customerId: string): Promise<{ error: strin
   return { error: null };
 }
 
+function receiverKey(name: string, mobile: string) {
+  return `${name.trim().toLowerCase().replace(/\s+/g, ' ')}|${normalizeMobile(mobile)}`;
+}
+
+const ADDRESS_SELECT =
+  'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default, community_id';
+
 export async function saveCustomerAddress(
   customerId: string,
   input: {
@@ -312,7 +319,7 @@ export async function saveCustomerAddress(
     instructions?: string;
     isDefault?: boolean;
   },
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; address?: CustomerAddress }> {
   const ctx = await requireAdmin();
   if ('error' in ctx) {
     return { error: ctx.error };
@@ -345,11 +352,26 @@ export async function saveCustomerAddress(
 
   const receiverName = input.name?.trim() || customer.name;
   const receiverMobile = normalizeMobile(input.mobile || customer.mobile);
-  if (receiverName.length < 2) {
+  if (!receiverName || receiverName.length < 2) {
     return { error: 'Enter the receiver name.' };
   }
   if (receiverMobile.length !== 10) {
     return { error: 'Enter a 10-digit receiver phone number.' };
+  }
+
+  const { data: book } = await ctx.supabase
+    .from('customer_addresses')
+    .select('id, name, mobile')
+    .eq('business_id', ctx.businessId)
+    .eq('customer_id', customerId);
+  const duplicate = (book ?? []).find(
+    (row) =>
+      row.id !== input.id && receiverKey(row.name ?? '', row.mobile ?? '') === receiverKey(receiverName, receiverMobile),
+  );
+  if (duplicate) {
+    return {
+      error: 'This receiver name and mobile already have an address. Edit that one instead of adding a duplicate.',
+    };
   }
 
   const row = {
@@ -374,16 +396,16 @@ export async function saveCustomerAddress(
         .eq('id', input.id)
         .eq('customer_id', customerId)
         .eq('business_id', ctx.businessId)
-        .select('id')
+        .select(ADDRESS_SELECT)
         .maybeSingle()
-    : await ctx.supabase.from('customer_addresses').insert(row).select('id').maybeSingle();
+    : await ctx.supabase.from('customer_addresses').insert(row).select(ADDRESS_SELECT).maybeSingle();
 
   if (result.error || !result.data) {
     return { error: result.error?.message ?? 'Could not save the address.' };
   }
 
   revalidateCustomers(customerId);
-  return { error: null };
+  return { error: null, address: result.data as CustomerAddress };
 }
 
 export async function deleteCustomerAddress(

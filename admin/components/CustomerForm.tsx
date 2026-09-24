@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
+import { BrowserAddressDecoy, NoFillInput, NoFillTextarea } from '@/components/NoBrowserFill';
 import { createCustomer, findCustomerByMobile, updateCustomer } from '@/services/customer-actions';
 import { ALL_CUSTOMER_SOURCES, CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
 
@@ -120,19 +121,22 @@ export function CustomerForm({ customer }: CustomerFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} autoComplete="off" className="max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-5">
+    <form onSubmit={onSubmit} autoComplete="off" className="relative max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-5">
+      <BrowserAddressDecoy />
       <label className="block">
         <span className="mb-1 block text-sm text-stone-500">Name</span>
-        <input
+        <NoFillInput
           value={name}
           onChange={(event) => setName(event.target.value)}
           required
+          name="cust_nm"
+          autoComplete="off"
           className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2"
         />
       </label>
       <label className="block">
         <span className="mb-1 block text-sm text-stone-500">Mobile</span>
-        <input
+        <NoFillInput
           value={mobile}
           onChange={(event) => {
             setIgnoredMobile('');
@@ -140,6 +144,8 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           }}
           inputMode="numeric"
           required
+          name="cust_ph"
+          autoComplete="one-time-code"
           className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2"
         />
       </label>
@@ -148,6 +154,8 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         <select
           value={source}
           onChange={(event) => setSource(event.target.value as CustomerSource)}
+          autoComplete="off"
+          name="cust_src"
           className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
         >
           {sources.map((item) => (
@@ -160,10 +168,12 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       </label>
       <label className="block">
         <span className="mb-1 block text-sm text-stone-500">Notes (optional)</span>
-        <textarea
+        <NoFillTextarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           rows={3}
+          name="cust_nt"
+          autoComplete="off"
           className="w-full rounded-lg border border-stone-300 px-3 py-2"
         />
       </label>

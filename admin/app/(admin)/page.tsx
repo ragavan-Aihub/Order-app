@@ -9,7 +9,10 @@ import { formatOrderNumber, formatPrice } from '@/utils/format';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [products, orders] = await Promise.all([getAllProducts(), getAllOrders()]);
+  const [products, orders] = await Promise.all([
+    getAllProducts(),
+    getAllOrders({ hydrateCommunity: false }),
+  ]);
   const availableCount = products.filter((product) => product.available).length;
   const attention = orders.filter(
     (order) => order.status === 'new' || (order.status === 'delivered' && !isPaymentCollected(order.payment_method)),
@@ -19,7 +22,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold md:text-3xl">Dashboard</h1>
-        <p className="mt-1 text-stone-600">Manage products, orders, and business settings.</p>
+        <p className="mt-1 text-stone-600">Manage products, orders, and customers.</p>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <div className="rounded-xl border border-stone-200 bg-white p-4">

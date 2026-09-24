@@ -118,14 +118,30 @@ function csvEscape(value: string) {
 }
 
 function parseAvailable(value: string): { ok: true; available: boolean } | { ok: false } {
-  const normalized = value.trim();
-  if (normalized === 'Yes') {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'yes') {
     return { ok: true, available: true };
   }
-  if (normalized === 'No') {
+  if (normalized === 'no') {
     return { ok: true, available: false };
   }
   return { ok: false };
+}
+
+async function readCsvText(formData: FormData): Promise<string | null> {
+  const csv = formData.get('csv');
+  if (typeof csv === 'string' && csv.trim().length > 0) {
+    return csv;
+  }
+  const file = formData.get('file');
+  if (!file || typeof file === 'string' || !('size' in file) || file.size === 0) {
+    return null;
+  }
+  if (typeof (file as Blob).text !== 'function') {
+    return null;
+  }
+  const text = await (file as Blob).text();
+  return text.trim().length > 0 ? text : null;
 }
 
 function imageMeta(filePath: string): { contentType: string; extension: string } | null {
@@ -176,12 +192,12 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'You are not signed in as an admin.' }], errorLogCsv: null };
   }
 
-  const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) {
+  const csvText = await readCsvText(formData);
+  if (!csvText) {
     return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'Choose a filled CSV file.' }], errorLogCsv: null };
   }
 
-  const rows = parseCsv(await file.text());
+  const rows = parseCsv(csvText);
   if (rows.length < 2) {
     return {
       created: 0,
@@ -241,7 +257,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       rowErrors.push({ row: line, field: 'price', message: 'Price must be a number 0 or more.' });
     }
     if (!availableParsed.ok) {
-      rowErrors.push({ row: line, field: 'available', message: 'Available must be exactly Yes or No.' });
+      rowErrors.push({ row: line, field: 'available', message: 'Available must be Yes or No.' });
     }
     if (!imagePathRaw) {
       rowErrors.push({ row: line, field: 'image_path', message: 'image_path is required.' });
@@ -318,11 +334,26 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     revalidatePath('/products');
   }
 
+  if (created === 0 && skipped > 0) {
+    errors.unshift({
+      row: 0,
+      field: 'file',
+      message:
+        skipped === 1
+          ? 'No products imported. That row was skipped.'
+          : `No products imported. All ${skipped} rows were skipped.`,
+    });
+  }
+
   const errorLogCsv =
-    errors.length === 0
+    errors.filter((item) => item.row > 0).length === 0
       ? null
       : ['row,field,error']
-          .concat(errors.map((item) => [String(item.row), item.field, item.message].map(csvEscape).join(',')))
+          .concat(
+            errors
+              .filter((item) => item.row > 0)
+              .map((item) => [String(item.row), item.field, item.message].map(csvEscape).join(',')),
+          )
           .join('\n');
 
   return { created, skipped, errors, errorLogCsv };

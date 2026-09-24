@@ -32,12 +32,11 @@ export function CustomerDeleteButton({ customerId, disabled }: { customerId: str
         type="button"
         onClick={onDelete}
         disabled={disabled || busy}
-        className="min-h-11 rounded-lg border border-red-200 px-4 py-2 font-medium text-red-800 disabled:opacity-50"
+        className="inline-flex min-h-10 items-center rounded-lg border border-red-200 px-4 text-sm font-medium text-red-800 disabled:opacity-50"
       >
         {busy ? 'Deleting…' : 'Delete customer'}
       </button>
-      {disabled ? <p className="mt-1 text-sm text-stone-500">Customers with orders cannot be deleted.</p> : null}
-      {error ? <p className="mt-1 text-red-700">{error}</p> : null}
+      {error ? <p className="mt-1 text-sm text-red-700">{error}</p> : null}
     </div>
   );
 }
