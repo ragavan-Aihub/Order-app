@@ -164,7 +164,7 @@ export function BusinessInfoForm({ business }: { business: Business }) {
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
+        className="min-h-11 w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
         {submitting ? 'Saving…' : 'Save business info'}
       </button>

@@ -27,7 +27,7 @@ export function DuplicateCustomerDialog({
           <button
             type="button"
             onClick={onLoad}
-            className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white"
+            className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white"
           >
             Load this customer
           </button>

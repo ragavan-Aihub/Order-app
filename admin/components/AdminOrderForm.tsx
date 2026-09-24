@@ -691,7 +691,7 @@ export function AdminOrderForm({
           <button
             type="submit"
             disabled={!canCreate}
-            className="min-h-10 rounded-md bg-emerald-800 px-5 text-sm font-semibold text-white disabled:opacity-40"
+            className="min-h-10 rounded-md bg-emerald-600 hover:bg-emerald-700 px-5 text-sm font-semibold text-white disabled:opacity-40"
           >
             {submitting ? 'Creating…' : 'Create order'}
           </button>

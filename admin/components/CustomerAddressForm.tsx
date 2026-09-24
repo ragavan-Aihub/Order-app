@@ -79,7 +79,7 @@ export function CustomerAddressForm({
       </label>
       {error ? <p className="text-red-700">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={submitting} className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-60">
+        <button type="submit" disabled={submitting} className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60">
           {submitting ? 'Saving…' : 'Save Address'}
         </button>
         {address ? (

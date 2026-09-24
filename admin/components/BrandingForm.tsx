@@ -140,7 +140,7 @@ export function BrandingForm({ business }: { business: Business }) {
           ) : (
             <p className="text-stone-600">No logo yet</p>
           )}
-          <span className="rounded-lg bg-emerald-800 px-5 py-2 font-semibold text-white">
+          <span className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-5 py-2 font-semibold text-white">
             {logoPreview ? 'Replace logo' : 'Upload logo'}
           </span>
           <p className="text-sm text-stone-500">JPG, PNG, WebP, or GIF. Max 5 MB.</p>
@@ -172,7 +172,7 @@ export function BrandingForm({ business }: { business: Business }) {
           ) : (
             <p className="text-stone-600">No banner yet</p>
           )}
-          <span className="rounded-lg bg-emerald-800 px-5 py-2 font-semibold text-white">
+          <span className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-5 py-2 font-semibold text-white">
             {bannerPreview ? 'Replace banner' : 'Upload banner'}
           </span>
           <p className="text-sm text-stone-500">Promotional image for the customer home screen. Max 5 MB.</p>
@@ -185,7 +185,7 @@ export function BrandingForm({ business }: { business: Business }) {
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
+        className="min-h-11 w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
         {submitting ? 'Saving…' : 'Save branding'}
       </button>

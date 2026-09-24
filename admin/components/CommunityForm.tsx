@@ -6,10 +6,9 @@ import { useState, type FormEvent } from 'react';
 import { saveCommunity } from '@/services/community-actions';
 import type { Community } from '@/types/community';
 
-export function CommunityForm({ community }: { community?: Pick<Community, 'id' | 'name' | 'active'> }) {
+export function CommunityForm({ community }: { community?: Pick<Community, 'id' | 'name'> }) {
   const router = useRouter();
   const [name, setName] = useState(community?.name ?? '');
-  const [active, setActive] = useState(community?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -17,13 +16,13 @@ export function CommunityForm({ community }: { community?: Pick<Community, 'id' 
     event.preventDefault();
     setError(null);
     setSubmitting(true);
-    const result = await saveCommunity({ id: community?.id, name, active });
+    const result = await saveCommunity({ id: community?.id, name });
     setSubmitting(false);
     if (result.error || !result.id) {
       setError(result.error ?? 'Could not save the community.');
       return;
     }
-    router.push(`/communities/${result.id}`);
+    router.push(`/customers/communities/${result.id}`);
     router.refresh();
   }
 
@@ -39,17 +38,11 @@ export function CommunityForm({ community }: { community?: Pick<Community, 'id' 
           className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2"
         />
       </label>
-      {community ? (
-        <label className="inline-flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} />
-          Active
-        </label>
-      ) : null}
       {error ? <p className="text-red-700">{error}</p> : null}
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-60"
+        className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
       >
         {submitting ? 'Saving…' : community ? 'Save community' : 'Create and manage customers'}
       </button>

@@ -27,3 +27,23 @@ export async function getAdminBusiness(): Promise<Business | null> {
 
   return data as Business;
 }
+
+export async function isCommunitiesEnabled(): Promise<boolean> {
+  const session = await getAdminSession();
+  if ('error' in session || !session.profile.business_id) {
+    return false;
+  }
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return false;
+  }
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('communities_enabled')
+    .eq('id', session.profile.business_id)
+    .maybeSingle();
+  if (error || !data) {
+    return false;
+  }
+  return Boolean((data as { communities_enabled?: boolean }).communities_enabled);
+}

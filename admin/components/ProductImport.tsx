@@ -94,7 +94,7 @@ export function ProductImport() {
           type="button"
           onClick={onImport}
           disabled={saving}
-          className="min-h-11 rounded-lg bg-emerald-800 px-4 font-semibold text-white disabled:opacity-50"
+          className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 font-semibold text-white disabled:opacity-50"
         >
           {saving ? 'Importing…' : 'Import CSV'}
         </button>

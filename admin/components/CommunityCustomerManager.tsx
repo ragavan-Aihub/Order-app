@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { mapAddressToCommunity, unmapAddressFromCommunity } from '@/services/community-actions';
 import type { CommunityCustomerOption, CommunityMappedAddress } from '@/types/community';
 
@@ -55,6 +56,7 @@ export function CommunityCustomerManager({
       setError(result.error);
       return;
     }
+    setQuery('');
     router.refresh();
   }
 
@@ -71,16 +73,19 @@ export function CommunityCustomerManager({
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-5">
+    <div className="relative space-y-4 rounded-xl border border-stone-200 bg-white p-5">
+      <BrowserAddressDecoy />
       <div>
         <h2 className="text-lg font-semibold">Manage customers</h2>
         <p className="mt-1 text-sm text-stone-500">
           Search by name or phone. Map a specific saved address. Mapping is optional and is not shown to the customer.
         </p>
       </div>
-      <input
+      <NoFillInput
+        type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
+        name="q-comm-cust"
         placeholder="Search name or phone, or press space to list"
         className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2"
       />

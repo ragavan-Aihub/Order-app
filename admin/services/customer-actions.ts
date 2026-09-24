@@ -444,30 +444,35 @@ export async function createAdminOrder(input: {
   let pincode = input.pincode?.trim() ?? '';
   let communityId: string | undefined;
 
+  const { data: books } = await ctx.supabase
+    .from('customer_addresses')
+    .select('id, house, locality, address, pincode, community_id, customer_id, user_id')
+    .eq('business_id', ctx.businessId)
+    .or(
+      [
+        `customer_id.eq.${customer.id}`,
+        customer.auth_user_id ? `user_id.eq.${customer.auth_user_id}` : null,
+      ]
+        .filter(Boolean)
+        .join(','),
+    );
+
+  const owned = (books ?? []).filter(
+    (row) => row.customer_id === customer.id || (customer.auth_user_id && row.user_id === customer.auth_user_id),
+  );
+  const book = input.addressId
+    ? owned.find((row) => row.id === input.addressId)
+    : owned.find((row) => row.pincode === pincode && row.community_id) ?? owned.find((row) => row.community_id);
+
   if (input.addressId) {
-    const withCommunity = await ctx.supabase
-      .from('customer_addresses')
-      .select('house, locality, address, pincode, community_id')
-      .eq('id', input.addressId)
-      .eq('customer_id', customer.id)
-      .maybeSingle();
-    const book = withCommunity.data
-      ?? (
-        await ctx.supabase
-          .from('customer_addresses')
-          .select('house, locality, address, pincode')
-          .eq('id', input.addressId)
-          .eq('customer_id', customer.id)
-          .maybeSingle()
-      ).data;
     if (!book) {
       return { error: 'Choose a saved address or enter one.' };
     }
     deliveryAddress = composeAddressLine(book.house ?? '', book.address ?? '', book.locality ?? '', stateFromPincode(book.pincode));
     pincode = book.pincode;
-    if ('community_id' in book && book.community_id) {
-      communityId = book.community_id as string;
-    }
+  }
+  if (book?.community_id) {
+    communityId = book.community_id as string;
   }
 
   if (deliveryAddress.length < 4 || pincode.length < 4) {

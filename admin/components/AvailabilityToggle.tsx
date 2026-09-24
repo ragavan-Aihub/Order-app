@@ -39,7 +39,7 @@ export function AvailabilityToggle({
       className="inline-flex w-[9.5rem] shrink-0 items-center gap-2 text-left disabled:opacity-60"
     >
       <span
-        className={`relative h-7 w-11 shrink-0 rounded-full ${on ? 'bg-emerald-800' : 'bg-stone-300'}`}
+        className={`relative h-7 w-11 shrink-0 rounded-full ${on ? 'bg-emerald-600' : 'bg-stone-300'}`}
       >
         <span
           className={`absolute top-1 h-5 w-5 rounded-full bg-white ${on ? 'left-5' : 'left-1'}`}

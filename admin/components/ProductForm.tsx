@@ -135,7 +135,7 @@ export function ProductForm({ product }: ProductFormProps) {
           ) : (
             <p className="text-stone-600">No image selected</p>
           )}
-          <span className="rounded-lg bg-emerald-800 px-5 py-2 font-semibold text-white">
+          <span className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-5 py-2 font-semibold text-white">
             Browse
           </span>
           <p className="text-sm text-stone-500">
@@ -199,7 +199,7 @@ export function ProductForm({ product }: ProductFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-11 w-full rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
+        className="min-h-11 w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
         {submitting ? 'Saving…' : 'Save product'}
       </button>

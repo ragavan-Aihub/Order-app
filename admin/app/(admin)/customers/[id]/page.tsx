@@ -35,7 +35,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             href={`/customers/${customer.id}/orders/new`}
-            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white"
+            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white"
           >
             Place order
           </Link>

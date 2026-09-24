@@ -19,6 +19,12 @@ function lanDevOrigins() {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: lanDevOrigins(),
+  async redirects() {
+    return [
+      { source: '/communities', destination: '/customers/communities', permanent: false },
+      { source: '/communities/:id', destination: '/customers/communities/:id', permanent: false },
+    ];
+  },
   turbopack: {
     root: adminRoot,
   },

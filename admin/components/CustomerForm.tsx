@@ -176,7 +176,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       <button
         type="submit"
         disabled={submitting || Boolean(duplicate)}
-        className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-60"
+        className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
       >
         {submitting ? 'Saving…' : customer ? 'Save customer' : 'Add customer'}
       </button>

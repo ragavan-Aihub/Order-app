@@ -32,6 +32,9 @@ export type CommunityCustomerOption = {
   }>;
 };
 
-export function deliveryTypeLabel(communityName?: string | null) {
-  return communityName?.trim() ? 'Community' : 'Individual';
+export function deliveryTypeLabel(order: {
+  community_id?: string | null;
+  community_name?: string | null;
+}) {
+  return order.community_name?.trim() || order.community_id ? 'Community' : 'Individual';
 }

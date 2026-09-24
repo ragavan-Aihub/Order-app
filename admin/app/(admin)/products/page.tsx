@@ -16,7 +16,7 @@ export default async function ProductsPage() {
         </div>
         <Link
           href="/products/new"
-          className="inline-flex min-h-11 items-center rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white"
+          className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white"
         >
           Add product
         </Link>

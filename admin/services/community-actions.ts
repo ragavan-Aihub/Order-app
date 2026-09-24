@@ -38,17 +38,103 @@ async function requireAdmin(): Promise<AdminContext | { error: string }> {
 }
 
 function revalidateCommunities(communityId?: string) {
-  revalidatePath('/communities');
-  revalidatePath('/orders');
+  revalidatePath('/customers/communities');
+  revalidatePath('/customers');
+  revalidatePath('/orders', 'layout');
   if (communityId) {
-    revalidatePath(`/communities/${communityId}`);
+    revalidatePath(`/customers/communities/${communityId}`);
   }
+}
+
+async function stampOrdersForAddress(
+  ctx: AdminContext,
+  addressId: string,
+  communityId: string | null,
+  communityName: string | null,
+) {
+  const { data: addr } = await ctx.supabase
+    .from('customer_addresses')
+    .select('customer_id, user_id, pincode')
+    .eq('id', addressId)
+    .eq('business_id', ctx.businessId)
+    .maybeSingle();
+  if (!addr || (!addr.customer_id && !addr.user_id)) {
+    return;
+  }
+  let customerId = addr.customer_id as string | null;
+  let userId = addr.user_id as string | null;
+  if (customerId && !userId) {
+    const { data: person } = await ctx.supabase
+      .from('customers')
+      .select('auth_user_id')
+      .eq('id', customerId)
+      .eq('business_id', ctx.businessId)
+      .maybeSingle();
+    userId = (person?.auth_user_id as string | null) ?? null;
+  } else if (userId && !customerId) {
+    const { data: person } = await ctx.supabase
+      .from('customers')
+      .select('id')
+      .eq('auth_user_id', userId)
+      .eq('business_id', ctx.businessId)
+      .maybeSingle();
+    customerId = (person?.id as string | null) ?? null;
+  }
+  const parts = [
+    customerId ? `customer_id.eq.${customerId}` : null,
+    userId ? `user_id.eq.${userId}` : null,
+  ].filter(Boolean);
+  if (parts.length === 0) {
+    return;
+  }
+  let query = ctx.supabase
+    .from('orders')
+    .update({ community_id: communityId, community_name: communityName })
+    .eq('business_id', ctx.businessId)
+    .or(parts.join(','));
+  if (addr.pincode) {
+    query = query.eq('pincode', addr.pincode);
+  }
+  await query;
+}
+
+async function requireCommunitiesEnabled(ctx: AdminContext): Promise<string | null> {
+  const { data, error } = await ctx.supabase
+    .from('businesses')
+    .select('communities_enabled')
+    .eq('id', ctx.businessId)
+    .maybeSingle();
+  if (error || !(data as { communities_enabled?: boolean } | null)?.communities_enabled) {
+    return 'Enable Communities from Customers → Communities first.';
+  }
+  return null;
+}
+
+export async function setCommunitiesEnabled(enabled: boolean): Promise<{ error: string | null }> {
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  const { error } = await ctx.supabase
+    .from('businesses')
+    .update({ communities_enabled: enabled })
+    .eq('id', ctx.businessId);
+  if (error) {
+    if (error.message.includes('schema cache') || error.code === 'PGRST204' || error.code === 'PGRST205') {
+      return {
+        error:
+          'Community enable is not in this database yet. In the SQL editor, run supabase/migrations/20260924100000_communities_enabled.sql, then try again.',
+      };
+    }
+    return { error: error.message };
+  }
+  revalidateCommunities();
+  return { error: null };
 }
 
 export async function saveCommunity(input: {
   id?: string;
   name: string;
-  active: boolean;
 }): Promise<{ error: string | null; id?: string }> {
   const ctx = await requireAdmin();
   if ('error' in ctx) {
@@ -58,17 +144,24 @@ export async function saveCommunity(input: {
   if (name.length < 2) {
     return { error: 'Enter a community name.' };
   }
+  const gated = await requireCommunitiesEnabled(ctx);
+  if (gated) {
+    return { error: gated };
+  }
 
-  const row = { business_id: ctx.businessId, name, active: input.active };
   const result = input.id
     ? await ctx.supabase
         .from('communities')
-        .update({ name, active: input.active })
+        .update({ name })
         .eq('id', input.id)
         .eq('business_id', ctx.businessId)
         .select('id')
         .maybeSingle()
-    : await ctx.supabase.from('communities').insert(row).select('id').maybeSingle();
+    : await ctx.supabase
+        .from('communities')
+        .insert({ business_id: ctx.businessId, name, active: true })
+        .select('id')
+        .maybeSingle();
 
   if (result.error || !result.data) {
     if (result.error?.code === '23505') {
@@ -87,6 +180,30 @@ export async function saveCommunity(input: {
   return { error: null, id: result.data.id };
 }
 
+export async function setCommunityActive(input: {
+  id: string;
+  active: boolean;
+}): Promise<{ error: string | null }> {
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  const gated = await requireCommunitiesEnabled(ctx);
+  if (gated) {
+    return { error: gated };
+  }
+  const { error } = await ctx.supabase
+    .from('communities')
+    .update({ active: input.active })
+    .eq('id', input.id)
+    .eq('business_id', ctx.businessId);
+  if (error) {
+    return { error: error.message };
+  }
+  revalidateCommunities(input.id);
+  return { error: null };
+}
+
 export async function mapAddressToCommunity(input: {
   communityId: string;
   addressId: string;
@@ -99,6 +216,10 @@ export async function mapAddressToCommunity(input: {
   const ctx = await requireAdmin();
   if ('error' in ctx) {
     return { error: ctx.error };
+  }
+  const gated = await requireCommunitiesEnabled(ctx);
+  if (gated) {
+    return { error: gated };
   }
 
   const { data: community } = await ctx.supabase
@@ -124,6 +245,8 @@ export async function mapAddressToCommunity(input: {
     return { error: 'Address not found.' };
   }
   if (address.community_id === input.communityId) {
+    await stampOrdersForAddress(ctx, input.addressId, community.id, community.name);
+    revalidateCommunities(input.communityId);
     return { error: null };
   }
   if (address.community_id && !input.confirmMove) {
@@ -154,6 +277,7 @@ export async function mapAddressToCommunity(input: {
     return { error: error.message };
   }
 
+  await stampOrdersForAddress(ctx, input.addressId, community.id, community.name);
   revalidateCommunities(input.communityId);
   if (address.community_id) {
     revalidateCommunities(address.community_id);
@@ -169,6 +293,10 @@ export async function unmapAddressFromCommunity(input: {
   if ('error' in ctx) {
     return { error: ctx.error };
   }
+  const gated = await requireCommunitiesEnabled(ctx);
+  if (gated) {
+    return { error: gated };
+  }
 
   const { error } = await ctx.supabase
     .from('customer_addresses')
@@ -179,6 +307,7 @@ export async function unmapAddressFromCommunity(input: {
   if (error) {
     return { error: error.message };
   }
+  await stampOrdersForAddress(ctx, input.addressId, null, null);
   revalidateCommunities(input.communityId);
   return { error: null };
 }

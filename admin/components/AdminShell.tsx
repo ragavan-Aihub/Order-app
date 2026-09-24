@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Building2,
   Image,
   KeyRound,
   LayoutGrid,
@@ -24,7 +23,6 @@ const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/orders', label: 'Orders', icon: ShoppingBag },
   { href: '/products', label: 'Products', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/communities', label: 'Communities', icon: Building2 },
   { href: '/settings/business-info', label: 'Business Info', icon: Store },
   { href: '/settings/branding', label: 'Branding', icon: Image },
   { href: '/settings/api', label: 'API', icon: KeyRound },
@@ -32,7 +30,7 @@ const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
 
 function navClass(active: boolean) {
   return `flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-base ${
-    active ? 'bg-emerald-800 text-white' : 'text-stone-700 hover:bg-stone-100'
+    active ? 'bg-emerald-600 text-white' : 'text-stone-700 hover:bg-stone-100'
   }`;
 }
 

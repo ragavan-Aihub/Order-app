@@ -38,7 +38,15 @@ function csvEscape(value: string) {
   return value;
 }
 
-export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; communities?: CommunityListItem[] }) {
+export function OrdersBoard({
+  orders,
+  communities = [],
+  communitiesEnabled = false,
+}: {
+  orders: Order[];
+  communities?: CommunityListItem[];
+  communitiesEnabled?: boolean;
+}) {
   const [tab, setTab] = useState<'all' | OrderStatus>('all');
   const [query, setQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<DisplayPaymentStatus | ''>('');
@@ -82,13 +90,13 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
       if (channelFilter && (order.channel ?? 'app') !== channelFilter) {
         return false;
       }
-      if (typeFilter === 'community' && !order.community_name && !order.community_id) {
+      if (communitiesEnabled && typeFilter === 'community' && !order.community_name && !order.community_id) {
         return false;
       }
-      if (typeFilter === 'individual' && (order.community_name || order.community_id)) {
+      if (communitiesEnabled && typeFilter === 'individual' && (order.community_name || order.community_id)) {
         return false;
       }
-      if (communityFilter && order.community_id !== communityFilter) {
+      if (communitiesEnabled && communityFilter && order.community_id !== communityFilter) {
         return false;
       }
       if (fromDate && toDateInput(order.created_at) < fromDate) {
@@ -110,7 +118,7 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [orders, tab, query, paymentFilter, methodFilter, channelFilter, typeFilter, communityFilter, fromDate, toDate]);
+  }, [orders, tab, query, paymentFilter, methodFilter, channelFilter, typeFilter, communityFilter, fromDate, toDate, communitiesEnabled]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -142,8 +150,7 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
       'Payment Status',
       'Payment Method',
       'Channel',
-      'Type',
-      'Community',
+      ...(communitiesEnabled ? ['Type', 'Community'] : []),
       'Placed',
     ];
     const rows = filtered.map((order) => [
@@ -155,8 +162,9 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
       DISPLAY_PAYMENT_STATUSES.find((item) => item.value === displayPaymentStatus(order))?.label ?? '',
       paymentModeLabel(order.payment_method),
       orderChannelLabel(order.channel ?? 'app'),
-      deliveryTypeLabel(order.community_name),
-      order.community_name ?? '',
+      ...(communitiesEnabled
+        ? [deliveryTypeLabel(order), order.community_name ?? '']
+        : []),
       formatDateTime(order.created_at),
     ]);
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
@@ -204,7 +212,7 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
               type="button"
               onClick={() => setTab(item.value)}
               className={`rounded-full px-3 py-1 text-sm font-semibold ${
-                active ? 'bg-emerald-800 text-white' : 'bg-white text-stone-700 ring-1 ring-stone-200'
+                active ? 'bg-emerald-600 text-white' : 'bg-white text-stone-700 ring-1 ring-stone-200'
               }`}
             >
               {item.label} ({item.count})
@@ -281,33 +289,37 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
             ))}
           </select>
         </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium text-stone-500">Type</span>
-          <select
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value as 'all' | 'community' | 'individual')}
-            className={fieldClass}
-          >
-            <option value="all">All</option>
-            <option value="community">Community</option>
-            <option value="individual">Individual</option>
-          </select>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium text-stone-500">Community</span>
-          <select
-            value={communityFilter}
-            onChange={(event) => setCommunityFilter(event.target.value)}
-            className={fieldClass}
-          >
-            <option value="">All</option>
-            {communities.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {communitiesEnabled ? (
+          <>
+            <label>
+              <span className="mb-1 block text-xs font-medium text-stone-500">Type</span>
+              <select
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value as 'all' | 'community' | 'individual')}
+                className={fieldClass}
+              >
+                <option value="all">All</option>
+                <option value="community">Community</option>
+                <option value="individual">Individual</option>
+              </select>
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium text-stone-500">Community</span>
+              <select
+                value={communityFilter}
+                onChange={(event) => setCommunityFilter(event.target.value)}
+                className={fieldClass}
+              >
+                <option value="">All</option>
+                {communities.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : null}
         <label>
           <span className="mb-1 block text-xs font-medium text-stone-500">From</span>
           <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className={fieldClass} />
@@ -357,16 +369,21 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
                   />
                 </div>
                 <p className="mt-2 text-xs text-stone-500">
-                  {deliveryTypeLabel(order.community_name)}
-                  {order.community_name ? ` · ${order.community_name}` : ''} · {paymentModeLabel(order.payment_method)} ·{' '}
-                  {orderChannelLabel(order.channel ?? 'app')} · {formatDateTime(order.created_at)}
+                  {communitiesEnabled ? (
+                    <>
+                      {deliveryTypeLabel(order)}
+                      {order.community_name ? ` · ${order.community_name}` : ''} ·{' '}
+                    </>
+                  ) : null}
+                  {paymentModeLabel(order.payment_method)} · {orderChannelLabel(order.channel ?? 'app')} ·{' '}
+                  {formatDateTime(order.created_at)}
                 </p>
               </Link>
             ))}
           </div>
           <div className="hidden md:block">
             <TableScroll>
-              <table className="w-full min-w-[68rem] text-left text-sm">
+              <table className={`w-full text-left text-sm ${communitiesEnabled ? 'min-w-[68rem]' : 'min-w-[56rem]'}`}>
                 <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
                   <tr>
                     <th className="px-3 py-2 font-medium">Order No</th>
@@ -376,8 +393,12 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
                     <th className="px-3 py-2 font-medium">Payment Status</th>
                     <th className="px-3 py-2 font-medium">Payment Method</th>
                     <th className="px-3 py-2 font-medium">Channel</th>
-                    <th className="px-3 py-2 font-medium">Type</th>
-                    <th className="px-3 py-2 font-medium">Community</th>
+                    {communitiesEnabled ? (
+                      <>
+                        <th className="px-3 py-2 font-medium">Type</th>
+                        <th className="px-3 py-2 font-medium">Community</th>
+                      </>
+                    ) : null}
                     <th className="px-3 py-2 font-medium">Placed</th>
                     <th className="px-3 py-2 font-medium">Actions</th>
                   </tr>
@@ -403,8 +424,12 @@ export function OrdersBoard({ orders, communities = [] }: { orders: Order[]; com
                       </td>
                       <td className="px-3 py-2">{paymentModeLabel(order.payment_method)}</td>
                       <td className="px-3 py-2">{orderChannelLabel(order.channel ?? 'app')}</td>
-                      <td className="px-3 py-2">{deliveryTypeLabel(order.community_name)}</td>
-                      <td className="px-3 py-2">{order.community_name || '—'}</td>
+                      {communitiesEnabled ? (
+                        <>
+                          <td className="px-3 py-2">{deliveryTypeLabel(order)}</td>
+                          <td className="px-3 py-2">{order.community_name || '—'}</td>
+                        </>
+                      ) : null}
                       <td className="px-3 py-2 whitespace-nowrap text-stone-600">{formatDateTime(order.created_at)}</td>
                       <td className="px-3 py-2">
                         <Link href={`/orders/${order.id}`} className="font-semibold text-emerald-800">

@@ -115,7 +115,7 @@ export function OrderPaymentForm({
               className={
                 collected
                   ? 'min-h-10 w-full rounded-md border border-stone-400 px-4 text-sm font-semibold text-stone-800 disabled:opacity-50 sm:w-auto'
-                  : 'min-h-10 w-full rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto'
+                  : 'min-h-10 w-full rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto'
               }
             >
               {saving ? 'Saving…' : collected ? 'Update payment' : 'Mark paid'}
@@ -129,7 +129,7 @@ export function OrderPaymentForm({
           type="button"
           onClick={onRefund}
           disabled={refunding}
-          className="min-h-10 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-10 rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50"
         >
           {refunding ? 'Saving…' : 'Mark refunded'}
         </button>

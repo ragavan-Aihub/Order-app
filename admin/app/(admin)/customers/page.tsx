@@ -15,12 +15,20 @@ export default async function CustomersPage() {
           <h1 className="text-2xl font-bold md:text-3xl">Customers ({customers.length})</h1>
           <p className="mt-1 text-stone-600">App, WhatsApp, walk-in, and phone contacts. Tag the source when you add someone.</p>
         </div>
-        <Link
-          href="/customers/new"
-          className="inline-flex min-h-11 items-center rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white"
-        >
-          Add customer
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/customers/communities"
+            className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 py-2 font-semibold text-stone-800 hover:bg-stone-50"
+          >
+            Communities
+          </Link>
+          <Link
+            href="/customers/new"
+            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
+          >
+            Add customer
+          </Link>
+        </div>
       </div>
       {customers.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
