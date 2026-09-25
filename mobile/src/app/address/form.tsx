@@ -50,8 +50,10 @@ export default function AddressFormScreen() {
     pincode?: string;
     lat?: string;
     lng?: string;
+    next?: string;
   }>();
   const editingId = firstParam(params.id);
+  const nextPath = firstParam(params.next) === 'cart' ? '/cart' : '/checkout';
   const [house, setHouse] = useState('');
   const [area, setArea] = useState('');
   const [landmark, setLandmark] = useState(firstParam(params.locality));
@@ -87,7 +89,7 @@ export default function AddressFormScreen() {
     if (!editingId) {
       loadAddressBook().then((list) => {
         if (list.length >= MAX_SAVED_ADDRESSES) {
-          router.replace('/checkout');
+          router.replace(nextPath);
         }
       });
       return;
@@ -107,7 +109,7 @@ export default function AddressFormScreen() {
       setStateName(stateFromPincode(row.pincode));
       setLabel(row.label === 'work' || row.label === 'other' ? row.label : 'home');
     });
-  }, [editingId]);
+  }, [editingId, nextPath, router]);
 
   const phoneDigits = useMemo(() => mobile.replace(/\D/g, '').slice(0, 10), [mobile]);
 
@@ -168,7 +170,7 @@ export default function AddressFormScreen() {
         lng: params.lng ? Number(params.lng) : undefined,
       };
       await upsertAddress(payload);
-      router.replace('/checkout');
+      router.replace(nextPath);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Could not save this address.');
     } finally {

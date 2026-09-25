@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
-import { useCart } from '@/cart/CartContext';
+import { ShopCatalogProvider, useShopCatalog } from '@/catalog/ShopCatalogContext';
 import { colors } from '@/config/theme';
 
-export default function ShopTabsLayout() {
-  const { itemCount } = useCart();
+export const unstable_settings = {
+  initialRouteName: 'home',
+};
+
+function ShopTabs() {
+  const { categoriesEnabled } = useShopCatalog();
 
   return (
     <Tabs
@@ -28,21 +32,54 @@ export default function ShopTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="categories"
+        options={{
+          title: 'Categories',
+          headerShown: false,
+          href: categoriesEnabled ? '/categories' : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'My orders',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="reorder"
+        options={{
+          title: 'Reorder',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Ionicons name="refresh-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
           title: 'Account',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          href: null,
+          headerShown: true,
         }}
       />
       <Tabs.Screen
         name="cart"
         options={{
           title: 'Cart',
-          tabBarBadge: itemCount > 0 ? itemCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.primary, color: colors.primaryText, fontSize: 11 },
-          tabBarIcon: ({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />,
+          href: null,
+          headerShown: false,
         }}
       />
     </Tabs>
+  );
+}
+
+export default function ShopTabsLayout() {
+  return (
+    <ShopCatalogProvider>
+      <ShopTabs />
+    </ShopCatalogProvider>
   );
 }

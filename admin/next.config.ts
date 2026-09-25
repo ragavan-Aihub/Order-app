@@ -19,6 +19,9 @@ function lanDevOrigins() {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: lanDevOrigins(),
+  serverActions: {
+    bodySizeLimit: "6mb",
+  },
   async redirects() {
     return [
       { source: '/communities', destination: '/customers/communities', permanent: false },

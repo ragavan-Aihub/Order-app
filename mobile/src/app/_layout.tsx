@@ -8,9 +8,15 @@ import { CartProvider } from '@/cart/CartContext';
 import { loadAddressBook } from '@/cart/address-book';
 import { loadCart } from '@/cart/cart-storage';
 import { loadDeliveryDraft } from '@/cart/delivery-draft';
+import { OfflineScreen } from '@/components/OfflineScreen';
 import { colors, spacing } from '@/config/theme';
+import { NetworkProvider } from '@/network/NetworkProvider';
+import { isNetworkFailure } from '@/services/network';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  if (isNetworkFailure(error)) {
+    return <OfflineScreen onReload={retry} />;
+  }
   const detail = error?.message || String(error);
   return (
     <View style={errorStyles.screen}>
@@ -64,15 +70,16 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <CartProvider>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.surface },
-            headerTintColor: colors.text,
-            headerTitleStyle: { fontWeight: '700' },
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
+        <NetworkProvider>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+              headerTitleStyle: { fontWeight: '700' },
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false, title: 'Login' }} />
           <Stack.Screen name="(shop)" options={{ headerShown: false }} />
@@ -82,9 +89,9 @@ export default function RootLayout() {
           <Stack.Screen name="address/form" options={{ title: 'Add Address Details' }} />
           <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />
           <Stack.Screen name="confirmation" options={{ title: 'Order confirmation' }} />
-          <Stack.Screen name="orders" options={{ title: 'My orders' }} />
           <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
         </Stack>
+        </NetworkProvider>
       </CartProvider>
     </SafeAreaProvider>
   );

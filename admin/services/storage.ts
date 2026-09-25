@@ -2,14 +2,90 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const PRODUCT_IMAGES_BUCKET = 'product-images';
 const BUSINESS_LOGOS_BUCKET = 'business-logos';
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-function extensionFor(file: File): string {
-  if (file.type === 'image/png') return 'png';
-  if (file.type === 'image/webp') return 'webp';
-  if (file.type === 'image/gif') return 'gif';
-  return 'jpg';
+export function sniffImage(bytes: Uint8Array): { contentType: string; extension: string } | null {
+  if (bytes.length < 12) {
+    return null;
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return { contentType: 'image/jpeg', extension: 'jpg' };
+  }
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return { contentType: 'image/png', extension: 'png' };
+  }
+  if (
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x38 &&
+    (bytes[4] === 0x37 || bytes[4] === 0x39) &&
+    bytes[5] === 0x61
+  ) {
+    return { contentType: 'image/gif', extension: 'gif' };
+  }
+  if (
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return { contentType: 'image/webp', extension: 'webp' };
+  }
+  return null;
+}
+
+function asBytes(fileOrBuffer: File | Buffer | Uint8Array): Promise<Uint8Array> | Uint8Array {
+  if (fileOrBuffer instanceof Uint8Array) {
+    return fileOrBuffer;
+  }
+  if (typeof File !== 'undefined' && fileOrBuffer instanceof File) {
+    return fileOrBuffer.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+  }
+  return new Uint8Array(fileOrBuffer as Buffer);
+}
+
+async function uploadImageBytes(
+  supabase: SupabaseClient,
+  bucket: string,
+  objectPath: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<string> {
+  const { error } = await supabase.storage.from(bucket).upload(objectPath, bytes, {
+    contentType,
+    cacheControl: '3600',
+    upsert: false,
+  });
+  if (error) {
+    throw new Error('Could not upload the image.');
+  }
+  const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+  return data.publicUrl;
+}
+
+async function prepareImage(bytes: Uint8Array): Promise<{ contentType: string; extension: string; bytes: Uint8Array }> {
+  if (bytes.byteLength > MAX_IMAGE_BYTES) {
+    throw new Error('Image must be 5 MB or smaller.');
+  }
+  const meta = sniffImage(bytes);
+  if (!meta) {
+    throw new Error('Use a JPG, PNG, WebP, or GIF image.');
+  }
+  return { ...meta, bytes };
 }
 
 export async function uploadProductImage(
@@ -17,55 +93,29 @@ export async function uploadProductImage(
   businessId: string,
   file: File,
 ): Promise<string> {
-  if (!ALLOWED_TYPES.has(file.type)) {
-    throw new Error('Use a JPG, PNG, WebP, or GIF image.');
-  }
-
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error('Image must be 5 MB or smaller.');
-  }
-
-  const path = `${businessId}/${crypto.randomUUID()}.${extensionFor(file)}`;
-  const { error } = await supabase.storage.from(PRODUCT_IMAGES_BUCKET).upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-  });
-
-  if (error) {
-    throw new Error('Could not upload the image.');
-  }
-
-  const { data } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  const prepared = await prepareImage(await asBytes(file));
+  return uploadImageBytes(
+    supabase,
+    PRODUCT_IMAGES_BUCKET,
+    `${businessId}/${crypto.randomUUID()}.${prepared.extension}`,
+    prepared.bytes,
+    prepared.contentType,
+  );
 }
 
 export async function uploadProductImageBytes(
   supabase: SupabaseClient,
   businessId: string,
-  bytes: Buffer,
-  contentType: string,
-  extension: string,
+  bytes: Buffer | Uint8Array,
 ): Promise<string> {
-  if (!ALLOWED_TYPES.has(contentType)) {
-    throw new Error('Use a JPG, PNG, WebP, or GIF image.');
-  }
-  if (bytes.length > MAX_IMAGE_BYTES) {
-    throw new Error('Image must be 5 MB or smaller.');
-  }
-
-  const path = `${businessId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from(PRODUCT_IMAGES_BUCKET).upload(path, bytes, {
-    contentType,
-    cacheControl: '3600',
-    upsert: false,
-  });
-
-  if (error) {
-    throw new Error('Could not upload the image.');
-  }
-
-  const { data } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  const prepared = await prepareImage(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  return uploadImageBytes(
+    supabase,
+    PRODUCT_IMAGES_BUCKET,
+    `${businessId}/${crypto.randomUUID()}.${prepared.extension}`,
+    prepared.bytes,
+    prepared.contentType,
+  );
 }
 
 async function uploadBusinessAsset(
@@ -74,26 +124,14 @@ async function uploadBusinessAsset(
   file: File,
   kind: 'logo' | 'banner',
 ): Promise<string> {
-  if (!ALLOWED_TYPES.has(file.type)) {
-    throw new Error('Use a JPG, PNG, WebP, or GIF image.');
-  }
-
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error('Image must be 5 MB or smaller.');
-  }
-
-  const path = `${businessId}/${kind}/${crypto.randomUUID()}.${extensionFor(file)}`;
-  const { error } = await supabase.storage.from(BUSINESS_LOGOS_BUCKET).upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-  });
-
-  if (error) {
-    throw new Error(kind === 'banner' ? 'Could not upload the banner.' : 'Could not upload the logo.');
-  }
-
-  const { data } = supabase.storage.from(BUSINESS_LOGOS_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  const prepared = await prepareImage(await asBytes(file));
+  return uploadImageBytes(
+    supabase,
+    BUSINESS_LOGOS_BUCKET,
+    `${businessId}/${kind}/${crypto.randomUUID()}.${prepared.extension}`,
+    prepared.bytes,
+    prepared.contentType,
+  );
 }
 
 export async function uploadBusinessLogo(

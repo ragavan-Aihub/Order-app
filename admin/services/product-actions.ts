@@ -1,54 +1,185 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { isSupabaseConfigured } from '@/config/env';
 import { createServerSupabaseClient } from '@/services/supabase/server';
+import { MAX_IMAGE_BYTES, uploadProductImageBytes } from '@/services/storage';
 
-export async function updateProductAvailability(
-  productId: string,
-  available: boolean,
-): Promise<{ error: string | null }> {
+const NAME_MAX = 120;
+const DESCRIPTION_MAX = 500;
+const PRICE_MAX = 9_999_999.99;
+const MAX_CSV_CHARS = 1_000_000;
+const MAX_IMPORT_ROWS = 250;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type AdminContext = {
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>;
+  businessId: string;
+};
+
+async function requireAdmin(): Promise<AdminContext | { error: string }> {
   if (!isSupabaseConfigured) {
     return { error: 'Supabase is not configured.' };
   }
-
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return { error: 'Supabase is not configured.' };
   }
-
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const user = session?.user;
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return { error: 'You are not signed in as an admin.' };
   }
-
   const { data: profile } = await supabase
     .from('profiles')
     .select('role, business_id')
     .eq('id', user.id)
     .maybeSingle();
-
   if (!profile || profile.role !== 'admin' || !profile.business_id) {
     return { error: 'You are not signed in as an admin.' };
   }
+  return { supabase, businessId: profile.business_id };
+}
 
-  const { data, error } = await supabase
+function parsePrice(raw: string): number | null {
+  const price = Number(raw.trim());
+  if (!Number.isFinite(price) || price < 0 || price > PRICE_MAX) {
+    return null;
+  }
+  return Math.round(price * 100) / 100;
+}
+
+function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+export async function updateProductAvailability(
+  productId: string,
+  available: boolean,
+): Promise<{ error: string | null }> {
+  if (!isUuid(productId) || typeof available !== 'boolean') {
+    return { error: 'Could not update this product.' };
+  }
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  const { data, error } = await ctx.supabase
     .from('products')
     .update({ available })
     .eq('id', productId)
-    .eq('business_id', profile.business_id)
+    .eq('business_id', ctx.businessId)
     .select('id')
     .maybeSingle();
-
-  if (error) {
-    return { error: error.message };
-  }
-  if (!data) {
+  if (error || !data) {
     return { error: 'Could not update this product.' };
   }
+  return { error: null };
+}
 
+export async function saveProduct(formData: FormData): Promise<{ error: string | null }> {
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+
+  const idRaw = String(formData.get('id') ?? '').trim();
+  const name = String(formData.get('name') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim().slice(0, DESCRIPTION_MAX);
+  const price = parsePrice(String(formData.get('price') ?? ''));
+  const categoryRaw = String(formData.get('category_id') ?? '').trim();
+  const imageRemoved = formData.get('image_removed') === '1';
+  const image = formData.get('image');
+  const imageBlob =
+    image instanceof Blob && image.size > 0 ? image : null;
+
+  if (!name || name.length > NAME_MAX) {
+    return { error: 'Enter a product name up to 120 characters.' };
+  }
+  if (price == null) {
+    return { error: 'Enter a valid price.' };
+  }
+  if (idRaw && !isUuid(idRaw)) {
+    return { error: 'Could not save the product.' };
+  }
+  if (categoryRaw && !isUuid(categoryRaw)) {
+    return { error: 'Choose a valid category.' };
+  }
+
+  let existing: { id: string; image_url: string | null } | null = null;
+  if (idRaw) {
+    const { data } = await ctx.supabase
+      .from('products')
+      .select('id, image_url')
+      .eq('id', idRaw)
+      .eq('business_id', ctx.businessId)
+      .maybeSingle();
+    if (!data) {
+      return { error: 'Could not save the product.' };
+    }
+    existing = data;
+  }
+
+  const { data: businessRow } = await ctx.supabase
+    .from('businesses')
+    .select('categories_enabled')
+    .eq('id', ctx.businessId)
+    .maybeSingle();
+  const categoriesEnabled = Boolean((businessRow as { categories_enabled?: boolean } | null)?.categories_enabled);
+
+  let categoryId: string | null = null;
+  if (categoriesEnabled && categoryRaw) {
+    const { data: category } = await ctx.supabase
+      .from('product_categories')
+      .select('id')
+      .eq('id', categoryRaw)
+      .eq('business_id', ctx.businessId)
+      .maybeSingle();
+    if (!category) {
+      return { error: 'Choose a valid category.' };
+    }
+    categoryId = category.id;
+  }
+
+  let imageUrl = imageRemoved ? null : (existing?.image_url ?? null);
+  if (!existing && !imageBlob) {
+    return { error: 'Add a product image.' };
+  }
+  if (imageBlob) {
+    if (imageBlob.size > MAX_IMAGE_BYTES) {
+      return { error: 'Image must be 5 MB or smaller.' };
+    }
+    try {
+      const bytes = Buffer.from(await imageBlob.arrayBuffer());
+      imageUrl = await uploadProductImageBytes(ctx.supabase, ctx.businessId, bytes);
+    } catch (uploadError) {
+      return { error: uploadError instanceof Error ? uploadError.message : 'Could not upload the image.' };
+    }
+  }
+
+  const payload = {
+    name,
+    description,
+    price,
+    image_url: imageUrl,
+    business_id: ctx.businessId,
+    ...(existing ? {} : { available: true }),
+    ...(categoriesEnabled ? { category_id: categoryId } : {}),
+  };
+
+  const query = existing
+    ? ctx.supabase.from('products').update(payload).eq('id', existing.id).eq('business_id', ctx.businessId)
+    : ctx.supabase.from('products').insert(payload);
+
+  const { error } = await query;
+  if (error) {
+    return { error: 'Could not save the product.' };
+  }
+
+  revalidatePath('/products');
+  revalidatePath('/');
   return { error: null };
 }
 
@@ -144,57 +275,71 @@ async function readCsvText(formData: FormData): Promise<string | null> {
   return text.trim().length > 0 ? text : null;
 }
 
-function imageMeta(filePath: string): { contentType: string; extension: string } | null {
+function imageExtensionOk(filePath: string): boolean {
   const lower = filePath.toLowerCase();
-  if (lower.endsWith('.png')) {
-    return { contentType: 'image/png', extension: 'png' };
+  return ['.png', '.webp', '.gif', '.jpg', '.jpeg'].some((ext) => lower.endsWith(ext));
+}
+
+async function resolveSafeHomeFile(
+  imagePathRaw: string,
+  home: string,
+): Promise<{ ok: true; path: string } | { ok: false; message: string }> {
+  const { promises: fs } = await import('node:fs');
+  const path = await import('node:path');
+
+  if (imagePathRaw.includes('\0')) {
+    return { ok: false, message: 'Invalid image path.' };
   }
-  if (lower.endsWith('.webp')) {
-    return { contentType: 'image/webp', extension: 'webp' };
+  const expanded = imagePathRaw.startsWith('~/') || imagePathRaw === '~' ? imagePathRaw.replace(/^~/, home) : imagePathRaw;
+  const resolved = path.resolve(expanded);
+  const homeResolved = path.resolve(home);
+  const homePrefix = homeResolved.endsWith(path.sep) ? homeResolved : `${homeResolved}${path.sep}`;
+  if (resolved !== homeResolved && !resolved.startsWith(homePrefix)) {
+    return { ok: false, message: 'image_path must be under your home folder.' };
   }
-  if (lower.endsWith('.gif')) {
-    return { contentType: 'image/gif', extension: 'gif' };
+  if (!imageExtensionOk(resolved)) {
+    return { ok: false, message: 'Image must be JPG, PNG, WebP, or GIF.' };
   }
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-    return { contentType: 'image/jpeg', extension: 'jpg' };
+
+  let real: string;
+  try {
+    real = await fs.realpath(resolved);
+  } catch {
+    return { ok: false, message: 'Could not read this image file.' };
   }
-  return null;
+  let realHome = homeResolved;
+  try {
+    realHome = await fs.realpath(homeResolved);
+  } catch {
+    realHome = homeResolved;
+  }
+  const realPrefix = realHome.endsWith(path.sep) ? realHome : `${realHome}${path.sep}`;
+  if (real !== realHome && !real.startsWith(realPrefix)) {
+    return { ok: false, message: 'image_path must be under your home folder.' };
+  }
+  return { ok: true, path: real };
 }
 
 export async function importProductsFromCsv(formData: FormData): Promise<ProductImportResult> {
   const { promises: fs } = await import('node:fs');
   const os = await import('node:os');
-  const path = await import('node:path');
 
-  if (!isSupabaseConfigured) {
-    return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'Supabase is not configured.' }], errorLogCsv: null };
-  }
-
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
-    return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'Supabase is not configured.' }], errorLogCsv: null };
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'You are not signed in as an admin.' }], errorLogCsv: null };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, business_id')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== 'admin' || !profile.business_id) {
-    return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'You are not signed in as an admin.' }], errorLogCsv: null };
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: ctx.error }], errorLogCsv: null };
   }
 
   const csvText = await readCsvText(formData);
   if (!csvText) {
     return { created: 0, skipped: 0, errors: [{ row: 0, field: 'file', message: 'Choose a filled CSV file.' }], errorLogCsv: null };
+  }
+  if (csvText.length > MAX_CSV_CHARS) {
+    return {
+      created: 0,
+      skipped: 0,
+      errors: [{ row: 0, field: 'file', message: 'CSV is too large. Use 1 MB or less.' }],
+      errorLogCsv: null,
+    };
   }
 
   const rows = parseCsv(csvText);
@@ -206,6 +351,14 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       errorLogCsv: null,
     };
   }
+  if (rows.length - 1 > MAX_IMPORT_ROWS) {
+    return {
+      created: 0,
+      skipped: 0,
+      errors: [{ row: 0, field: 'file', message: `Import at most ${MAX_IMPORT_ROWS} products at a time.` }],
+      errorLogCsv: null,
+    };
+  }
 
   const headers = rows[0].map((value) => value.trim().toLowerCase());
   const nameIdx = headerIndex(headers, 'name');
@@ -213,8 +366,9 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
   const priceIdx = headerIndex(headers, 'price');
   const availableIdx = headerIndex(headers, 'available');
   const imageIdx = headerIndex(headers, 'image_path');
+  const categoryIdx = headerIndex(headers, 'category');
 
-  if (nameIdx < 0 || descriptionIdx < 0 || priceIdx < 0 || availableIdx < 0 || imageIdx < 0) {
+  if (nameIdx < 0 || descriptionIdx < 0 || priceIdx < 0 || imageIdx < 0) {
     return {
       created: 0,
       skipped: 0,
@@ -222,58 +376,74 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
         {
           row: 1,
           field: 'header',
-          message: 'CSV must include name, description, price, available, and image_path columns.',
+          message: 'CSV must include name, description, price, and image_path columns.',
         },
       ],
       errorLogCsv: null,
     };
   }
 
+  const { data: businessRow } = await ctx.supabase
+    .from('businesses')
+    .select('categories_enabled')
+    .eq('id', ctx.businessId)
+    .maybeSingle();
+  const categoriesEnabled = Boolean((businessRow as { categories_enabled?: boolean } | null)?.categories_enabled);
+  const categoryByName = new Map<string, string>();
+  if (categoriesEnabled) {
+    const { data: categoryRows } = await ctx.supabase
+      .from('product_categories')
+      .select('id, name')
+      .eq('business_id', ctx.businessId)
+      .eq('active', true);
+    for (const row of categoryRows ?? []) {
+      categoryByName.set((row.name as string).trim().toLowerCase(), row.id as string);
+    }
+  }
+
   const home = os.homedir();
   const errors: ProductImportIssue[] = [];
   let created = 0;
   let skipped = 0;
-  const { uploadProductImageBytes } = await import('@/services/storage');
 
   for (let i = 1; i < rows.length; i += 1) {
     const row = rows[i];
     const line = i + 1;
     const rowErrors: ProductImportIssue[] = [];
     const name = (row[nameIdx] ?? '').trim();
-    const description = (row[descriptionIdx] ?? '').trim();
+    const description = (row[descriptionIdx] ?? '').trim().slice(0, DESCRIPTION_MAX);
     const priceRaw = (row[priceIdx] ?? '').trim();
-    const availableRaw = (row[availableIdx] ?? '').trim();
+    const availableRaw = availableIdx >= 0 ? (row[availableIdx] ?? '').trim() : '';
     const imagePathRaw = (row[imageIdx] ?? '').trim();
-    const price = Number(priceRaw);
-    const availableParsed = parseAvailable(availableRaw);
+    const categoryRaw = categoryIdx >= 0 ? (row[categoryIdx] ?? '').trim() : '';
+    const price = parsePrice(priceRaw);
+    const availableParsed = availableRaw ? parseAvailable(availableRaw) : { ok: true as const, available: true };
 
     if (!name) {
       rowErrors.push({ row: line, field: 'name', message: 'Name is required.' });
+    } else if (name.length > NAME_MAX) {
+      rowErrors.push({ row: line, field: 'name', message: 'Name must be 120 characters or less.' });
     }
     if (!description) {
       rowErrors.push({ row: line, field: 'description', message: 'Description is required.' });
     }
-    if (!priceRaw || !Number.isFinite(price) || price < 0) {
+    if (!priceRaw || price == null) {
       rowErrors.push({ row: line, field: 'price', message: 'Price must be a number 0 or more.' });
     }
-    if (!availableParsed.ok) {
-      rowErrors.push({ row: line, field: 'available', message: 'Available must be Yes or No.' });
+    if (availableRaw && !availableParsed.ok) {
+      rowErrors.push({ row: line, field: 'available', message: 'Available must be Yes or No when provided.' });
     }
     if (!imagePathRaw) {
       rowErrors.push({ row: line, field: 'image_path', message: 'image_path is required.' });
     }
 
-    let resolved = '';
-    let meta: { contentType: string; extension: string } | null = null;
+    let safePath = '';
     if (imagePathRaw) {
-      resolved = path.resolve(imagePathRaw.startsWith('~') ? imagePathRaw.replace(/^~/, home) : imagePathRaw);
-      if (!resolved.startsWith(home + path.sep) && resolved !== home) {
-        rowErrors.push({ row: line, field: 'image_path', message: 'image_path must be under your home folder.' });
+      const resolved = await resolveSafeHomeFile(imagePathRaw, home);
+      if (!resolved.ok) {
+        rowErrors.push({ row: line, field: 'image_path', message: resolved.message });
       } else {
-        meta = imageMeta(resolved);
-        if (!meta) {
-          rowErrors.push({ row: line, field: 'image_path', message: 'Image must be JPG, PNG, WebP, or GIF.' });
-        }
+        safePath = resolved.path;
       }
     }
 
@@ -283,24 +453,43 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       continue;
     }
 
+    let categoryId: string | null = null;
+    if (categoryRaw) {
+      if (!categoriesEnabled) {
+        errors.push({ row: line, field: 'category', message: 'Enable Categories before importing category values.' });
+        skipped += 1;
+        continue;
+      }
+      categoryId = categoryByName.get(categoryRaw.toLowerCase()) ?? null;
+      if (!categoryId) {
+        errors.push({
+          row: line,
+          field: 'category',
+          message: `Unknown category "${categoryRaw.slice(0, 80)}". Use an active category name.`,
+        });
+        skipped += 1;
+        continue;
+      }
+    }
+
     let bytes: Buffer;
     try {
-      bytes = await fs.readFile(resolved);
+      const stat = await fs.stat(safePath);
+      if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) {
+        errors.push({ row: line, field: 'image_path', message: 'Image must be a file of 5 MB or smaller.' });
+        skipped += 1;
+        continue;
+      }
+      bytes = await fs.readFile(safePath);
     } catch {
-      errors.push({ row: line, field: 'image_path', message: `Could not read ${resolved}` });
+      errors.push({ row: line, field: 'image_path', message: 'Could not read this image file.' });
       skipped += 1;
       continue;
     }
 
     let imageUrl: string;
     try {
-      imageUrl = await uploadProductImageBytes(
-        supabase,
-        profile.business_id,
-        bytes,
-        meta!.contentType,
-        meta!.extension,
-      );
+      imageUrl = await uploadProductImageBytes(ctx.supabase, ctx.businessId, bytes);
     } catch (uploadError) {
       errors.push({
         row: line,
@@ -311,13 +500,14 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       continue;
     }
 
-    const { error } = await supabase.from('products').insert({
+    const { error } = await ctx.supabase.from('products').insert({
       name,
       description,
       price,
       available: availableParsed.ok ? availableParsed.available : true,
-      business_id: profile.business_id,
+      business_id: ctx.businessId,
       image_url: imageUrl,
+      ...(categoriesEnabled && categoryId ? { category_id: categoryId } : {}),
     });
 
     if (error) {
@@ -329,7 +519,6 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
   }
 
   if (created > 0) {
-    const { revalidatePath } = await import('next/cache');
     revalidatePath('/');
     revalidatePath('/products');
   }

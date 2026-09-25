@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearDeliveryDraft, saveDeliveryDraft } from '@/cart/delivery-draft';
 import { fetchRemoteAddresses, replaceRemoteAddresses } from '@/services/addresses';
 import type { DeliveryDetails } from '@/services/orders';
-import { composeAddressLine, stateFromPincode, type AddressLabel } from '@/utils/address';
+import { ADDRESS_LABELS, composeAddressLine, stateFromPincode, type AddressLabel } from '@/utils/address';
 
 export type { AddressLabel };
 
@@ -27,8 +27,22 @@ export const MAX_SAVED_ADDRESSES = 3;
 let book: SavedAddress[] | null = null;
 let selectedId: string | null = null;
 let managed = false;
-let loaded = false;
-let loadPromise: Promise<SavedAddress[]> | null = null;
+let localReady: Promise<void> | null = null;
+let remoteSynced = false;
+const listeners = new Set<() => void>();
+
+export function subscribeAddressBook(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function emitAddressBook() {
+  for (const listener of listeners) {
+    listener();
+  }
+}
 
 function newId() {
   const cryptoObj = globalThis.crypto as Crypto | undefined;
@@ -51,6 +65,19 @@ export function splitDeliveryAddress(raw: string): { address: string; instructio
     address: raw.slice(0, index).trim(),
     instructions: raw.slice(index + INSTRUCTIONS_MARKER.length).trim(),
   };
+}
+
+export function formatSavedAddressLabel(label?: AddressLabel) {
+  return ADDRESS_LABELS.find((item) => item.value === (label ?? 'home'))?.label ?? 'Home';
+}
+
+export function formatSavedAddressLine(item: SavedAddress) {
+  return [
+    composeAddressLine(item.house ?? '', item.address, item.locality ?? '', stateFromPincode(item.pincode)),
+    item.pincode,
+  ]
+    .filter(Boolean)
+    .join(', ');
 }
 
 export function formatAddressForOrder(details: SavedAddress): string {
@@ -108,6 +135,7 @@ async function persistLocal() {
     [SELECTED_KEY, selectedId ?? ''],
     [MANAGED_KEY, '1'],
   ]);
+  emitAddressBook();
 }
 
 async function persist() {
@@ -133,9 +161,9 @@ export function getSelectedAddress(): SavedAddress | null {
   return list[0] ?? null;
 }
 
-export async function loadAddressBook(): Promise<SavedAddress[]> {
-  if (!loadPromise) {
-    loadPromise = (async () => {
+async function ensureLocal() {
+  if (!localReady) {
+    localReady = (async () => {
       const [[, bookRaw], [, selectedRaw], [, managedRaw]] = await AsyncStorage.multiGet([
         BOOK_KEY,
         SELECTED_KEY,
@@ -144,22 +172,44 @@ export async function loadAddressBook(): Promise<SavedAddress[]> {
       book = bookRaw ? parseBook(bookRaw) : [];
       selectedId = selectedRaw || book[0]?.id || null;
       managed = managedRaw === '1' || book.length > 0;
-      loaded = true;
-      return book ?? [];
     })();
   }
-  await loadPromise;
+  await localReady;
+}
 
+async function mergeRemote() {
   const remote = await fetchRemoteAddresses().catch(() => null);
-  if (remote) {
-    if (remote.list.length > 0) {
-      book = remote.list;
-      selectedId = remote.defaultId ?? remote.list[0]?.id ?? null;
-      managed = true;
-      await persistLocal();
-    } else if ((book ?? []).length > 0) {
+  if (!remote) {
+    return;
+  }
+  if (remote.list.length === 0) {
+    if ((book ?? []).length > 0) {
       await persist();
     }
+    return;
+  }
+
+  const remoteIds = new Set(remote.list.map((item) => item.id));
+  const localOnly = (book ?? []).filter((item) => !remoteIds.has(item.id));
+  const merged = [...remote.list, ...localOnly];
+  const keepSelected = Boolean(selectedId && merged.some((item) => item.id === selectedId));
+  book = merged;
+  if (!keepSelected) {
+    selectedId = remote.defaultId ?? merged[0]?.id ?? null;
+  }
+  managed = true;
+  if (localOnly.length > 0) {
+    await persist();
+    return;
+  }
+  await persistLocal();
+}
+
+export async function loadAddressBook(): Promise<SavedAddress[]> {
+  await ensureLocal();
+  if (!remoteSynced) {
+    remoteSynced = true;
+    await mergeRemote();
   }
   return book ?? [];
 }

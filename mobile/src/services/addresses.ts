@@ -137,5 +137,10 @@ export async function replaceRemoteAddresses(
     await supabase.from('customer_addresses').delete().eq('user_id', user.id).in('id', [...leftover]);
   }
 
+  if (nextSelected) {
+    await supabase.from('customer_addresses').update({ is_default: false }).eq('user_id', user.id).neq('id', nextSelected);
+    await supabase.from('customer_addresses').update({ is_default: true }).eq('user_id', user.id).eq('id', nextSelected);
+  }
+
   return { list: next, selectedId: nextSelected };
 }

@@ -5,6 +5,33 @@ import { getAdminSession } from '@/services/supabase/admin-session';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Product } from '@/types/product';
 
+const PRODUCT_COLUMNS =
+  'id, business_id, name, description, price, image_url, available, category_id, created_at, updated_at';
+
+const PRODUCT_COLUMNS_FALLBACK =
+  'id, business_id, name, description, price, image_url, available, created_at, updated_at';
+
+async function attachCategoryNames(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  businessId: string,
+  products: Product[],
+): Promise<Product[]> {
+  const ids = [...new Set(products.map((p) => p.category_id).filter(Boolean))] as string[];
+  if (ids.length === 0) {
+    return products;
+  }
+  const { data: categories } = await supabase
+    .from('product_categories')
+    .select('id, name')
+    .eq('business_id', businessId)
+    .in('id', ids);
+  const names = new Map((categories ?? []).map((row) => [row.id as string, row.name as string]));
+  return products.map((product) => ({
+    ...product,
+    category_name: product.category_id ? names.get(product.category_id) ?? null : null,
+  }));
+}
+
 export async function getAllProducts(): Promise<Product[]> {
   if (!isSupabaseConfigured) {
     return MOCK_PRODUCTS;
@@ -20,17 +47,28 @@ export async function getAllProducts(): Promise<Product[]> {
     return [];
   }
 
+  const businessId = session.profile.business_id;
   const { data, error } = await supabase
     .from('products')
-    .select('id, business_id, name, description, price, image_url, available, created_at, updated_at')
-    .eq('business_id', session.profile.business_id)
+    .select(PRODUCT_COLUMNS)
+    .eq('business_id', businessId)
     .order('created_at', { ascending: false });
 
-  if (error || !data) {
+  if (!error && data) {
+    return attachCategoryNames(supabase, businessId, data as Product[]);
+  }
+
+  const fallback = await supabase
+    .from('products')
+    .select(PRODUCT_COLUMNS_FALLBACK)
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false });
+
+  if (fallback.error || !fallback.data) {
     return [];
   }
 
-  return data as Product[];
+  return fallback.data as Product[];
 }
 
 export async function getProductById(id: string): Promise<Product | null> {

@@ -64,16 +64,16 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    aspectRatio: 1,
+    height: 112,
     backgroundColor: colors.border,
   },
   name: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text,
-    minHeight: 36,
+    minHeight: 34,
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
   },
   footer: {
     flexDirection: 'row',

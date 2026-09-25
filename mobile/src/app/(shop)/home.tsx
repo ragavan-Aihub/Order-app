@@ -3,58 +3,51 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
-import { getSelectedAddress, loadAddressBook } from '@/cart/address-book';
-import { getDeliveryDraft, loadDeliveryDraft } from '@/cart/delivery-draft';
+import { useShopCatalog } from '@/catalog/ShopCatalogContext';
+import { getHomeCategoryId, setHomeCategoryId, subscribeHomeCategory } from '@/catalog/home-filter';
+import { HomeHeader } from '@/components/HomeHeader';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
+import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
+import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getBusiness } from '@/services/business';
-import { getLastDeliveryDetails } from '@/services/orders';
 import { getAvailableProducts } from '@/services/products';
-import type { Business } from '@/types/business';
 import type { Product } from '@/types/product';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { addItem, increase, decrease, items } = useCart();
-  const [business, setBusiness] = useState<Business | null>(null);
+  const { addItem, increase, decrease, items, itemCount } = useCart();
+  const { offline } = useNetworkStatus();
+  const { categoriesEnabled, categories } = useShopCatalog();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
+  const [categoryId, setCategoryId] = useState(getHomeCategoryId());
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [deliverTo, setDeliverTo] = useState('Add a delivery address in Account');
 
   useFocusEffect(
     useCallback(() => {
-      loadDeliveryDraft()
-        .then(async () => {
-          await loadAddressBook();
-          const selected = getSelectedAddress();
-          const draft = getDeliveryDraft();
-          const last = await getLastDeliveryDetails();
-          const source = selected ?? draft ?? last;
-          const line = [source?.address, source?.pincode].filter(Boolean).join(', ');
-          setDeliverTo(line || 'Add a delivery address');
-        })
-        .catch(() => undefined);
+      setCategoryId(getHomeCategoryId());
     }, []),
   );
 
+  useEffect(() => subscribeHomeCategory(() => setCategoryId(getHomeCategoryId())), []);
+
   useEffect(() => {
     let isMounted = true;
-    Promise.all([getBusiness(), getAvailableProducts()])
-      .then(([shop, catalog]) => {
+    Promise.all([getAvailableProducts(), getBusiness()])
+      .then(([catalog, shop]) => {
         if (!isMounted) {
           return;
         }
-        setBusiness(shop);
         setProducts(catalog);
+        setBannerUrl(shop?.banner_url ?? null);
       })
       .catch(() => {
         if (isMounted) {
-          setBusiness(null);
           setProducts([]);
         }
       })
@@ -70,14 +63,18 @@ export default function HomeScreen() {
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) {
-      return products;
-    }
-    return products.filter(
-      (product) =>
-        product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term),
-    );
-  }, [products, query]);
+    return products.filter((product) => {
+      if (categoriesEnabled && categoryId && product.category_id !== categoryId) {
+        return false;
+      }
+      if (!term) {
+        return true;
+      }
+      return (
+        product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term)
+      );
+    });
+  }, [categoriesEnabled, categoryId, products, query]);
 
   const quantityById = useMemo(() => {
     const map: Record<string, number> = {};
@@ -96,98 +93,135 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.scroll,
-        { paddingTop: insets.top + spacing.sm, paddingBottom: spacing.xl },
-      ]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Pressable style={styles.deliverRow} onPress={() => router.push('/checkout')} accessibilityRole="button">
-        <Ionicons name="location-outline" size={18} color={colors.primary} />
-        <View style={styles.deliverText}>
-          <Text style={styles.deliverLabel}>Deliver to</Text>
-          <Text style={styles.deliverValue} numberOfLines={1}>
-            {deliverTo}
-          </Text>
+    <View style={styles.screen}>
+      <HomeHeader />
+      {offline ? (
+        <View style={styles.offlineWrap}>
+          <OfflineBanner />
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </Pressable>
-      <Text style={styles.shopName} numberOfLines={1}>
-        {business?.business_name ?? 'Shop'}
-      </Text>
-      <View style={styles.searchWrap}>
-        <Ionicons name="search-outline" size={20} color={colors.textMuted} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search products"
-          placeholderTextColor={colors.textMuted}
-          style={styles.search}
-        />
-      </View>
-      {business?.banner_url ? (
-        <Image source={{ uri: business.banner_url }} style={styles.banner} contentFit="cover" />
       ) : null}
-      {visibleProducts.length === 0 ? (
-        <Text style={styles.empty}>No products match this search.</Text>
-      ) : (
-        <View style={styles.grid}>
-          {visibleProducts.map((product) => (
-            <View key={product.id} style={styles.gridItem}>
-              <ProductCard
-                product={product}
-                quantity={quantityById[product.id] ?? 0}
-                onPress={() => router.push(`/product/${product.id}`)}
-                onAddToCart={() => addItem(product, 1)}
-                onIncrease={() => increase(product.id)}
-                onDecrease={() => decrease(product.id)}
-              />
-            </View>
-          ))}
+      <View style={styles.searchBar}>
+        <View style={styles.searchWrap}>
+          <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search"
+            placeholderTextColor={colors.textMuted}
+            style={styles.search}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            selectTextOnFocus
+            clearButtonMode="never"
+          />
+          {query.length > 0 ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              style={styles.clearButton}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={8}
+            >
+              <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
         </View>
-      )}
-    </ScrollView>
+      </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: itemCount > 0 ? VIEW_CART_BAR_SPACE + spacing.md : spacing.xl },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {categoriesEnabled && categories.length > 0 ? (
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chips}
+          >
+            <Pressable
+              onPress={() => {
+                setHomeCategoryId('');
+                setCategoryId('');
+              }}
+              style={[styles.chip, !categoryId && styles.chipOn]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.chipLabel, !categoryId && styles.chipLabelOn]}>All</Text>
+            </Pressable>
+            {categories.map((item) => {
+              const on = categoryId === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    setHomeCategoryId(item.id);
+                    setCategoryId(item.id);
+                  }}
+                  style={[styles.chip, on && styles.chipOn]}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.chipLabel, on && styles.chipLabelOn]}>{item.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+        {bannerUrl ? (
+          <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" />
+        ) : null}
+        {visibleProducts.length === 0 ? (
+          <Text style={styles.empty}>
+            {offline && products.length === 0
+              ? 'Connect to the internet to load products.'
+              : 'No products match this search.'}
+          </Text>
+        ) : (
+          <View style={styles.grid}>
+            {visibleProducts.map((product) => (
+              <View key={product.id} style={styles.gridItem}>
+                <ProductCard
+                  product={product}
+                  quantity={quantityById[product.id] ?? 0}
+                  onPress={() => router.push(`/product/${product.id}`)}
+                  onAddToCart={() => addItem(product, 1)}
+                  onIncrease={() => increase(product.id)}
+                  onDecrease={() => decrease(product.id)}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+      <ViewCartBar />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
+  screen: {
+    flex: 1,
     backgroundColor: colors.background,
   },
-  deliverRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  scroll: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
     gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 10,
   },
-  deliverText: {
-    flex: 1,
+  offlineWrap: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    backgroundColor: colors.background,
   },
-  deliverLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  deliverValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  shopName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.text,
-    marginTop: spacing.xs,
+  searchBar: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.background,
   },
   searchWrap: {
     flexDirection: 'row',
@@ -198,7 +232,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
   },
   search: {
     flex: 1,
@@ -206,12 +239,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  clearButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -8,
+  },
+  chips: {
+    gap: spacing.sm,
+    paddingVertical: 4,
+  },
+  chip: {
+    minHeight: 36,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipOn: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  chipLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  chipLabelOn: {
+    color: colors.primaryDark,
+  },
   banner: {
     width: '100%',
-    aspectRatio: 16 / 7,
+    height: 120,
     borderRadius: radius.md,
     backgroundColor: colors.border,
-    marginTop: spacing.sm,
   },
   empty: {
     fontSize: 16,

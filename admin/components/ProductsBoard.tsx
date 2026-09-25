@@ -8,26 +8,61 @@ import { TableScroll } from '@/components/TableScroll';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
-export function ProductsBoard({ products }: { products: Product[] }) {
+export function ProductsBoard({
+  products,
+  categoriesEnabled = false,
+  categories = [],
+}: {
+  products: Product[];
+  categoriesEnabled?: boolean;
+  categories?: Array<{ id: string; name: string }>;
+}) {
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) {
-      return products;
-    }
-    return products.filter((product) =>
-      [product.name, product.description].join(' ').toLowerCase().includes(needle),
-    );
-  }, [products, query]);
+    return products.filter((product) => {
+      if (categoriesEnabled && categoryFilter === '__none__' && product.category_id) {
+        return false;
+      }
+      if (categoriesEnabled && categoryFilter && categoryFilter !== '__none__' && product.category_id !== categoryFilter) {
+        return false;
+      }
+      if (!needle) {
+        return true;
+      }
+      return [product.name, product.description, product.category_name ?? '']
+        .join(' ')
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [categoryFilter, categoriesEnabled, products, query]);
 
   return (
     <div className="space-y-4">
-      <input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search products"
-        className="min-h-11 w-full max-w-md rounded-lg border border-stone-300 bg-white px-3 py-2"
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search products"
+          className="min-h-11 w-full max-w-md rounded-lg border border-stone-300 bg-white px-3 py-2"
+        />
+        {categoriesEnabled ? (
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 py-2"
+          >
+            <option value="">All categories</option>
+            <option value="__none__">Uncategorized</option>
+            {categories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No products match this search.</div>
       ) : (
@@ -44,6 +79,9 @@ export function ProductsBoard({ products }: { products: Product[] }) {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{product.name}</p>
                   <p className="truncate text-sm text-stone-500">{product.description}</p>
+                  {categoriesEnabled ? (
+                    <p className="text-xs text-stone-500">{product.category_name ?? 'Uncategorized'}</p>
+                  ) : null}
                   <p className="mt-1">{formatPrice(product.price)}</p>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <AvailabilityToggle productId={product.id} available={product.available} />
@@ -62,6 +100,7 @@ export function ProductsBoard({ products }: { products: Product[] }) {
                   <col className="w-20" />
                   <col />
                   <col className="w-28" />
+                  {categoriesEnabled ? <col className="w-36" /> : null}
                   <col className="w-44" />
                   <col className="w-20" />
                 </colgroup>
@@ -70,6 +109,7 @@ export function ProductsBoard({ products }: { products: Product[] }) {
                     <th className="px-4 py-3 font-medium">Image</th>
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Price</th>
+                    {categoriesEnabled ? <th className="px-4 py-3 font-medium">Category</th> : null}
                     <th className="px-4 py-3 font-medium">Available</th>
                     <th className="px-4 py-3 font-medium"> </th>
                   </tr>
@@ -94,6 +134,9 @@ export function ProductsBoard({ products }: { products: Product[] }) {
                         <p className="text-sm text-stone-500">{product.description}</p>
                       </td>
                       <td className="px-4 py-3">{formatPrice(product.price)}</td>
+                      {categoriesEnabled ? (
+                        <td className="px-4 py-3 text-stone-600">{product.category_name ?? '—'}</td>
+                      ) : null}
                       <td className="px-4 py-3 align-middle">
                         <AvailabilityToggle productId={product.id} available={product.available} />
                       </td>

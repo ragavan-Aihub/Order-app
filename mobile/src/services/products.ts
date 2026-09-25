@@ -1,5 +1,6 @@
 import { env, isSupabaseConfigured } from '@/config/env';
 import { MOCK_PRODUCTS } from '@/data/mock-products';
+import { readCachedProducts, writeCachedProducts } from '@/services/catalog-cache';
 import { getSupabaseClient } from '@/services/supabase';
 import type { Product } from '@/types/product';
 
@@ -8,20 +9,27 @@ export async function getAvailableProducts(): Promise<Product[]> {
     return MOCK_PRODUCTS.filter((product) => product.available);
   }
 
+  const cached = await readCachedProducts();
   const supabase = getSupabaseClient();
   if (!supabase) {
-    return [];
+    return cached ?? [];
   }
 
-  const { data, error } = await supabase.rpc('get_available_products', {
-    p_business_id: env.businessId,
-  });
+  try {
+    const { data, error } = await supabase.rpc('get_available_products', {
+      p_business_id: env.businessId,
+    });
 
-  if (error || !data) {
-    return [];
+    if (error || !data) {
+      return cached ?? [];
+    }
+
+    const products = data as Product[];
+    await writeCachedProducts(products);
+    return products;
+  } catch {
+    return cached ?? [];
   }
-
-  return data as Product[];
 }
 
 export async function getProductById(id: string): Promise<Product | null> {

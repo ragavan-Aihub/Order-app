@@ -13,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/config/theme';
+import { useNetworkStatus } from '@/network/NetworkProvider';
 import { requestOtp, verifyOtp } from '@/services/auth';
+import { isNetworkFailure } from '@/services/network';
 import { markEnteredShop } from '@/nav/shop-entry';
 
 export default function VerifyScreen() {
@@ -24,6 +26,7 @@ export default function VerifyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
+  const { requireConnection } = useNetworkStatus();
 
   async function onResend() {
     if (!mobile || resending) {
@@ -32,8 +35,15 @@ export default function VerifyScreen() {
     setError(null);
     setResending(true);
     try {
+      if (!(await requireConnection())) {
+        return;
+      }
       await requestOtp(mobile);
     } catch (sendError) {
+      if (isNetworkFailure(sendError)) {
+        await requireConnection();
+        return;
+      }
       setError(sendError instanceof Error ? sendError.message : 'Could not resend OTP.');
     } finally {
       setResending(false);
@@ -53,12 +63,27 @@ export default function VerifyScreen() {
 
     setVerifying(true);
     try {
+      if (!(await requireConnection())) {
+        return;
+      }
       await verifyOtp(mobile, otp);
       await markEnteredShop();
       const destination =
-        next === 'checkout' ? '/checkout' : next === 'orders' ? '/orders' : next === 'account' ? '/account' : '/home';
+        next === 'checkout'
+          ? '/checkout'
+          : next === 'orders'
+            ? '/orders'
+            : next === 'reorder'
+              ? '/reorder'
+              : next === 'account'
+                ? '/account'
+                : '/home';
       router.replace(destination);
     } catch (verifyError) {
+      if (isNetworkFailure(verifyError)) {
+        await requireConnection();
+        return;
+      }
       setError(verifyError instanceof Error ? verifyError.message : 'Could not verify OTP.');
     } finally {
       setVerifying(false);

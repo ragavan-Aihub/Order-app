@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,16 +8,21 @@ import {
   MAX_SAVED_ADDRESSES,
   deleteAddress,
   formatAddressForOrder,
+  getAddressBook,
   getSelectedAddress,
   hydrateAddressBook,
   loadAddressBook,
   selectAddress,
+  subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
 import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { colors, radius, spacing } from '@/config/theme';
+import { useNetworkStatus } from '@/network/NetworkProvider';
+import { isNetworkFailure } from '@/services/network';
 import { getLastDeliveryDetails, placeOrder } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import { composeAddressLine, stateFromPincode } from '@/utils/address';
@@ -27,6 +32,7 @@ export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { items, totalAmount, clearCart } = useCart();
+  const { offline, requireConnection } = useNetworkStatus();
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +56,14 @@ export default function CheckoutScreen() {
       reload().catch(() => undefined);
     }, [reload]),
   );
+
+  useEffect(() => {
+    return subscribeAddressBook(() => {
+      const list = getAddressBook();
+      setAddresses(list);
+      setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
+    });
+  }, []);
 
   async function onDelete(id: string) {
     Alert.alert('Delete address', 'Remove this address from the list?', [
@@ -95,6 +109,9 @@ export default function CheckoutScreen() {
       router.push({ pathname: '/login', params: { next: 'checkout' } });
       return;
     }
+    if (!(await requireConnection())) {
+      return;
+    }
     setSubmitting(true);
     try {
       const order = await placeOrder(details, items);
@@ -114,6 +131,10 @@ export default function CheckoutScreen() {
         router.push({ pathname: '/login', params: { next: 'checkout' } });
         return;
       }
+      if (isNetworkFailure(placeError) || isNetworkFailure(message)) {
+        await requireConnection();
+        return;
+      }
       setError(message);
     } finally {
       setSubmitting(false);
@@ -128,6 +149,7 @@ export default function CheckoutScreen() {
           { paddingBottom: Math.max(insets.bottom, spacing.md) + 108 },
         ]}
       >
+        {offline ? <OfflineBanner /> : null}
         {addresses.length < MAX_SAVED_ADDRESSES ? (
           <Pressable style={styles.addNew} onPress={() => router.push('/address/form')} accessibilityRole="button">
             <Text style={styles.addNewLabel}>+ Add new</Text>

@@ -47,3 +47,23 @@ export async function isCommunitiesEnabled(): Promise<boolean> {
   }
   return Boolean((data as { communities_enabled?: boolean }).communities_enabled);
 }
+
+export async function isCategoriesEnabled(): Promise<boolean> {
+  const session = await getAdminSession();
+  if ('error' in session || !session.profile.business_id) {
+    return false;
+  }
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return false;
+  }
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('categories_enabled')
+    .eq('id', session.profile.business_id)
+    .maybeSingle();
+  if (error || !data) {
+    return false;
+  }
+  return Boolean((data as { categories_enabled?: boolean }).categories_enabled);
+}

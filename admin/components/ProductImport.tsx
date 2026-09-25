@@ -1,17 +1,37 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type ChangeEvent } from 'react';
+import { useMemo, useState, type ChangeEvent } from 'react';
 
 import { importProductsFromCsv, type ProductImportIssue } from '@/services/product-actions';
 
-const TEMPLATE = `name,description,price,available,image_path
-Mango pickle,Homemade pickle from farm mangoes,250,Yes,/Users/YOUR_NAME/Desktop/products/mango.jpg
-Mixed vegetable pickle,Seasonal mix,180,No,/Users/YOUR_NAME/Desktop/products/mixed.jpg
+function buildTemplate(categoriesEnabled: boolean, categoryNames: string[]) {
+  const sampleCategory =
+    categoriesEnabled && categoryNames[0] ? categoryNames[0] : categoriesEnabled ? 'Pickles' : '';
+  if (categoriesEnabled) {
+    return `name,description,price,image_path,category
+Mango pickle,Homemade pickle from farm mangoes,250,/Users/YOUR_NAME/Desktop/products/mango.jpg,${sampleCategory}
+Mixed vegetable pickle,Seasonal mix,180,/Users/YOUR_NAME/Desktop/products/mixed.jpg,
 `;
+  }
+  return `name,description,price,image_path
+Mango pickle,Homemade pickle from farm mangoes,250,/Users/YOUR_NAME/Desktop/products/mango.jpg
+Mixed vegetable pickle,Seasonal mix,180,/Users/YOUR_NAME/Desktop/products/mixed.jpg
+`;
+}
 
-export function ProductImport() {
+export function ProductImport({
+  categoriesEnabled = false,
+  categoryNames = [],
+}: {
+  categoriesEnabled?: boolean;
+  categoryNames?: string[];
+}) {
   const router = useRouter();
+  const template = useMemo(
+    () => buildTemplate(categoriesEnabled, categoryNames),
+    [categoriesEnabled, categoryNames],
+  );
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<number | null>(null);
@@ -33,7 +53,7 @@ export function ProductImport() {
   }
 
   function downloadTemplate() {
-    const blob = new Blob([TEMPLATE], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -81,9 +101,14 @@ export function ProductImport() {
       <ol className="list-decimal space-y-1 pl-5 text-sm text-stone-600">
         <li>Export the template and fill one row per product.</li>
         <li>
-          <span className="font-medium">available</span> is Yes or No.{' '}
-          <span className="font-medium">image_path</span> is a full path on this Mac (home folder).
+          <span className="font-medium">image_path</span> is a full path on this Mac (home folder). Imported items start
+          as available — use the list toggle later.
         </li>
+        {categoriesEnabled ? (
+          <li>
+            <span className="font-medium">category</span> is optional; use an active category name or leave blank.
+          </li>
+        ) : null}
         <li>Choose the CSV, then import. Invalid rows are skipped.</li>
       </ol>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">

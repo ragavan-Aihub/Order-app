@@ -16,8 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/config/theme';
 import { markEnteredShop } from '@/nav/shop-entry';
+import { useNetworkStatus } from '@/network/NetworkProvider';
 import { requestOtp } from '@/services/auth';
 import { getBusiness } from '@/services/business';
+import { isNetworkFailure } from '@/services/network';
 import { isValidIndianMobile } from '@/utils/validation';
 import type { Business } from '@/types/business';
 
@@ -32,6 +34,7 @@ type WelcomeSignupProps = {
 export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: WelcomeSignupProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { requireConnection } = useNetworkStatus();
   const [mobile, setMobile] = useState(initialMobile.replace(/\D/g, '').slice(-10));
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -72,9 +75,16 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
 
     setSending(true);
     try {
+      if (!(await requireConnection())) {
+        return;
+      }
       await requestOtp(mobile);
       router.push({ pathname: '/verify', params: { mobile, next } });
     } catch (sendError) {
+      if (isNetworkFailure(sendError)) {
+        await requireConnection();
+        return;
+      }
       setError(sendError instanceof Error ? sendError.message : 'Could not send OTP.');
     } finally {
       setSending(false);

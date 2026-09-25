@@ -5,9 +5,11 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/EmptyState';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { colors, spacing } from '@/config/theme';
+import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getMyOrders } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import type { Order } from '@/types/order';
@@ -20,6 +22,7 @@ export default function MyOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const { offline } = useNetworkStatus();
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -79,8 +82,13 @@ export default function MyOrdersScreen() {
       }
     >
       <Text style={styles.title}>My orders</Text>
+      {offline ? <OfflineBanner /> : null}
       {orders.length === 0 ? (
-        <Text style={styles.message}>You have not placed an order yet. Shop from Home to get started.</Text>
+        <Text style={styles.message}>
+          {offline
+            ? 'Connect to the internet to load your orders.'
+            : 'You have not placed an order yet. Shop from Home to get started.'}
+        </Text>
       ) : (
         orders.map((order) => (
           <Pressable
