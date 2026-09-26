@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { CategoryForm } from '@/components/CategoryForm';
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { TableScroll } from '@/components/TableScroll';
 import { setCategoryActive } from '@/services/category-actions';
 import type { ProductCategoryListItem } from '@/types/category';
@@ -11,9 +12,9 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [activeById, setActiveById] = useState<Record<string, boolean>>({});
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const notice = useActionNotice();
 
   function isActive(item: ProductCategoryListItem) {
     return activeById[item.id] ?? item.active;
@@ -39,6 +40,7 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
   async function toggleActive(item: ProductCategoryListItem) {
     const next = !isActive(item);
     setError(null);
+    notice.clear();
     setBusyId(item.id);
     setActiveById((current) => ({ ...current, [item.id]: next }));
     const result = await setCategoryActive({ id: item.id, active: next });
@@ -46,21 +48,13 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
     if (result.error) {
       setActiveById((current) => ({ ...current, [item.id]: item.active }));
       setError(result.error);
+      return;
     }
+    notice.show('Saved successfully');
   }
-
-  const editing = editingId ? categories.find((item) => item.id === editingId) : undefined;
 
   return (
     <div className="space-y-4">
-      {editing ? (
-        <div className="space-y-2">
-          <CategoryForm category={editing} onSaved={() => setEditingId(null)} />
-          <button type="button" onClick={() => setEditingId(null)} className="text-sm font-medium text-stone-600">
-            Cancel edit
-          </button>
-        </div>
-      ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           value={query}
@@ -79,11 +73,12 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
         </select>
       </div>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No categories match this search.</div>
       ) : (
         <TableScroll>
-          <table className="w-full min-w-[36rem] table-fixed text-left text-base">
+          <table className="w-full min-w-[40rem] table-fixed text-left text-base">
             <thead className="bg-stone-50 text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Category</th>
@@ -97,7 +92,23 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
                 const active = isActive(item);
                 return (
                   <tr key={item.id} className="border-t border-stone-200">
-                    <td className="px-4 py-3 font-medium">{item.name}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {item.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.image_url}
+                            alt=""
+                            className="size-12 shrink-0 rounded-lg border border-stone-200 object-cover"
+                          />
+                        ) : (
+                          <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-sm font-bold text-emerald-800">
+                            {item.name.slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="font-medium">{item.name}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
@@ -126,13 +137,9 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
                     </td>
                     <td className="px-4 py-3">{item.productCount}</td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(item.id)}
-                        className="font-medium text-emerald-800"
-                      >
+                      <Link href={`/products/categories/${item.id}`} className="font-medium text-emerald-800">
                         Edit
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 );

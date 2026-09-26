@@ -220,15 +220,15 @@ export async function getMyOrders(): Promise<Order[]> {
   }
 }
 
-export async function getReorderOrders(): Promise<OrderWithItems[]> {
-  const orders = (await getMyOrders()).filter((order) => order.status !== 'cancelled').slice(0, 8);
+export async function getMyOrdersWithItems(): Promise<OrderWithItems[]> {
+  const orders = await getMyOrders();
   if (orders.length === 0) {
     return [];
   }
 
   const supabase = getSupabaseClient();
   if (!supabase) {
-    return [];
+    return orders.map((order) => ({ ...order, order_items: [] }));
   }
 
   try {
@@ -248,15 +248,19 @@ export async function getReorderOrders(): Promise<OrderWithItems[]> {
       byOrder.set(item.order_id, list);
     }
 
-    return orders
-      .map((order) => ({
-        ...order,
-        order_items: byOrder.get(order.id) ?? [],
-      }))
-      .filter((order) => order.order_items.length > 0);
+    return orders.map((order) => ({
+      ...order,
+      order_items: byOrder.get(order.id) ?? [],
+    }));
   } catch {
-    return [];
+    return orders.map((order) => ({ ...order, order_items: [] }));
   }
+}
+
+export async function getReorderOrders(): Promise<OrderWithItems[]> {
+  return (await getMyOrdersWithItems())
+    .filter((order) => order.status !== 'cancelled' && order.order_items.length > 0)
+    .slice(0, 8);
 }
 
 export async function getMyOrderById(id: string): Promise<OrderWithItems | null> {

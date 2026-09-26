@@ -8,7 +8,7 @@ export default function LoginScreen() {
   const { next: nextParam } = useLocalSearchParams<{ next?: string }>();
   const next = Array.isArray(nextParam) ? nextParam[0] : nextParam;
   const [initialMobile, setInitialMobile] = useState('');
-  const requireSignIn = next === 'checkout' || next === 'orders' || next === 'reorder';
+  const requireSignIn = next === 'checkout' || next === 'orders' || next === 'buy-again' || next === 'reorder';
 
   useEffect(() => {
     loadDeliveryDraft().then((draft) => {

@@ -3,18 +3,21 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { setCommunitiesEnabled } from '@/services/community-actions';
 
 export function CommunitiesEnablePanel({ enabled }: { enabled: boolean }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const notice = useActionNotice();
 
   async function setEnabled(next: boolean) {
     if (!next && !window.confirm('Turn off Communities? Orders will hide Type and Community until you enable it again.')) {
       return;
     }
     setError(null);
+    notice.clear();
     setBusy(true);
     const result = await setCommunitiesEnabled(next);
     setBusy(false);
@@ -22,6 +25,7 @@ export function CommunitiesEnablePanel({ enabled }: { enabled: boolean }) {
       setError(result.error);
       return;
     }
+    notice.show('Saved successfully');
     router.refresh();
   }
 
@@ -33,6 +37,7 @@ export function CommunitiesEnablePanel({ enabled }: { enabled: boolean }) {
           orders. Customers never see this.
         </p>
         {error ? <p className="text-red-700">{error}</p> : null}
+        <ActionNotice message={notice.message} />
         <button
           type="button"
           disabled={busy}
@@ -48,6 +53,7 @@ export function CommunitiesEnablePanel({ enabled }: { enabled: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       {error ? <p className="w-full text-sm text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
       <button
         type="button"
         disabled={busy}

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { mapAddressToCommunity, unmapAddressFromCommunity } from '@/services/community-actions';
 import type { CommunityCustomerOption, CommunityMappedAddress } from '@/types/community';
@@ -23,6 +24,7 @@ export function CommunityCustomerManager({
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const notice = useActionNotice();
 
   const matches = useMemo(() => {
     const raw = query;
@@ -40,6 +42,7 @@ export function CommunityCustomerManager({
 
   async function mapAddress(addressId: string, confirmMove = false) {
     setError(null);
+    notice.clear();
     setBusyId(addressId);
     const result = await mapAddressToCommunity({ communityId, addressId, confirmMove });
     setBusyId(null);
@@ -57,11 +60,13 @@ export function CommunityCustomerManager({
       return;
     }
     setQuery('');
+    notice.show('Saved successfully');
     router.refresh();
   }
 
   async function unmapAddress(addressId: string) {
     setError(null);
+    notice.clear();
     setBusyId(addressId);
     const result = await unmapAddressFromCommunity({ communityId, addressId });
     setBusyId(null);
@@ -69,6 +74,7 @@ export function CommunityCustomerManager({
       setError(result.error);
       return;
     }
+    notice.show('Saved successfully');
     router.refresh();
   }
 
@@ -126,6 +132,7 @@ export function CommunityCustomerManager({
         <p className="text-sm text-stone-500">No customers with a saved address match this search.</p>
       ) : null}
       {error ? <p className="text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
 
       <h3 className="pt-2 text-base font-semibold">Mapped to {communityName}</h3>
       {mappedAddresses.length === 0 ? (

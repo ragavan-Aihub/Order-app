@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ClipboardList,
   Image,
   KeyRound,
   LayoutGrid,
@@ -30,6 +31,7 @@ const laterPhaseLinks: { href: string; label: string; icon: LucideIcon }[] = [
 const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
   { href: '/orders', label: 'Orders', icon: ShoppingBag },
+  { href: '/reports', label: 'Reports', icon: ClipboardList },
   { href: '/products', label: 'Products', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
   ...(SHOW_LATER_PHASE_MENUS ? laterPhaseLinks : []),

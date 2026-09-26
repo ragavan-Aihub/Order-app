@@ -102,7 +102,8 @@ export function ProductImport({
         <li>Export the template and fill one row per product.</li>
         <li>
           <span className="font-medium">image_path</span> is a full path on this Mac (home folder). Imported items start
-          as available — use the list toggle later.
+          as available. Optional <span className="font-medium">available</span> Yes/No is Coming soon when No. Optional{' '}
+          <span className="font-medium">active</span> Yes/No hides Inactive products from the app.
         </li>
         {categoriesEnabled ? (
           <li>

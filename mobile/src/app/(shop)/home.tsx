@@ -21,45 +21,33 @@ export default function HomeScreen() {
   const router = useRouter();
   const { addItem, increase, decrease, items, itemCount } = useCart();
   const { offline } = useNetworkStatus();
-  const { categoriesEnabled, categories } = useShopCatalog();
+  const { categoriesEnabled, categories, refreshCatalog } = useShopCatalog();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState(getHomeCategoryId());
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const loadCatalog = useCallback(async () => {
+    const [catalog, shop] = await Promise.all([getAvailableProducts(), getBusiness()]);
+    setProducts(catalog);
+    setBannerUrl(shop?.banner_url ?? null);
+    await refreshCatalog();
+  }, [refreshCatalog]);
+
   useFocusEffect(
     useCallback(() => {
       setCategoryId(getHomeCategoryId());
-    }, []),
+      void loadCatalog()
+        .catch(() => {
+          setProducts([]);
+        })
+        .finally(() => setLoading(false));
+    }, [loadCatalog]),
   );
 
   useEffect(() => subscribeHomeCategory(() => setCategoryId(getHomeCategoryId())), []);
 
-  useEffect(() => {
-    let isMounted = true;
-    Promise.all([getAvailableProducts(), getBusiness()])
-      .then(([catalog, shop]) => {
-        if (!isMounted) {
-          return;
-        }
-        setProducts(catalog);
-        setBannerUrl(shop?.banner_url ?? null);
-      })
-      .catch(() => {
-        if (isMounted) {
-          setProducts([]);
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -165,6 +153,9 @@ export default function HomeScreen() {
                   style={[styles.chip, on && styles.chipOn]}
                   accessibilityRole="button"
                 >
+                  {item.image_url ? (
+                    <Image source={{ uri: item.image_url }} style={styles.chipPhoto} contentFit="cover" />
+                  ) : null}
                   <Text style={[styles.chipLabel, on && styles.chipLabelOn]}>{item.name}</Text>
                 </Pressable>
               );
@@ -252,17 +243,25 @@ const styles = StyleSheet.create({
   },
   chip: {
     minHeight: 36,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
   },
   chipOn: {
     backgroundColor: colors.primarySoft,
     borderColor: colors.primary,
+  },
+  chipPhoto: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.border,
   },
   chipLabel: {
     fontSize: 13,

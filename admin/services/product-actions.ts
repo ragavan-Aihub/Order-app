@@ -76,6 +76,81 @@ export async function updateProductAvailability(
   if (error || !data) {
     return { error: 'Could not update this product.' };
   }
+  revalidatePath('/products');
+  return { error: null };
+}
+
+export async function updateProductActive(
+  productId: string,
+  active: boolean,
+): Promise<{ error: string | null }> {
+  if (!isUuid(productId) || typeof active !== 'boolean') {
+    return { error: 'Could not update this product.' };
+  }
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  const { data, error } = await ctx.supabase
+    .from('products')
+    .update({ active })
+    .eq('id', productId)
+    .eq('business_id', ctx.businessId)
+    .select('id')
+    .maybeSingle();
+  if (error || !data) {
+    if (error?.message?.includes('schema cache') || error?.code === 'PGRST204' || error?.code === 'PGRST205') {
+      return {
+        error:
+          'Product Active is not in this database yet. In the SQL editor, run supabase/migrations/20260926140000_product_active.sql, then try again.',
+      };
+    }
+    return { error: 'Could not update this product.' };
+  }
+  revalidatePath('/products');
+  return { error: null };
+}
+
+export async function deleteProduct(productId: string): Promise<{ error: string | null }> {
+  if (!isUuid(productId)) {
+    return { error: 'Could not delete this product.' };
+  }
+  const ctx = await requireAdmin();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+
+  const { data: product } = await ctx.supabase
+    .from('products')
+    .select('id, image_url')
+    .eq('id', productId)
+    .eq('business_id', ctx.businessId)
+    .maybeSingle();
+  if (!product) {
+    return { error: 'Could not delete this product.' };
+  }
+
+  const { count, error: usedError } = await ctx.supabase
+    .from('order_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('product_id', productId);
+  if (usedError) {
+    return { error: 'Could not delete this product.' };
+  }
+  if ((count ?? 0) > 0) {
+    return { error: 'This product is in existing orders. Set it inactive instead of deleting.' };
+  }
+
+  const { error } = await ctx.supabase
+    .from('products')
+    .delete()
+    .eq('id', productId)
+    .eq('business_id', ctx.businessId);
+  if (error) {
+    return { error: 'Could not delete this product.' };
+  }
+  revalidatePath('/products');
+  revalidatePath(`/products/${productId}`);
   return { error: null };
 }
 
@@ -165,7 +240,7 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
     price,
     image_url: imageUrl,
     business_id: ctx.businessId,
-    ...(existing ? {} : { available: true }),
+    ...(existing ? {} : { available: true, active: true }),
     ...(categoriesEnabled ? { category_id: categoryId } : {}),
   };
 
@@ -365,6 +440,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
   const descriptionIdx = headerIndex(headers, 'description');
   const priceIdx = headerIndex(headers, 'price');
   const availableIdx = headerIndex(headers, 'available');
+  const activeIdx = headerIndex(headers, 'active');
   const imageIdx = headerIndex(headers, 'image_path');
   const categoryIdx = headerIndex(headers, 'category');
 
@@ -414,10 +490,12 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     const description = (row[descriptionIdx] ?? '').trim().slice(0, DESCRIPTION_MAX);
     const priceRaw = (row[priceIdx] ?? '').trim();
     const availableRaw = availableIdx >= 0 ? (row[availableIdx] ?? '').trim() : '';
+    const activeRaw = activeIdx >= 0 ? (row[activeIdx] ?? '').trim() : '';
     const imagePathRaw = (row[imageIdx] ?? '').trim();
     const categoryRaw = categoryIdx >= 0 ? (row[categoryIdx] ?? '').trim() : '';
     const price = parsePrice(priceRaw);
     const availableParsed = availableRaw ? parseAvailable(availableRaw) : { ok: true as const, available: true };
+    const activeParsed = activeRaw ? parseAvailable(activeRaw) : { ok: true as const, available: true };
 
     if (!name) {
       rowErrors.push({ row: line, field: 'name', message: 'Name is required.' });
@@ -432,6 +510,9 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     }
     if (availableRaw && !availableParsed.ok) {
       rowErrors.push({ row: line, field: 'available', message: 'Available must be Yes or No when provided.' });
+    }
+    if (activeRaw && !activeParsed.ok) {
+      rowErrors.push({ row: line, field: 'active', message: 'Active must be Yes or No when provided.' });
     }
     if (!imagePathRaw) {
       rowErrors.push({ row: line, field: 'image_path', message: 'image_path is required.' });
@@ -505,6 +586,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       description,
       price,
       available: availableParsed.ok ? availableParsed.available : true,
+      active: activeParsed.ok ? activeParsed.available : true,
       business_id: ctx.businessId,
       image_url: imageUrl,
       ...(categoriesEnabled && categoryId ? { category_id: categoryId } : {}),

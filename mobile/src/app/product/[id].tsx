@@ -50,6 +50,8 @@ export default function ProductDetailsScreen() {
     );
   }
 
+  const comingSoon = product.available === false;
+
   const lineTotal = product.price * quantity;
 
   return (
@@ -58,7 +60,7 @@ export default function ProductDetailsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Image
           source={product.image_url ? { uri: product.image_url } : undefined}
-          style={styles.image}
+          style={[styles.image, comingSoon && styles.imageSoon]}
           contentFit="cover"
         />
         <View style={styles.body}>
@@ -68,21 +70,27 @@ export default function ProductDetailsScreen() {
         </View>
       </ScrollView>
       {itemCount > 0 ? <ViewCartBar inline /> : null}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-        <QuantityStepper
-          value={quantity}
-          onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
-          onIncrease={() => setQuantity((value) => value + 1)}
-        />
-        <View style={styles.footerAction}>
-          <PrimaryButton
-            label={`Add · ${formatPrice(lineTotal)}`}
-            onPress={() => {
-              addItem(product, quantity);
-            }}
-          />
+      {comingSoon ? (
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
+          <Text style={styles.soonBanner}>Coming soon</Text>
         </View>
-      </View>
+      ) : (
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
+          <QuantityStepper
+            value={quantity}
+            onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
+            onIncrease={() => setQuantity((value) => value + 1)}
+          />
+          <View style={styles.footerAction}>
+            <PrimaryButton
+              label={`Add · ${formatPrice(lineTotal)}`}
+              onPress={() => {
+                addItem(product, quantity);
+              }}
+            />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -99,6 +107,9 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     backgroundColor: colors.border,
+  },
+  imageSoon: {
+    opacity: 0.45,
   },
   body: {
     padding: spacing.md,
@@ -131,6 +142,13 @@ const styles = StyleSheet.create({
   },
   footerAction: {
     flex: 1,
+  },
+  soonBanner: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.warning,
   },
   centered: {
     flex: 1,

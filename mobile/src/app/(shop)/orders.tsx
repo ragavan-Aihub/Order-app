@@ -8,17 +8,27 @@ import { EmptyState } from '@/components/EmptyState';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { StatusBadge } from '@/components/StatusBadge';
-import { colors, spacing } from '@/config/theme';
+import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { getMyOrders } from '@/services/orders';
+import { getMyOrdersWithItems } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import type { Order } from '@/types/order';
-import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
+import type { OrderWithItems } from '@/types/order';
+import { formatOrderListDate, formatOrderNumber, formatPrice, orderStatusTone } from '@/utils/format';
+
+function itemSummary(order: OrderWithItems) {
+  const names = order.order_items.map((item) => item.product_name).filter(Boolean);
+  if (names.length === 0) {
+    return 'Tap to view items';
+  }
+  const preview = names.slice(0, 2).join(', ');
+  const extra = names.length - 2;
+  return extra > 0 ? `${preview} +${extra}` : preview;
+}
 
 export default function MyOrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -35,8 +45,7 @@ export default function MyOrdersScreen() {
         setOrders([]);
         return;
       }
-      const rows = await getMyOrders();
-      setOrders(rows);
+      setOrders(await getMyOrdersWithItems());
     } catch {
       setSignedIn(false);
       setOrders([]);
@@ -63,8 +72,8 @@ export default function MyOrdersScreen() {
   if (!signedIn) {
     return (
       <EmptyState
-        title="My orders"
-        message="Sign in with your mobile number to see your orders."
+        title="Sign in to continue"
+        message="Use your mobile number to see orders you have placed."
         actionLabel="Sign in"
         onAction={() => router.push({ pathname: '/login', params: { next: 'orders' } })}
       />
@@ -73,115 +82,179 @@ export default function MyOrdersScreen() {
 
   return (
     <ScrollView
+      style={styles.screen}
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
+        {
+          paddingTop: insets.top + spacing.sm,
+          paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md,
+        },
       ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
       }
     >
-      <Text style={styles.title}>My orders</Text>
       {offline ? <OfflineBanner /> : null}
       {orders.length === 0 ? (
-        <Text style={styles.message}>
-          {offline
-            ? 'Connect to the internet to load your orders.'
-            : 'You have not placed an order yet. Shop from Home to get started.'}
-        </Text>
+        <View style={styles.emptyCard}>
+          <Ionicons name="receipt-outline" size={28} color={colors.primary} />
+          <Text style={styles.emptyTitle}>No orders yet</Text>
+          <Text style={styles.message}>
+            {offline
+              ? 'Connect to the internet to load your orders.'
+              : 'Shop from Home and your orders will show up here.'}
+          </Text>
+          {!offline ? (
+            <Pressable
+              onPress={() => router.push('/home')}
+              style={styles.shopButton}
+              accessibilityRole="button"
+            >
+              <Text style={styles.shopLabel}>Browse products</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : (
-        orders.map((order) => (
-          <Pressable
-            key={order.id}
-            onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
-            style={styles.card}
-            accessibilityRole="button"
-          >
-            <View style={styles.cardTop}>
-              <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
-              <StatusBadge status={order.status} />
-            </View>
-            <View style={styles.payRow}>
-              <Text style={styles.meta}>Payment</Text>
-              <PaymentBadge
-                method={order.payment_method ?? 'pending'}
-                orderStatus={order.status}
-                refundStatus={order.refund_status}
-              />
-            </View>
-            <Text style={styles.meta}>{formatDateTime(order.created_at)}</Text>
-            <View style={styles.cardBottom}>
-              <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </View>
-          </Pressable>
-        ))
+        orders.map((order) => {
+          const tone = orderStatusTone(order.status);
+          const qty = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
+          return (
+            <Pressable
+              key={order.id}
+              onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
+              style={styles.card}
+              accessibilityRole="button"
+            >
+              <View style={[styles.rail, { backgroundColor: tone.fg }]} />
+              <View style={styles.cardBody}>
+                <View style={styles.cardTop}>
+                  <Text style={styles.number}>#{formatOrderNumber(order.order_number)}</Text>
+                  <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+                </View>
+                <Text style={styles.items} numberOfLines={2}>
+                  {qty > 0 ? `${qty} ${qty === 1 ? 'item' : 'items'} · ${itemSummary(order)}` : itemSummary(order)}
+                </Text>
+                <View style={styles.metaRow}>
+                  <Text style={styles.meta}>{formatOrderListDate(order.created_at)}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                </View>
+                <View style={styles.badges}>
+                  <StatusBadge status={order.status} />
+                  <PaymentBadge
+                    method={order.payment_method ?? 'pending'}
+                    orderStatus={order.status}
+                    refundStatus={order.refund_status}
+                  />
+                </View>
+              </View>
+            </Pressable>
+          );
+        })
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.background,
-    gap: spacing.md,
   },
   content: {
-    padding: spacing.md,
-    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+    flexGrow: 1,
     backgroundColor: colors.background,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.text,
   },
   message: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.textMuted,
   },
+  shopButton: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shopLabel: {
+    color: colors.primaryText,
+    fontSize: 15,
+    fontWeight: '800',
+  },
   card: {
+    flexDirection: 'row',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    padding: spacing.md,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  rail: {
+    width: 5,
+  },
+  cardBody: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     gap: 6,
   },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'baseline',
     gap: spacing.sm,
-  },
-  payRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  cardBottom: {
-    marginTop: spacing.xs,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   number: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.text,
-  },
-  meta: {
-    fontSize: 15,
-    color: colors.textMuted,
   },
   total: {
-    marginTop: spacing.xs,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.primaryDark,
+  },
+  items: {
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.text,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  meta: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
 });

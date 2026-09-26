@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { PaymentStatusBadge } from '@/components/OrderBadges';
 import { updateOrderPayment, updateOrderRefund } from '@/services/order-actions';
 import {
@@ -41,6 +42,7 @@ export function OrderPaymentForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [refunding, setRefunding] = useState(false);
+  const notice = useActionNotice();
 
   useEffect(() => {
     setValue(paymentMethod === 'upi' ? 'upi' : 'cash');
@@ -48,6 +50,7 @@ export function OrderPaymentForm({
 
   async function onSave() {
     setError(null);
+    notice.clear();
     setSaving(true);
     const result = await updateOrderPayment(orderId, value);
     setSaving(false);
@@ -55,11 +58,13 @@ export function OrderPaymentForm({
       setError(result.error);
       return;
     }
+    notice.show('Payment saved');
     router.refresh();
   }
 
   async function onRefund() {
     setError(null);
+    notice.clear();
     setRefunding(true);
     const result = await updateOrderRefund(orderId);
     setRefunding(false);
@@ -67,6 +72,7 @@ export function OrderPaymentForm({
       setError(result.error);
       return;
     }
+    notice.show('Marked refunded');
     router.refresh();
   }
 
@@ -135,6 +141,7 @@ export function OrderPaymentForm({
         </button>
       ) : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
     </div>
   );
 }

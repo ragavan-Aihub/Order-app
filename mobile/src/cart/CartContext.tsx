@@ -48,6 +48,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       itemCount,
       totalAmount,
       addItem(product, quantity = 1) {
+        if (product.available === false) {
+          return;
+        }
         setItems((current) => {
           const existing = current.find((item) => item.product.id === product.id);
           if (existing) {

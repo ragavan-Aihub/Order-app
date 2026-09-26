@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
-import { ShopCatalogProvider, useShopCatalog } from '@/catalog/ShopCatalogContext';
+import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
 import { colors } from '@/config/theme';
 
 export const unstable_settings = {
@@ -9,8 +9,6 @@ export const unstable_settings = {
 };
 
 function ShopTabs() {
-  const { categoriesEnabled } = useShopCatalog();
-
   return (
     <Tabs
       screenOptions={{
@@ -32,12 +30,11 @@ function ShopTabs() {
         }}
       />
       <Tabs.Screen
-        name="categories"
+        name="buy-again"
         options={{
-          title: 'Categories',
+          title: 'Buy again',
           headerShown: false,
-          href: categoriesEnabled ? '/categories' : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="repeat-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -49,11 +46,19 @@ function ShopTabs() {
         }}
       />
       <Tabs.Screen
+        name="categories"
+        options={{
+          title: 'Categories',
+          headerShown: false,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="reorder"
         options={{
           title: 'Reorder',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="refresh-outline" size={size} color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen

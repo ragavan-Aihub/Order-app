@@ -18,12 +18,17 @@ export async function getShopCategories(): Promise<ShopCategory[]> {
     const { data, error } = await supabase.rpc('get_shop_categories', {
       p_business_id: env.businessId,
     });
-    if (error || !data) {
+    if (error) {
       return cached;
+    }
+    if (!data) {
+      await writeCachedCategories([]);
+      return [];
     }
     const categories = (data as ShopCategory[]).map((row) => ({
       id: row.id,
       name: row.name,
+      image_url: row.image_url ?? null,
     }));
     await writeCachedCategories(categories);
     return categories;

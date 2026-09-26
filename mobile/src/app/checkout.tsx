@@ -24,6 +24,7 @@ import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { isNetworkFailure } from '@/services/network';
 import { getLastDeliveryDetails, placeOrder } from '@/services/orders';
+import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import { composeAddressLine, stateFromPincode } from '@/utils/address';
 import { formatPrice } from '@/utils/format';
@@ -110,6 +111,15 @@ export default function CheckoutScreen() {
       return;
     }
     if (!(await requireConnection())) {
+      return;
+    }
+    const catalog = await getAvailableProducts();
+    const blocked = items.find((item) => {
+      const live = catalog.find((product) => product.id === item.product.id);
+      return !live || live.available === false || live.active === false;
+    });
+    if (blocked) {
+      setError(`${blocked.product.name} is coming soon or no longer sold. Remove it from the cart.`);
       return;
     }
     setSubmitting(true);

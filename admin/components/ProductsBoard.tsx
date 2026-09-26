@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { AvailabilityToggle } from '@/components/AvailabilityToggle';
+import { ProductCatalogMenu } from '@/components/ProductCatalogMenu';
 import { TableScroll } from '@/components/TableScroll';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
@@ -63,6 +64,10 @@ export function ProductsBoard({
           </select>
         ) : null}
       </div>
+      <p className="text-sm text-stone-600">
+        Inactive hides the product from the app. Coming soon still shows it, blurred, with no Add. Products used in
+        orders cannot be deleted — set Inactive instead.
+      </p>
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No products match this search.</div>
       ) : (
@@ -83,8 +88,17 @@ export function ProductsBoard({
                     <p className="text-xs text-stone-500">{product.category_name ?? 'Uncategorized'}</p>
                   ) : null}
                   <p className="mt-1">{formatPrice(product.price)}</p>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <AvailabilityToggle productId={product.id} available={product.available} />
+                  <div className="mt-3 flex flex-col gap-2">
+                    <ProductCatalogMenu
+                      productId={product.id}
+                      active={product.active !== false}
+                      transacted={Boolean(product.transacted)}
+                    />
+                    <AvailabilityToggle
+                      productId={product.id}
+                      available={product.available}
+                      disabled={product.active === false}
+                    />
                     <Link href={`/products/${product.id}`} className="font-medium text-emerald-800">
                       Edit
                     </Link>
@@ -110,7 +124,7 @@ export function ProductsBoard({
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Price</th>
                     {categoriesEnabled ? <th className="px-4 py-3 font-medium">Category</th> : null}
-                    <th className="px-4 py-3 font-medium">Available</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium"> </th>
                   </tr>
                 </thead>
@@ -138,7 +152,18 @@ export function ProductsBoard({
                         <td className="px-4 py-3 text-stone-600">{product.category_name ?? '—'}</td>
                       ) : null}
                       <td className="px-4 py-3 align-middle">
-                        <AvailabilityToggle productId={product.id} available={product.available} />
+                        <div className="flex flex-col gap-2">
+                          <ProductCatalogMenu
+                            productId={product.id}
+                            active={product.active !== false}
+                            transacted={Boolean(product.transacted)}
+                          />
+                          <AvailabilityToggle
+                            productId={product.id}
+                            available={product.available}
+                            disabled={product.active === false}
+                          />
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <Link href={`/products/${product.id}`} className="font-medium text-emerald-800">

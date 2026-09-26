@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -5,11 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OrderProgress } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
-import { StatusBadge } from '@/components/StatusBadge';
 import { colors, radius, spacing } from '@/config/theme';
 import { getMyOrderById } from '@/services/orders';
 import type { OrderWithItems } from '@/types/order';
-import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
+import { formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice, orderStatusTone } from '@/utils/format';
 
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -65,20 +65,36 @@ export default function OrderDetailScreen() {
     );
   }
 
+  const statusTone = orderStatusTone(order.status);
+
   return (
     <ScrollView
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
+        { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
       ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
       }
     >
       <View style={styles.hero}>
-        <Text style={styles.number}>{formatOrderNumber(order.order_number)}</Text>
-        <StatusBadge status={order.status} />
-        <View style={styles.payRow}>
+        <View style={styles.heroTop}>
+          <View style={styles.heroTitle}>
+            <Text style={styles.kicker}>Order</Text>
+            <Text style={styles.number}>#{formatOrderNumber(order.order_number)}</Text>
+          </View>
+          <View style={[styles.statusHero, { backgroundColor: statusTone.bg }]}>
+            <Text style={[styles.statusHeroLabel, { color: statusTone.fg }]}>
+              {formatOrderStatus(order.status)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.metaRow}>
+          <Ionicons name="time-outline" size={15} color={colors.textMuted} />
+          <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Ionicons name="card-outline" size={15} color={colors.textMuted} />
           <Text style={styles.meta}>Payment</Text>
           <PaymentBadge
             method={order.payment_method ?? 'pending'}
@@ -86,12 +102,14 @@ export default function OrderDetailScreen() {
             refundStatus={order.refund_status}
           />
         </View>
-        <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
       </View>
 
       {order.status === 'cancelled' ? (
         <View style={styles.card}>
-          <Text style={styles.heading}>Cancelled</Text>
+          <View style={styles.sectionHead}>
+            <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
+            <Text style={styles.heading}>Cancelled</Text>
+          </View>
           <Text style={styles.body}>{order.cancel_reason || 'This order was cancelled.'}</Text>
           <View style={styles.payRow}>
             <PaymentBadge
@@ -103,32 +121,53 @@ export default function OrderDetailScreen() {
         </View>
       ) : (
         <View style={styles.card}>
-          <Text style={styles.heading}>Progress</Text>
+          <View style={styles.sectionHead}>
+            <Ionicons name="navigate-outline" size={18} color={colors.primaryDark} />
+            <Text style={styles.heading}>Progress</Text>
+          </View>
           <OrderProgress status={order.status} />
         </View>
       )}
 
       <View style={styles.card}>
-        <Text style={styles.heading}>Delivery</Text>
-        <Text style={styles.body}>{order.customer_name}</Text>
-        <Text style={styles.body}>{order.mobile}</Text>
-        <Text style={styles.body}>{order.delivery_address}</Text>
-        <Text style={styles.body}>Pincode {order.pincode}</Text>
+        <View style={styles.sectionHead}>
+          <Ionicons name="bicycle-outline" size={18} color={colors.primaryDark} />
+          <Text style={styles.heading}>Delivery</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Ionicons name="person-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.body}>{order.customer_name}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.body}>{order.mobile}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Ionicons name="location-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.body}>
+            {order.delivery_address}
+            {'\n'}Pincode {order.pincode}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.heading}>Items</Text>
+        <View style={styles.sectionHead}>
+          <Ionicons name="bag-handle-outline" size={18} color={colors.primaryDark} />
+          <Text style={styles.heading}>Items</Text>
+        </View>
         {order.order_items.map((item) => (
           <View key={item.id} style={styles.itemRow}>
-            <Text style={[styles.body, styles.itemName]}>
-              {item.product_name} × {item.quantity}
-            </Text>
-            <Text style={styles.body}>{formatPrice(item.subtotal)}</Text>
+            <View style={styles.itemCopy}>
+              <Text style={styles.itemName}>{item.product_name}</Text>
+              <Text style={styles.itemQty}>× {item.quantity}</Text>
+            </View>
+            <Text style={styles.itemPrice}>{formatPrice(item.subtotal)}</Text>
           </View>
         ))}
-        <View style={styles.itemRow}>
-          <Text style={styles.total}>Total</Text>
-          <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
         </View>
       </View>
     </ScrollView>
@@ -148,58 +187,146 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   content: {
-    padding: spacing.md,
-    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.sm,
     backgroundColor: colors.background,
   },
   hero: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 8,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  heroTitle: {
+    flex: 1,
+    minWidth: 0,
+  },
+  kicker: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+  },
   number: {
-    fontSize: 28,
+    marginTop: 1,
+    fontSize: 24,
     fontWeight: '800',
     color: colors.text,
   },
-  meta: {
+  statusHero: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
+  statusHeroLabel: {
     fontSize: 15,
+    fontWeight: '800',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  meta: {
+    fontSize: 13,
     color: colors.textMuted,
   },
   payRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    marginTop: 4,
   },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 8,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   heading: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.text,
-    marginBottom: 4,
   },
   body: {
-    fontSize: 16,
-    lineHeight: 24,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.text,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
   },
   itemRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
-    paddingVertical: 4,
+  },
+  itemCopy: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   itemName: {
-    flex: 1,
+    flexShrink: 1,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+    color: colors.text,
   },
-  total: {
-    fontSize: 18,
+  itemQty: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  totalRow: {
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 16,
     fontWeight: '800',
     color: colors.text,
+  },
+  totalValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
 });

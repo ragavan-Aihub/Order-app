@@ -6,7 +6,7 @@ import type { Product } from '@/types/product';
 
 export async function getAvailableProducts(): Promise<Product[]> {
   if (!isSupabaseConfigured || !env.businessId) {
-    return MOCK_PRODUCTS.filter((product) => product.available);
+    return MOCK_PRODUCTS.filter((product) => product.active !== false);
   }
 
   const cached = await readCachedProducts();

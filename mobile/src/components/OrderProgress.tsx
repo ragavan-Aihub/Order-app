@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '@/config/theme';
+import { colors } from '@/config/theme';
 
 const STEPS = [
   { status: 'new', label: 'Placed' },
@@ -36,16 +37,28 @@ export function OrderProgress({ status }: { status: string }) {
               <View
                 style={[
                   styles.dot,
-                  (done || here) && styles.dotOn,
+                  done && styles.dotDone,
                   here && styles.dotCurrent,
+                  !done && !here && styles.dotUpcoming,
                 ]}
               >
-                {done ? <Text style={styles.check}>✓</Text> : null}
+                {done ? <Ionicons name="checkmark" size={13} color={colors.primaryText} /> : null}
+                {here ? <View style={styles.currentCore} /> : null}
               </View>
               {last ? null : <View style={[styles.line, index < current && styles.lineOn]} />}
             </View>
-            <Text style={[styles.label, (done || here) && styles.labelOn]}>{step.label}</Text>
-            {here ? <Text style={styles.now}>Current</Text> : null}
+            <Text
+              style={[
+                styles.label,
+                done && styles.labelDone,
+                here && styles.labelCurrent,
+                !done && !here && styles.labelUpcoming,
+              ]}
+              numberOfLines={1}
+            >
+              {step.label}
+            </Text>
+            {here ? <Text style={styles.now}>Current</Text> : <View style={styles.nowSpacer} />}
           </View>
         );
       })}
@@ -56,7 +69,7 @@ export function OrderProgress({ status }: { status: string }) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    paddingTop: 4,
+    paddingTop: 2,
   },
   step: {
     flex: 1,
@@ -67,50 +80,69 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.border,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
   },
-  dotOn: {
+  dotDone: {
     backgroundColor: colors.primary,
   },
   dotCurrent: {
-    backgroundColor: colors.surface,
-    borderWidth: 3,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 2.5,
     borderColor: colors.primary,
   },
-  check: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-    lineHeight: 14,
+  currentCore: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  dotUpcoming: {
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.border,
   },
   line: {
     flex: 1,
-    height: 3,
+    height: 2,
     backgroundColor: colors.border,
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   lineOn: {
     backgroundColor: colors.primary,
   },
   label: {
-    marginTop: 8,
-    fontSize: 12,
+    marginTop: 6,
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.textMuted,
+    letterSpacing: 0.1,
   },
-  labelOn: {
+  labelDone: {
     color: colors.primaryDark,
   },
-  now: {
-    marginTop: 2,
-    fontSize: 11,
+  labelCurrent: {
     color: colors.primary,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  labelUpcoming: {
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  now: {
+    marginTop: 1,
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  nowSpacer: {
+    height: 13,
   },
 });

@@ -71,11 +71,11 @@ export default function VerifyScreen() {
       const destination =
         next === 'checkout'
           ? '/checkout'
-          : next === 'orders'
-            ? '/orders'
-            : next === 'reorder'
-              ? '/reorder'
-              : next === 'account'
+            : next === 'orders'
+              ? '/orders'
+              : next === 'buy-again' || next === 'reorder'
+                ? '/buy-again'
+                : next === 'account'
                 ? '/account'
                 : '/home';
       router.replace(destination);

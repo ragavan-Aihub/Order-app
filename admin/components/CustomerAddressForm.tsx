@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { deleteCustomerAddress, saveCustomerAddress } from '@/services/customer-actions';
 import type { CustomerAddress } from '@/services/customers';
@@ -35,10 +36,12 @@ export function CustomerAddressForm({
   const [isDefault, setIsDefault] = useState(address?.is_default ?? false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const notice = useActionNotice();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    notice.clear();
     setSubmitting(true);
     const result = await saveCustomerAddress(customerId, {
       id: address?.id,
@@ -56,7 +59,11 @@ export function CustomerAddressForm({
       setError(result.error);
       return;
     }
-    onDone?.(result.address);
+    if (onDone) {
+      onDone(result.address);
+    } else {
+      notice.show('Saved successfully');
+    }
     router.refresh();
   }
 
@@ -65,6 +72,7 @@ export function CustomerAddressForm({
       return;
     }
     setError(null);
+    notice.clear();
     const result = await deleteCustomerAddress(customerId, address.id);
     if (result.error) {
       setError(result.error);
@@ -81,6 +89,7 @@ export function CustomerAddressForm({
         Default address
       </label>
       {error ? <p className="text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={submitting} className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60">
           {submitting ? 'Saving…' : 'Save Address'}

@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
 
 import { saveProduct } from '@/services/product-actions';
+import { ProductDeleteButton } from '@/components/ProductDeleteButton';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -32,6 +33,7 @@ type ProductFormProps = {
     price: number;
     image_url: string | null;
     category_id?: string | null;
+    transacted?: boolean;
   };
   categoriesEnabled?: boolean;
   categories?: Array<{ id: string; name: string }>;
@@ -350,8 +352,8 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
         <p className="flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           {isEdit
-            ? 'Use the products list toggle to change availability.'
-            : 'New products start as available. You can change availability from the products list.'}
+            ? 'Use the products list for Active/Inactive and Available/Coming soon. Ordered products can be set Inactive but not deleted.'
+            : 'New products start as Active and Available. Change those from the products list.'}
         </p>
 
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
@@ -379,6 +381,13 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
           >
             Cancel
           </Link>
+          {isEdit && product ? (
+            <ProductDeleteButton
+              productId={product.id}
+              transacted={Boolean(product.transacted)}
+              afterDelete="list"
+            />
+          ) : null}
         </div>
       </section>
     </form>

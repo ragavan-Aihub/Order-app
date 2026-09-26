@@ -245,7 +245,7 @@ export function AdminOrderForm({
   }, [creatingCustomer, mobile, ignoredMobile]);
 
   function addProduct(product: Product) {
-    if (!product.available) {
+    if (!product.available || product.active === false) {
       return;
     }
     setQty((current) => ({ ...current, [product.id]: (current[product.id] ?? 0) + 1 }));
@@ -593,13 +593,18 @@ export function AdminOrderForm({
                     <div className="min-w-0">
                       <p className="text-sm font-medium">{product.name}</p>
                       <p className="text-xs text-stone-500">
-                        {formatPrice(product.price)} · {product.available ? 'Available' : 'Unavailable'}
+                        {formatPrice(product.price)} ·{' '}
+                        {product.active === false
+                          ? 'Inactive'
+                          : product.available
+                            ? 'Available'
+                            : 'Coming soon'}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => addProduct(product)}
-                      disabled={!product.available}
+                      disabled={!product.available || product.active === false}
                       className="shrink-0 rounded-md bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 disabled:opacity-40"
                     >
                       Add

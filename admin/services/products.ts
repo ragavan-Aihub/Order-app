@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Product } from '@/types/product';
 
 const PRODUCT_COLUMNS =
-  'id, business_id, name, description, price, image_url, available, category_id, created_at, updated_at';
+  'id, business_id, name, description, price, image_url, available, active, category_id, created_at, updated_at';
 
 const PRODUCT_COLUMNS_FALLBACK =
   'id, business_id, name, description, price, image_url, available, created_at, updated_at';
@@ -29,6 +29,30 @@ async function attachCategoryNames(
   return products.map((product) => ({
     ...product,
     category_name: product.category_id ? names.get(product.category_id) ?? null : null,
+  }));
+}
+
+async function attachTransacted(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  products: Product[],
+): Promise<Product[]> {
+  const ids = products.map((product) => product.id);
+  if (ids.length === 0) {
+    return products;
+  }
+  const used = new Set<string>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data } = await supabase.from('order_items').select('product_id').in('product_id', chunk);
+    for (const row of data ?? []) {
+      if (row.product_id) {
+        used.add(row.product_id);
+      }
+    }
+  }
+  return products.map((product) => ({
+    ...product,
+    transacted: used.has(product.id),
   }));
 }
 
@@ -55,7 +79,11 @@ export async function getAllProducts(): Promise<Product[]> {
     .order('created_at', { ascending: false });
 
   if (!error && data) {
-    return attachCategoryNames(supabase, businessId, data as Product[]);
+    const named = await attachCategoryNames(supabase, businessId, (data as Product[]).map((row) => ({
+      ...row,
+      active: row.active !== false,
+    })));
+    return attachTransacted(supabase, named);
   }
 
   const fallback = await supabase
@@ -68,7 +96,10 @@ export async function getAllProducts(): Promise<Product[]> {
     return [];
   }
 
-  return fallback.data as Product[];
+  return attachTransacted(
+    supabase,
+    (fallback.data as Product[]).map((row) => ({ ...row, active: row.active !== false })),
+  );
 }
 
 export async function getProductById(id: string): Promise<Product | null> {

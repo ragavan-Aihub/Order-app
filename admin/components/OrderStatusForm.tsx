@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { updateOrderStatus } from '@/services/order-actions';
 import {
   CANCEL_REASON_PRESETS,
@@ -82,6 +83,7 @@ export function OrderStatusForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [correcting, setCorrecting] = useState(false);
+  const notice = useActionNotice();
 
   useEffect(() => {
     setValue(NEXT_STATUSES[status][0] ?? status);
@@ -101,6 +103,7 @@ export function OrderStatusForm({
 
   async function save(next: OrderStatus, mode: 'normal' | 'correct') {
     setError(null);
+    notice.clear();
     const reason = next === 'cancelled' ? buildCancelReason(preset, other) : null;
     if (next === 'cancelled' && !reason) {
       setError('Add a short note for Other, or pick a reason.');
@@ -118,6 +121,7 @@ export function OrderStatusForm({
       setError(result.error);
       return;
     }
+    notice.show('Status updated');
     router.refresh();
   }
 
@@ -214,6 +218,7 @@ export function OrderStatusForm({
         )}
       </div>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
     </div>
   );
 }

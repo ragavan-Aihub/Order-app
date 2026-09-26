@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { CustomerAddressForm } from '@/components/CustomerAddressForm';
 import { deleteCustomerAddress, saveCustomerAddress } from '@/services/customer-actions';
 import type { CustomerAddress } from '@/services/customers';
@@ -174,19 +175,11 @@ export function CustomerAddressBook({
 }) {
   const [adding, setAdding] = useState(false);
   const [items, setItems] = useState(addresses);
-  const [notice, setNotice] = useState<string | null>(null);
+  const notice = useActionNotice();
 
   useEffect(() => {
     setItems(addresses);
   }, [addresses]);
-
-  useEffect(() => {
-    if (!notice) {
-      return;
-    }
-    const timeout = window.setTimeout(() => setNotice(null), 4000);
-    return () => window.clearTimeout(timeout);
-  }, [notice]);
 
   function applySaved(saved: CustomerAddress, message: string) {
     setItems((current) => {
@@ -197,14 +190,12 @@ export function CustomerAddressBook({
       return exists ? [saved, ...others] : [...others, saved];
     });
     setAdding(false);
-    setNotice(message);
+    notice.show(message);
   }
 
   return (
     <section className="max-w-xl space-y-3">
-      {notice ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>
-      ) : null}
+      <ActionNotice message={notice.message} />
       {items.length === 0 && !adding ? (
         <p className="text-stone-600">No saved address yet.</p>
       ) : (
@@ -218,7 +209,7 @@ export function CustomerAddressBook({
             onChanged={applySaved}
             onRemoved={(addressId, message) => {
               setItems((current) => current.filter((item) => item.id !== addressId));
-              setNotice(message);
+              notice.show(message);
             }}
           />
         ))

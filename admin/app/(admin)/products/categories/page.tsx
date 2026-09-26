@@ -2,7 +2,6 @@ import Link from 'next/link';
 
 import { CategoriesBoard } from '@/components/CategoriesBoard';
 import { CategoriesEnablePanel } from '@/components/CategoriesEnablePanel';
-import { CategoryForm } from '@/components/CategoryForm';
 import { isCategoriesEnabled } from '@/services/business';
 import { getCategories } from '@/services/categories';
 
@@ -14,27 +13,34 @@ export default async function ProductCategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/products" className="text-sm font-medium text-emerald-700">
-          ← Products
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold md:text-3xl">
-          {enabled ? `Categories (${categories.length})` : 'Categories'}
-        </h1>
-        <p className="mt-1 text-stone-600">Optional grouping for products. Items can stay uncategorized.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/products" className="text-sm font-medium text-emerald-700">
+            ← Products
+          </Link>
+          <h1 className="mt-2 text-2xl font-bold md:text-3xl">
+            {enabled ? `Categories (${categories.length})` : 'Categories'}
+          </h1>
+          <p className="mt-1 text-stone-600">Optional grouping for products. Items can stay uncategorized.</p>
+        </div>
+        {enabled ? (
+          <Link
+            href="/products/categories/new"
+            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
+          >
+            Add category
+          </Link>
+        ) : null}
       </div>
       <CategoriesEnablePanel enabled={enabled} />
       {enabled ? (
-        <>
-          <CategoryForm />
-          {categories.length === 0 ? (
-            <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
-              No categories yet. Create one above, then assign it when you add or edit a product.
-            </div>
-          ) : (
-            <CategoriesBoard categories={categories} />
-          )}
-        </>
+        categories.length === 0 ? (
+          <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
+            No categories yet. Add one, then assign it when you add or edit a product.
+          </div>
+        ) : (
+          <CategoriesBoard categories={categories} />
+        )
       ) : null}
     </div>
   );

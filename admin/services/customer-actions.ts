@@ -520,7 +520,7 @@ export async function createAdminOrder(input: {
   const productIds = [...qtyByProduct.keys()];
   const { data: products } = await ctx.supabase
     .from('products')
-    .select('id, name, price, available')
+    .select('id, name, price, available, active')
     .eq('business_id', ctx.businessId)
     .in('id', productIds);
 
@@ -528,7 +528,7 @@ export async function createAdminOrder(input: {
     return { error: 'One of the products is missing.' };
   }
 
-  const unavailable = products.find((product) => !product.available);
+  const unavailable = products.find((product) => !product.available || product.active === false);
   if (unavailable) {
     return { error: `${unavailable.name} is not available.` };
   }

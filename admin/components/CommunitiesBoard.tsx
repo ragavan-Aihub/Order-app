@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
+import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { TableScroll } from '@/components/TableScroll';
 import { setCommunityActive } from '@/services/community-actions';
 import type { CommunityListItem } from '@/types/community';
@@ -13,6 +14,7 @@ export function CommunitiesBoard({ communities }: { communities: CommunityListIt
   const [activeById, setActiveById] = useState<Record<string, boolean>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const notice = useActionNotice();
 
   function isActive(item: CommunityListItem) {
     return activeById[item.id] ?? item.active;
@@ -38,6 +40,7 @@ export function CommunitiesBoard({ communities }: { communities: CommunityListIt
   async function toggleActive(item: CommunityListItem) {
     const next = !isActive(item);
     setError(null);
+    notice.clear();
     setBusyId(item.id);
     setActiveById((current) => ({ ...current, [item.id]: next }));
     const result = await setCommunityActive({ id: item.id, active: next });
@@ -45,7 +48,9 @@ export function CommunitiesBoard({ communities }: { communities: CommunityListIt
     if (result.error) {
       setActiveById((current) => ({ ...current, [item.id]: item.active }));
       setError(result.error);
+      return;
     }
+    notice.show('Saved successfully');
   }
 
   return (
@@ -68,6 +73,7 @@ export function CommunitiesBoard({ communities }: { communities: CommunityListIt
         </select>
       </div>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      <ActionNotice message={notice.message} />
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No communities match this search.</div>
       ) : (

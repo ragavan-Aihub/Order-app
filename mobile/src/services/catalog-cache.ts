@@ -4,9 +4,9 @@ import type { Business } from '@/types/business';
 import type { ShopCategory } from '@/types/category';
 import type { Product } from '@/types/product';
 
-const PRODUCTS_KEY = 'farm2flavour.catalog.products.v1';
-const BUSINESS_KEY = 'farm2flavour.catalog.business.v1';
-const CATEGORIES_KEY = 'farm2flavour.catalog.categories.v1';
+const PRODUCTS_KEY = 'farm2flavour.catalog.products.v4';
+const BUSINESS_KEY = 'farm2flavour.catalog.business.v2';
+const CATEGORIES_KEY = 'farm2flavour.catalog.categories.v3';
 
 export async function readCachedProducts(): Promise<Product[] | null> {
   try {

@@ -43,7 +43,7 @@ function applyMappedCommunity(
   return { ...order, community_id: communityId, community_name: communityName };
 }
 
-async function withMappedCommunity(
+export async function hydrateOrderCommunities(
   supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
   businessId: string,
   orders: Order[],
@@ -94,7 +94,7 @@ export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Pr
   const hydrate = options?.hydrateCommunity ?? (await isCommunitiesEnabled());
 
   if (!error && data) {
-    return hydrate ? withMappedCommunity(supabase, businessId, data as Order[]) : (data as Order[]);
+    return hydrate ? hydrateOrderCommunities(supabase, businessId, data as Order[]) : (data as Order[]);
   }
 
   const fallback = await supabase
@@ -119,7 +119,7 @@ export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Pr
     community_id: null,
     community_name: null,
   }));
-  return hydrate ? withMappedCommunity(supabase, businessId, mapped) : mapped;
+  return hydrate ? hydrateOrderCommunities(supabase, businessId, mapped) : mapped;
 }
 
 export async function getOrderById(id: string): Promise<OrderWithItems | null> {
@@ -158,7 +158,7 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
       .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
       .eq('order_id', id)
       .order('created_at', { ascending: true });
-    const [hydrated] = await withMappedCommunity(supabase, businessId, [
+    const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [
       {
         ...(fallback.data as Order),
         payment_method: 'pending',
@@ -183,7 +183,7 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
     .eq('order_id', id)
     .order('created_at', { ascending: true });
 
-  const [hydrated] = await withMappedCommunity(supabase, businessId, [order as Order]);
+  const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [order as Order]);
   return {
     ...hydrated,
     order_items: (items ?? []) as OrderItem[],
