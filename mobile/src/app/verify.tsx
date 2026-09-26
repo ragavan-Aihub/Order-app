@@ -18,10 +18,19 @@ import { requestOtp, verifyOtp } from '@/services/auth';
 import { isNetworkFailure } from '@/services/network';
 import { markEnteredShop } from '@/nav/shop-entry';
 
+function firstParam(value?: string | string[]) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
 export default function VerifyScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mobile, next } = useLocalSearchParams<{ mobile?: string; next?: string }>();
+  const params = useLocalSearchParams<{ mobile?: string; next?: string }>();
+  const mobile = firstParam(params.mobile);
+  const next = firstParam(params.next);
   const [otp, setOtp] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -56,7 +65,7 @@ export default function VerifyScreen() {
       setError('Mobile number is missing.');
       return;
     }
-    if (otp.trim().length < 6) {
+    if (otp.replace(/\D/g, '').length !== 6) {
       setError('Enter the 6-digit OTP sent to your phone.');
       return;
     }
@@ -112,10 +121,13 @@ export default function VerifyScreen() {
         ) : null}
         <TextInput
           value={otp}
-          onChangeText={setOtp}
+          onChangeText={(value) => setOtp(value.replace(/\D/g, '').slice(0, 6))}
           placeholder="OTP"
           placeholderTextColor={colors.textMuted}
           keyboardType="number-pad"
+          textContentType="oneTimeCode"
+          autoComplete="sms-otp"
+          maxLength={6}
           style={styles.input}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}

@@ -16,6 +16,14 @@ function mapOtpError(message: string) {
     return 'Wait about a minute, then request a new OTP.';
   }
   if (
+    lower.includes('expired') ||
+    lower.includes('invalid otp') ||
+    lower.includes('invalid token') ||
+    lower.includes('wrong') && lower.includes('otp')
+  ) {
+    return 'That OTP is invalid or expired. Request a new code and try again.';
+  }
+  if (
     lower.includes('unsupported phone provider') ||
     lower.includes('sms provider') ||
     lower.includes('error sending confirmation sms')
@@ -40,6 +48,10 @@ export async function requestOtp(mobile: string) {
   try {
     const { error } = await supabase.auth.signInWithOtp({
       phone: toE164India(mobile),
+      options: {
+        shouldCreateUser: true,
+        channel: 'sms',
+      },
     });
 
     if (error) {
@@ -64,14 +76,21 @@ export async function verifyOtp(mobile: string, token: string) {
   }
 
   try {
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       phone: toE164India(mobile),
-      token: token.trim(),
+      token: token.replace(/\D/g, '').slice(0, 6),
       type: 'sms',
     });
 
     if (error) {
       throw new Error(mapOtpError(error.message));
+    }
+
+    if (!data.session) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('Could not verify OTP. Request a new code and try again.');
+      }
     }
 
     if (!env.businessId) {
@@ -89,7 +108,10 @@ export async function verifyOtp(mobile: string, token: string) {
       if (isNetworkFailure(profileError.message)) {
         throw new Error(OFFLINE_AUTH);
       }
-      throw new Error(profileError.message);
+      const lower = profileError.message.toLowerCase();
+      if (lower.includes('not authenticated')) {
+        throw new Error('Could not verify OTP. Request a new code and try again.');
+      }
     }
   } catch (error) {
     if (isNetworkFailure(error)) {

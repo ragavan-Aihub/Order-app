@@ -156,7 +156,7 @@ export default function CheckoutScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, spacing.md) + 108 },
+          { paddingBottom: Math.max(insets.bottom, spacing.md) + 96 },
         ]}
       >
         {offline ? <OfflineBanner /> : null}
@@ -214,7 +214,7 @@ export default function CheckoutScreen() {
                 <View style={styles.actions}>
                   <Pressable
                     onPress={() => router.push({ pathname: '/address/form', params: { id: item.id } })}
-                    hitSlop={8}
+                    style={styles.actionBtn}
                     accessibilityRole="button"
                     accessibilityLabel="Edit address"
                   >
@@ -222,7 +222,7 @@ export default function CheckoutScreen() {
                   </Pressable>
                   <Pressable
                     onPress={() => onDelete(item.id)}
-                    hitSlop={8}
+                    style={styles.actionBtn}
                     accessibilityRole="button"
                     accessibilityLabel="Delete address"
                   >
@@ -236,7 +236,10 @@ export default function CheckoutScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-        <Text style={styles.total}>To pay {formatPrice(totalAmount)}</Text>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>To pay</Text>
+          <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
+        </View>
         <PrimaryButton
           label={submitting ? 'Placing order…' : 'Place order'}
           disabled={submitting || !selected}
@@ -253,17 +256,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: spacing.md,
-    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.sm,
   },
   addNew: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.primarySoft,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
   },
   addNewLabel: {
     fontSize: 16,
@@ -271,10 +277,12 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
   },
   kicker: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.textMuted,
     textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: spacing.xs,
   },
   muted: {
     fontSize: 15,
@@ -288,38 +296,42 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     gap: spacing.sm,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderRadius: radius.md,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   cardOn: {
     borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: colors.background,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardBody: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
+    gap: 2,
   },
   cardName: {
     fontSize: 15,
     fontWeight: '800',
     color: colors.text,
     textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
   cardLine: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   phoneRow: {
     flexDirection: 'row',
@@ -332,8 +344,15 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   actions: {
-    gap: spacing.md,
-    paddingTop: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  actionBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   error: {
     fontSize: 16,
@@ -341,15 +360,26 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
+    gap: spacing.sm,
   },
-  total: {
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  totalLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.sm,
+    color: colors.textMuted,
+  },
+  total: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.primaryDark,
+    letterSpacing: -0.3,
   },
 });

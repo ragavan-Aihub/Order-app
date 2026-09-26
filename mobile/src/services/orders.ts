@@ -260,7 +260,7 @@ export async function getMyOrdersWithItems(): Promise<OrderWithItems[]> {
 export async function getReorderOrders(): Promise<OrderWithItems[]> {
   return (await getMyOrdersWithItems())
     .filter((order) => order.status !== 'cancelled' && order.order_items.length > 0)
-    .slice(0, 8);
+    .slice(0, 10);
 }
 
 export async function getMyOrderById(id: string): Promise<OrderWithItems | null> {

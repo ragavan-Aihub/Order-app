@@ -20,7 +20,6 @@ import {
   savedAddressLabel,
   savedAddressLine,
 } from '@/components/AddressPickerSheet';
-import { EmptyState } from '@/components/EmptyState';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -48,7 +47,10 @@ export default function CartScreen() {
   useFocusEffect(
     useCallback(() => {
       loadAddress().catch(() => undefined);
-    }, [loadAddress]),
+      if (items.length === 0) {
+        router.replace('/home');
+      }
+    }, [items.length, loadAddress, router]),
   );
 
   useEffect(() => {
@@ -58,14 +60,7 @@ export default function CartScreen() {
   }, []);
 
   if (items.length === 0) {
-    return (
-      <EmptyState
-        title="Your cart is empty"
-        message="Browse the catalog and tap Add to build an order."
-        actionLabel="Start shopping"
-        onAction={() => router.replace('/home')}
-      />
-    );
+    return <View style={styles.screen} />;
   }
 
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Deliver to';
@@ -131,9 +126,12 @@ export default function CartScreen() {
                   contentFit="cover"
                 />
                 <View style={styles.details}>
-                  <Text style={styles.name} numberOfLines={2}>
-                    {item.product.name}
-                  </Text>
+                  <View style={styles.rowTop}>
+                    <Text style={styles.name} numberOfLines={2}>
+                      {item.product.name}
+                    </Text>
+                    <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
+                  </View>
                   <Text style={styles.unit}>{formatPrice(item.product.price)} each</Text>
                   <View style={styles.rowBottom}>
                     <QuantityStepper
@@ -142,7 +140,6 @@ export default function CartScreen() {
                       onDecrease={() => decrease(item.product.id)}
                       onIncrease={() => increase(item.product.id)}
                     />
-                    <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
                   </View>
                 </View>
               </View>
@@ -215,40 +212,51 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   content: {
-    padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
   },
   count: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
   row: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: spacing.md,
+    padding: spacing.sm,
   },
   thumb: {
-    width: 88,
-    height: 88,
-    borderRadius: 12,
+    width: 72,
+    height: 72,
+    borderRadius: 10,
     backgroundColor: colors.border,
   },
   details: {
     flex: 1,
-    gap: 6,
+    minWidth: 0,
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
   },
   name: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
+    lineHeight: 20,
   },
   unit: {
     fontSize: 13,
@@ -257,12 +265,12 @@ const styles = StyleSheet.create({
   rowBottom: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   subtotal: {
     fontSize: 16,
     fontWeight: '800',
     color: colors.primaryDark,
+    textAlign: 'right',
   },
   deleteAction: {
     width: 72,
@@ -279,43 +287,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderStyle: 'dashed',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    minHeight: 48,
   },
   addMoreLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.primary,
   },
   addMoreHint: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.textMuted,
   },
   footer: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'baseline',
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textMuted,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   total: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    color: colors.text,
+    color: colors.primaryDark,
+    letterSpacing: -0.3,
   },
 });

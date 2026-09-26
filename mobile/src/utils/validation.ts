@@ -1,15 +1,16 @@
 export function toE164India(mobile: string): string {
-  const digits = mobile.replace(/\D/g, '');
+  const raw = Array.isArray(mobile) ? String(mobile[0] ?? '') : String(mobile ?? '');
+  const digits = raw.replace(/\D/g, '');
   if (digits.length === 12 && digits.startsWith('91')) {
     return `+${digits}`;
   }
   if (digits.length === 10) {
     return `+91${digits}`;
   }
-  if (mobile.trim().startsWith('+') && digits.length >= 10) {
+  if (raw.trim().startsWith('+') && digits.length >= 10) {
     return `+${digits}`;
   }
-  return mobile.trim();
+  return raw.trim();
 }
 
 export function isValidIndianMobile(mobile: string): boolean {
