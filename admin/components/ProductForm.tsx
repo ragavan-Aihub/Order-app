@@ -30,6 +30,7 @@ type ProductFormProps = {
     id: string;
     name: string;
     description: string;
+    ingredients?: string | null;
     price: number;
     image_url: string | null;
     category_id?: string | null;
@@ -62,6 +63,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   const isEdit = Boolean(product);
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
+  const [ingredients, setIngredients] = useState(product?.ingredients ?? '');
   const [price, setPrice] = useState(product?.price != null ? product.price.toFixed(2) : '');
   const [categoryId, setCategoryId] = useState(product?.category_id ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -163,6 +165,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     }
     formData.set('name', name.trim());
     formData.set('description', description.trim().slice(0, DESCRIPTION_MAX));
+    formData.set('ingredients', ingredients.trim().slice(0, DESCRIPTION_MAX));
     formData.set('price', price);
     if (categoriesEnabled) {
       formData.set('category_id', categoryId);
@@ -303,6 +306,23 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
             />
             <span className="pointer-events-none absolute bottom-2 right-3 text-xs text-stone-400">
               {description.length}/{DESCRIPTION_MAX}
+            </span>
+          </div>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-stone-700">Ingredients (for Sam)</span>
+          <div className="relative">
+            <textarea
+              value={ingredients}
+              maxLength={DESCRIPTION_MAX}
+              onChange={(event) => setIngredients(event.target.value.slice(0, DESCRIPTION_MAX))}
+              placeholder="e.g. mango, chilli powder, salt, mustard, fenugreek, sesame oil"
+              rows={3}
+              className={`${fieldClass} min-h-[6.5rem] resize-y pb-7`}
+            />
+            <span className="pointer-events-none absolute bottom-2 right-3 text-xs text-stone-400">
+              {ingredients.length}/{DESCRIPTION_MAX}
             </span>
           </div>
         </label>

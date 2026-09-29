@@ -10,15 +10,13 @@ import {
   formatSavedAddressLine,
   getSelectedAddress,
   getAddressBook,
-  hydrateAddressBook,
   loadAddressBook,
   selectAddress,
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
-import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { colors, radius, spacing } from '@/config/theme';
-import { getLastDeliveryDetails } from '@/services/orders';
+import { getSignedInUser } from '@/services/supabase';
 import type { AddressLabel } from '@/utils/address';
 
 const LABEL_ICONS: Record<AddressLabel, keyof typeof Ionicons.glyphMap> = {
@@ -48,8 +46,6 @@ export function AddressPickerSheet({
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const [draft, lastOrder] = await Promise.all([loadDeliveryDraft(), getLastDeliveryDetails()]);
-    await hydrateAddressBook([draft, lastOrder]);
     const list = await loadAddressBook();
     setAddresses(list);
     setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
@@ -73,8 +69,13 @@ export function AddressPickerSheet({
     onClose();
   }
 
-  function onAddNew() {
+  async function onAddNew() {
     onClose();
+    const user = await getSignedInUser();
+    if (!user) {
+      router.push({ pathname: '/login', params: { next: 'cart' } });
+      return;
+    }
     router.push({ pathname: '/address/form', params: { next: 'cart' } });
   }
 

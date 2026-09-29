@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import type { SavedAddress } from '@/cart/address-book';
 import { getSupabaseClient } from '@/services/supabase';
+import { toE164India } from '@/utils/validation';
 
 export type AddressRow = {
   id: string;
@@ -76,14 +77,14 @@ export async function replaceRemoteAddresses(
 ): Promise<{ list: SavedAddress[]; selectedId: string | null }> {
   const supabase = getSupabaseClient();
   if (!supabase || !env.businessId) {
-    return { list, selectedId };
+    throw new Error('Could not save this address.');
   }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { list, selectedId };
+    throw new Error('Sign in to save a delivery address.');
   }
 
   const { data: existing } = await supabase.from('customer_addresses').select('id').eq('user_id', user.id);
@@ -143,4 +144,16 @@ export async function replaceRemoteAddresses(
   }
 
   return { list: next, selectedId: nextSelected };
+}
+
+export async function syncCustomerFromAddress(name: string, mobile: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase || !env.businessId) {
+    return;
+  }
+  await supabase.rpc('ensure_customer_profile', {
+    p_business_id: env.businessId,
+    p_name: name.trim() || null,
+    p_mobile: toE164India(mobile),
+  });
 }

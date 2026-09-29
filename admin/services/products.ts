@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Product } from '@/types/product';
 
 const PRODUCT_COLUMNS =
-  'id, business_id, name, description, price, image_url, available, active, category_id, created_at, updated_at';
+  'id, business_id, name, description, ingredients, price, image_url, available, active, category_id, created_at, updated_at';
 
 const PRODUCT_COLUMNS_FALLBACK =
   'id, business_id, name, description, price, image_url, available, created_at, updated_at';

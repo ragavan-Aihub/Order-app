@@ -15,8 +15,9 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
+      "permissions": ["RECORD_AUDIO"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "backgroundColor": "#F4F4F5",
@@ -33,6 +34,13 @@
           "backgroundColor": "#F4F4F5",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 180
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Farm2Flavour to hear your order for Sam.",
+          "speechRecognitionPermission": "Allow Farm2Flavour to transcribe your order for Sam."
         }
       ]
     ],

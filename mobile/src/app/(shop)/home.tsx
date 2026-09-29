@@ -116,6 +116,19 @@ export default function HomeScreen() {
           ) : null}
         </View>
       </View>
+      <Pressable
+        style={styles.samCta}
+        onPress={() => router.push('/sam')}
+        accessibilityRole="button"
+        accessibilityLabel="Order by Voice with Sam"
+      >
+        <Text style={styles.samEmoji}>🎙️</Text>
+        <View style={styles.samCopy}>
+          <Text style={styles.samTitle}>Order by Voice</Text>
+          <Text style={styles.samSubtitle}>Just tell Sam what you need</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.primaryDark} />
+      </Pressable>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -213,6 +226,34 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     backgroundColor: colors.background,
+  },
+  samCta: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  samEmoji: {
+    fontSize: 28,
+  },
+  samCopy: {
+    flex: 1,
+  },
+  samTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  samSubtitle: {
+    fontSize: 14,
+    color: colors.primaryDark,
+    marginTop: 2,
   },
   searchWrap: {
     flexDirection: 'row',

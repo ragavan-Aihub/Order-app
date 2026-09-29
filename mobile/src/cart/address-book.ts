@@ -1,8 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import { clearDeliveryDraft, saveDeliveryDraft } from '@/cart/delivery-draft';
-import { fetchRemoteAddresses, replaceRemoteAddresses } from '@/services/addresses';
+import { clearDeliveryDraft } from '@/cart/delivery-draft';
+import { fetchRemoteAddresses, replaceRemoteAddresses, syncCustomerFromAddress } from '@/services/addresses';
 import type { DeliveryDetails } from '@/services/orders';
+import { getSignedInUser } from '@/services/supabase';
 import { ADDRESS_LABELS, composeAddressLine, stateFromPincode, type AddressLabel } from '@/utils/address';
 
 export type { AddressLabel };
@@ -18,17 +17,11 @@ export type SavedAddress = DeliveryDetails & {
   lng?: number;
 };
 
-const BOOK_KEY = 'farm2flavour.address-book.v1';
-const SELECTED_KEY = 'farm2flavour.address-selected.v1';
-const MANAGED_KEY = 'farm2flavour.address-book.managed';
 const INSTRUCTIONS_MARKER = '\n\nDelivery instructions: ';
 export const MAX_SAVED_ADDRESSES = 3;
 
 let book: SavedAddress[] | null = null;
 let selectedId: string | null = null;
-let managed = false;
-let localReady: Promise<void> | null = null;
-let remoteSynced = false;
 const listeners = new Set<() => void>();
 
 export function subscribeAddressBook(listener: () => void) {
@@ -96,59 +89,6 @@ export function formatAddressForOrder(details: SavedAddress): string {
   return note ? `${unique}${INSTRUCTIONS_MARKER}${note}` : unique;
 }
 
-function isSamePlace(a: SavedAddress | DeliveryDetails, b: SavedAddress | DeliveryDetails) {
-  return (
-    a.pincode.trim() === b.pincode.trim() &&
-    a.address.trim().toLowerCase() === b.address.trim().toLowerCase() &&
-    a.mobile.replace(/\D/g, '').slice(-10) === b.mobile.replace(/\D/g, '').slice(-10)
-  );
-}
-
-function parseBook(raw: string): SavedAddress[] {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter((item): item is SavedAddress => {
-      if (!item || typeof item !== 'object') {
-        return false;
-      }
-      const row = item as SavedAddress;
-      return (
-        typeof row.id === 'string' &&
-        typeof row.name === 'string' &&
-        typeof row.mobile === 'string' &&
-        typeof row.address === 'string' &&
-        typeof row.pincode === 'string'
-      );
-    });
-  } catch {
-    return [];
-  }
-}
-
-async function persistLocal() {
-  managed = true;
-  await AsyncStorage.multiSet([
-    [BOOK_KEY, JSON.stringify(book ?? [])],
-    [SELECTED_KEY, selectedId ?? ''],
-    [MANAGED_KEY, '1'],
-  ]);
-  emitAddressBook();
-}
-
-async function persist() {
-  try {
-    const synced = await replaceRemoteAddresses(book ?? [], selectedId);
-    book = synced.list;
-    selectedId = synced.selectedId;
-  } catch {
-    // Keep the on-device book if the network is down.
-  }
-  await persistLocal();
-}
-
 export function getAddressBook(): SavedAddress[] {
   return book ?? [];
 }
@@ -161,101 +101,51 @@ export function getSelectedAddress(): SavedAddress | null {
   return list[0] ?? null;
 }
 
-async function ensureLocal() {
-  if (!localReady) {
-    localReady = (async () => {
-      const [[, bookRaw], [, selectedRaw], [, managedRaw]] = await AsyncStorage.multiGet([
-        BOOK_KEY,
-        SELECTED_KEY,
-        MANAGED_KEY,
-      ]);
-      book = bookRaw ? parseBook(bookRaw) : [];
-      selectedId = selectedRaw || book[0]?.id || null;
-      managed = managedRaw === '1' || book.length > 0;
-    })();
-  }
-  await localReady;
+function applyRemote(list: SavedAddress[], defaultId: string | null) {
+  book = list;
+  selectedId = (defaultId && list.some((item) => item.id === defaultId) ? defaultId : list[0]?.id) ?? null;
+  emitAddressBook();
 }
 
-async function mergeRemote() {
-  const remote = await fetchRemoteAddresses().catch(() => null);
-  if (!remote) {
-    return;
-  }
-  if (remote.list.length === 0) {
-    if ((book ?? []).length > 0) {
-      await persist();
-    }
-    return;
-  }
+function clearMemory() {
+  book = [];
+  selectedId = null;
+  emitAddressBook();
+}
 
-  const remoteIds = new Set(remote.list.map((item) => item.id));
-  const localOnly = (book ?? []).filter((item) => !remoteIds.has(item.id));
-  const merged = [...remote.list, ...localOnly];
-  const keepSelected = Boolean(selectedId && merged.some((item) => item.id === selectedId));
-  book = merged;
-  if (!keepSelected) {
-    selectedId = remote.defaultId ?? merged[0]?.id ?? null;
-  }
-  managed = true;
-  if (localOnly.length > 0) {
-    await persist();
-    return;
-  }
-  await persistLocal();
+export function resetAddressBookCache() {
+  clearMemory();
+}
+
+async function persist() {
+  const synced = await replaceRemoteAddresses(book ?? [], selectedId);
+  applyRemote(synced.list, synced.selectedId);
 }
 
 export async function loadAddressBook(): Promise<SavedAddress[]> {
-  await ensureLocal();
-  if (!remoteSynced) {
-    remoteSynced = true;
-    await mergeRemote();
+  const user = await getSignedInUser();
+  if (!user) {
+    clearMemory();
+    return [];
   }
+  const remote = await fetchRemoteAddresses().catch(() => null);
+  if (!remote) {
+    book = book ?? [];
+    return book;
+  }
+  applyRemote(remote.list, remote.defaultId);
   return book ?? [];
 }
 
-export async function hydrateAddressBook(seeds: Array<DeliveryDetails | null | undefined>) {
+export async function hydrateAddressBook(_seeds?: Array<DeliveryDetails | null | undefined>) {
   await loadAddressBook();
-  if (managed || (book ?? []).length > 0) {
-    return;
-  }
-  let changed = false;
-  for (const seed of seeds) {
-    if (!seed?.address?.trim() || !seed.pincode?.trim()) {
-      continue;
-    }
-    const split = splitDeliveryAddress(seed.address);
-    const candidate: SavedAddress = {
-      id: newId(),
-      name: seed.name.trim(),
-      mobile: seed.mobile.trim(),
-      address: split.address,
-      pincode: seed.pincode.trim(),
-      instructions: split.instructions,
-      label: 'home',
-    };
-    if ((book ?? []).some((item) => isSamePlace(item, candidate))) {
-      continue;
-    }
-    if ((book ?? []).length >= MAX_SAVED_ADDRESSES) {
-      break;
-    }
-    book = [...(book ?? []), candidate];
-    changed = true;
-    if (!selectedId) {
-      selectedId = candidate.id;
-    }
-  }
-  if (changed) {
-    await persist();
-    const current = getSelectedAddress();
-    if (current) {
-      await saveDeliveryDraft(current);
-    }
-  }
 }
 
 export async function upsertAddress(input: Omit<SavedAddress, 'id'> & { id?: string }) {
+  const user = await getSignedInUser();
+  if (!user) {
+    throw new Error('Sign in to save a delivery address.');
+  }
   await loadAddressBook();
   const next: SavedAddress = {
     id: input.id && (book ?? []).some((item) => item.id === input.id) ? input.id : newId(),
@@ -278,35 +168,51 @@ export async function upsertAddress(input: Omit<SavedAddress, 'id'> & { id?: str
   }
   book = index >= 0 ? list.map((item) => (item.id === next.id ? next : item)) : [...list, next];
   selectedId = next.id;
-  await persist();
-  await saveDeliveryDraft(next);
+  try {
+    await persist();
+  } catch (error) {
+    await loadAddressBook();
+    throw error;
+  }
+  await syncCustomerFromAddress(next.name, next.mobile);
   return next;
 }
 
 export async function deleteAddress(id: string) {
+  const user = await getSignedInUser();
+  if (!user) {
+    return;
+  }
   await loadAddressBook();
   book = (book ?? []).filter((item) => item.id !== id);
   if (selectedId === id) {
     selectedId = book[0]?.id ?? null;
   }
-  await persist();
-  const current = getSelectedAddress();
-  if (current) {
-    await saveDeliveryDraft(current);
-  } else {
+  try {
+    await persist();
+  } catch (error) {
+    await loadAddressBook();
+    throw error;
+  }
+  if (!getSelectedAddress()) {
     await clearDeliveryDraft();
   }
 }
 
 export async function selectAddress(id: string) {
+  const user = await getSignedInUser();
+  if (!user) {
+    return;
+  }
   await loadAddressBook();
   if (!(book ?? []).some((item) => item.id === id)) {
     return;
   }
   selectedId = id;
-  await persist();
-  const current = getSelectedAddress();
-  if (current) {
-    await saveDeliveryDraft(current);
+  try {
+    await persist();
+  } catch (error) {
+    await loadAddressBook();
+    throw error;
   }
 }

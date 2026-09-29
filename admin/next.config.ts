@@ -18,9 +18,17 @@ function lanDevOrigins() {
 }
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: lanDevOrigins(),
-  serverActions: {
-    bodySizeLimit: "6mb",
+  allowedDevOrigins: [
+    ...lanDevOrigins(),
+    "*.trycloudflare.com",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.loca.lt",
+  ],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
   },
   async redirects() {
     return [

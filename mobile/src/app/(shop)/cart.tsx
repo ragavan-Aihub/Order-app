@@ -8,13 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   getSelectedAddress,
-  hydrateAddressBook,
   loadAddressBook,
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
-import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import {
   AddressPickerSheet,
   savedAddressLabel,
@@ -25,7 +23,6 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { getLastDeliveryDetails } from '@/services/orders';
 import { formatPrice } from '@/utils/format';
 
 export default function CartScreen() {
@@ -38,8 +35,6 @@ export default function CartScreen() {
   const [selected, setSelected] = useState<SavedAddress | null>(null);
 
   const loadAddress = useCallback(async () => {
-    const [draft, lastOrder] = await Promise.all([loadDeliveryDraft(), getLastDeliveryDetails()]);
-    await hydrateAddressBook([draft, lastOrder]);
     await loadAddressBook();
     setSelected(getSelectedAddress());
   }, []);

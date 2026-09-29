@@ -3,6 +3,7 @@ export type Product = {
   business_id: string;
   name: string;
   description: string;
+  ingredients?: string | null;
   price: number;
   image_url: string | null;
   available: boolean;

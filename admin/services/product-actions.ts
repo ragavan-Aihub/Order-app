@@ -163,6 +163,7 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
   const idRaw = String(formData.get('id') ?? '').trim();
   const name = String(formData.get('name') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim().slice(0, DESCRIPTION_MAX);
+  const ingredients = String(formData.get('ingredients') ?? '').trim().slice(0, DESCRIPTION_MAX) || null;
   const price = parsePrice(String(formData.get('price') ?? ''));
   const categoryRaw = String(formData.get('category_id') ?? '').trim();
   const imageRemoved = formData.get('image_removed') === '1';
@@ -237,6 +238,7 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
   const payload = {
     name,
     description,
+    ingredients,
     price,
     image_url: imageUrl,
     business_id: ctx.businessId,
@@ -250,6 +252,18 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
 
   const { error } = await query;
   if (error) {
+    if (error.message?.includes('ingredients') || error.code === 'PGRST204') {
+      const { ingredients: _ignored, ...withoutIngredients } = payload;
+      const retry = existing
+        ? ctx.supabase.from('products').update(withoutIngredients).eq('id', existing.id).eq('business_id', ctx.businessId)
+        : ctx.supabase.from('products').insert(withoutIngredients);
+      const again = await retry;
+      if (!again.error) {
+        revalidatePath('/products');
+        revalidatePath('/');
+        return { error: null };
+      }
+    }
     return { error: 'Could not save the product.' };
   }
 

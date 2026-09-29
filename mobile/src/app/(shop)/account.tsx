@@ -4,11 +4,10 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getSelectedAddress, loadAddressBook } from '@/cart/address-book';
-import { getDeliveryDraft, loadDeliveryDraft } from '@/cart/delivery-draft';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/config/theme';
 import { signOut } from '@/services/auth';
-import { getCustomerProfile, getLastDeliveryDetails, type DeliveryDetails } from '@/services/orders';
+import { getCustomerProfile, type DeliveryDetails } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 
 export default function AccountScreen() {
@@ -25,19 +24,16 @@ export default function AccountScreen() {
     if (!user) {
       setName(null);
       setMobile(null);
-      const draft = await loadDeliveryDraft();
-      setDelivery(getSelectedAddress() ?? draft);
+      setDelivery(null);
       return;
     }
-    const [profile, last, draft] = await Promise.all([
-      getCustomerProfile(),
-      getLastDeliveryDetails(),
-      loadDeliveryDraft(),
-    ]);
-    await loadAddressBook();
-    setName(profile?.name || last?.name || draft?.name || null);
-    setMobile(profile?.mobile || last?.mobile || draft?.mobile || user.phone || null);
-    setDelivery(getSelectedAddress() ?? last ?? draft ?? getDeliveryDraft());
+    const profile = await getCustomerProfile();
+    const saved = getSelectedAddress();
+    const profileName = profile?.name?.trim() || '';
+    const generic = !profileName || profileName.toLowerCase() === 'customer';
+    setName(generic ? saved?.name?.trim() || null : profileName);
+    setMobile(profile?.mobile || user.phone || saved?.mobile || null);
+    setDelivery(saved);
   }, []);
 
   useFocusEffect(
@@ -46,13 +42,17 @@ export default function AccountScreen() {
     }, [load]),
   );
 
-  const initial = (name || 'G').trim().charAt(0).toUpperCase();
+  const initial = signedIn && name?.trim() ? name.trim().charAt(0).toUpperCase() : null;
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarLabel}>{signedIn ? initial : '?'}</Text>
+          {initial ? (
+            <Text style={styles.avatarLabel}>{initial}</Text>
+          ) : (
+            <Ionicons name="person" size={26} color={colors.primaryDark} />
+          )}
         </View>
         <View style={styles.heroText}>
           <Text style={styles.hello}>{signedIn ? `Hello${name ? `, ${name}` : ''}` : 'Hello'}</Text>
@@ -62,7 +62,15 @@ export default function AccountScreen() {
         </View>
       </View>
 
-      <Pressable style={styles.card} onPress={() => router.push('/checkout')} accessibilityRole="button">
+      <Pressable
+        style={styles.card}
+        onPress={() =>
+          signedIn
+            ? router.push('/checkout')
+            : router.push({ pathname: '/login', params: { next: 'checkout' } })
+        }
+        accessibilityRole="button"
+      >
         <Text style={styles.cardTitle}>Delivery address</Text>
         {delivery?.address ? (
           <>

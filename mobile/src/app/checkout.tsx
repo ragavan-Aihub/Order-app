@@ -10,20 +10,18 @@ import {
   formatAddressForOrder,
   getAddressBook,
   getSelectedAddress,
-  hydrateAddressBook,
   loadAddressBook,
   selectAddress,
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
-import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { isNetworkFailure } from '@/services/network';
-import { getLastDeliveryDetails, placeOrder } from '@/services/orders';
+import { placeOrder } from '@/services/orders';
 import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import { composeAddressLine, stateFromPincode } from '@/utils/address';
@@ -45,8 +43,6 @@ export default function CheckoutScreen() {
   );
 
   const reload = useCallback(async () => {
-    const [draft, lastOrder] = await Promise.all([loadDeliveryDraft(), getLastDeliveryDetails()]);
-    await hydrateAddressBook([draft, lastOrder]);
     const list = await loadAddressBook();
     setAddresses(list);
     setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
@@ -161,7 +157,18 @@ export default function CheckoutScreen() {
       >
         {offline ? <OfflineBanner /> : null}
         {addresses.length < MAX_SAVED_ADDRESSES ? (
-          <Pressable style={styles.addNew} onPress={() => router.push('/address/form')} accessibilityRole="button">
+          <Pressable
+            style={styles.addNew}
+            onPress={async () => {
+              const user = await getSignedInUser();
+              if (!user) {
+                router.push({ pathname: '/login', params: { next: 'checkout' } });
+                return;
+              }
+              router.push('/address/form');
+            }}
+            accessibilityRole="button"
+          >
             <Text style={styles.addNewLabel}>+ Add new</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.primary} />
           </Pressable>

@@ -22,6 +22,7 @@ import {
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/config/theme';
 import { getCustomerProfile } from '@/services/orders';
+import { getSignedInUser } from '@/services/supabase';
 import {
   ADDRESS_FIELD_COPY,
   ADDRESS_LABELS,
@@ -74,41 +75,63 @@ export default function AddressFormScreen() {
     isValidIndianMobile(mobile);
 
   useEffect(() => {
+    let cancelled = false;
+    getSignedInUser().then((user) => {
+      if (cancelled) {
+        return;
+      }
+      if (!user) {
+        router.replace({ pathname: '/login', params: { next: nextPath === '/cart' ? 'cart' : 'checkout' } });
+      }
+    });
+
+    if (editingId) {
+      loadAddressBook().then((list) => {
+        const row = list.find((item) => item.id === editingId);
+        if (!row) {
+          return;
+        }
+        setHouse(row.house ?? '');
+        setArea(row.address ?? '');
+        setLandmark(row.locality ?? '');
+        setName(row.name);
+        setMobile(row.mobile.replace(/\D/g, '').slice(-10));
+        setAltMobile(row.altMobile ?? '');
+        setPincode(row.pincode);
+        setStateName(stateFromPincode(row.pincode));
+        setLabel(row.label === 'work' || row.label === 'other' ? row.label : 'home');
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    loadAddressBook().then((list) => {
+      if (list.length >= MAX_SAVED_ADDRESSES) {
+        router.replace(nextPath);
+      }
+    });
+
     getCustomerProfile()
       .then((profile) => {
-        if (profile?.name) {
-          setName((current) => current || profile.name || '');
+        if (!profile) {
+          return;
         }
-        if (profile?.mobile) {
+        const profileName = profile.name?.trim() || '';
+        const generic = !profileName || profileName.toLowerCase() === 'customer';
+        if (!generic) {
+          setName((current) => current || profileName);
+        }
+        if (profile.mobile) {
           const digits = profile.mobile.replace(/\D/g, '').slice(-10);
           setMobile((current) => current || digits);
         }
       })
       .catch(() => undefined);
 
-    if (!editingId) {
-      loadAddressBook().then((list) => {
-        if (list.length >= MAX_SAVED_ADDRESSES) {
-          router.replace(nextPath);
-        }
-      });
-      return;
-    }
-    loadAddressBook().then((list) => {
-      const row = list.find((item) => item.id === editingId);
-      if (!row) {
-        return;
-      }
-      setHouse(row.house ?? '');
-      setArea(row.address ?? '');
-      setLandmark(row.locality ?? '');
-      setName(row.name);
-      setMobile(row.mobile.replace(/\D/g, '').slice(-10));
-      setAltMobile(row.altMobile ?? '');
-      setPincode(row.pincode);
-      setStateName(stateFromPincode(row.pincode));
-      setLabel(row.label === 'work' || row.label === 'other' ? row.label : 'home');
-    });
+    return () => {
+      cancelled = true;
+    };
   }, [editingId, nextPath, router]);
 
   const phoneDigits = useMemo(() => mobile.replace(/\D/g, '').slice(0, 10), [mobile]);
@@ -172,7 +195,12 @@ export default function AddressFormScreen() {
       await upsertAddress(payload);
       router.replace(nextPath);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save this address.');
+      const message = saveError instanceof Error ? saveError.message : 'Could not save this address.';
+      if (message.toLowerCase().includes('sign in')) {
+        router.replace({ pathname: '/login', params: { next: nextPath === '/cart' ? 'cart' : 'checkout' } });
+        return;
+      }
+      setError(message);
     } finally {
       setSaving(false);
     }

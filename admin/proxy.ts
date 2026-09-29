@@ -35,8 +35,15 @@ export async function proxy(request: NextRequest) {
             request.cookies.set(name, value);
           });
           response = NextResponse.next({ request });
+          const forwarded = request.headers.get('x-forwarded-proto');
+          const secure = forwarded === 'https' || request.nextUrl.protocol === 'https:';
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, {
+              ...options,
+              secure,
+              sameSite: 'lax',
+              path: options?.path ?? '/',
+            });
           });
         },
       },

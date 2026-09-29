@@ -30,7 +30,12 @@ export async function getCustomerProfile(): Promise<{ name: string | null; mobil
     }
 
     const { data } = await supabase.from('profiles').select('name, mobile').eq('id', user.id).maybeSingle();
-    return data ?? { name: null, mobile: user.phone ?? null };
+    const authDigits = (user.phone ?? '').replace(/\D/g, '').slice(-10);
+    const profileDigits = (data?.mobile ?? '').replace(/\D/g, '').slice(-10);
+    return {
+      name: data?.name ?? null,
+      mobile: authDigits || profileDigits || null,
+    };
   } catch {
     return null;
   }

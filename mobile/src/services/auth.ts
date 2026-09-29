@@ -1,5 +1,4 @@
 import { env } from '@/config/env';
-import { loadDeliveryDraft } from '@/cart/delivery-draft';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
 import { getSupabaseClient } from '@/services/supabase';
 import { toE164India } from '@/utils/validation';
@@ -23,12 +22,11 @@ function mapOtpError(message: string) {
   ) {
     return 'That OTP is invalid or expired. Request a new code and try again.';
   }
-  if (
-    lower.includes('unsupported phone provider') ||
-    lower.includes('sms provider') ||
-    lower.includes('error sending confirmation sms')
-  ) {
-    return 'Live SMS is not connected yet. Use the test mobile number, or add Twilio in Supabase Auth.';
+  if (lower.includes('unsupported phone provider')) {
+    return 'Phone SMS is not enabled in Supabase. Enable Phone and choose Twilio (not Twilio Verify).';
+  }
+  if (lower.includes('sms provider') || lower.includes('error sending confirmation sms')) {
+    return 'Twilio is connected but the SMS was not delivered. On a Twilio trial, the number must be verified in Twilio. For India, enable geo permissions and a DLT-approved sender. Use Twilio SMS, not Twilio Verify.';
   }
   return message;
 }
@@ -50,7 +48,6 @@ export async function requestOtp(mobile: string) {
       phone: toE164India(mobile),
       options: {
         shouldCreateUser: true,
-        channel: 'sms',
       },
     });
 
@@ -97,10 +94,9 @@ export async function verifyOtp(mobile: string, token: string) {
       throw new Error('Business is not configured.');
     }
 
-    const draft = await loadDeliveryDraft();
     const { error: profileError } = await supabase.rpc('ensure_customer_profile', {
       p_business_id: env.businessId,
-      p_name: draft?.name ?? null,
+      p_name: null,
       p_mobile: toE164India(mobile),
     });
 
@@ -128,4 +124,8 @@ export async function signOut() {
   }
 
   await supabase.auth.signOut();
+  const { resetAddressBookCache } = await import('@/cart/address-book');
+  const { clearDeliveryDraft } = await import('@/cart/delivery-draft');
+  resetAddressBookCache();
+  await clearDeliveryDraft();
 }

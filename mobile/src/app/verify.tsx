@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { loadAddressBook } from '@/cart/address-book';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -77,16 +78,21 @@ export default function VerifyScreen() {
       }
       await verifyOtp(mobile, otp);
       await markEnteredShop();
+      await loadAddressBook();
       const destination =
         next === 'checkout'
           ? '/checkout'
+          : next === 'cart'
+            ? '/cart'
             : next === 'orders'
               ? '/orders'
               : next === 'buy-again' || next === 'reorder'
                 ? '/buy-again'
                 : next === 'account'
-                ? '/account'
-                : '/home';
+                  ? '/account'
+                  : next === 'sam'
+                    ? '/sam'
+                    : '/home';
       router.replace(destination);
     } catch (verifyError) {
       if (isNetworkFailure(verifyError)) {
@@ -115,8 +121,8 @@ export default function VerifyScreen() {
         <Text style={styles.message}>OTP sent to {mobile}</Text>
         {__DEV__ ? (
           <Text style={styles.testHint}>
-            Local test: use the phone and code saved in Supabase Auth → Phone → Test OTP. Other numbers
-            need a real SMS once Twilio is connected.
+            Test number 9940206706 uses code 121212 (no SMS). Other numbers need Twilio SMS to
+            India — not Twilio Verify.
           </Text>
         ) : null}
         <TextInput

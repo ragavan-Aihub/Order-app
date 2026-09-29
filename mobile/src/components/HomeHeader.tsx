@@ -11,9 +11,8 @@ import {
   loadAddressBook,
   subscribeAddressBook,
 } from '@/cart/address-book';
-import { getDeliveryDraft, loadDeliveryDraft } from '@/cart/delivery-draft';
 import { colors, spacing } from '@/config/theme';
-import { getCustomerProfile, getLastDeliveryDetails } from '@/services/orders';
+import { getCustomerProfile } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 
 export function HomeHeader() {
@@ -21,32 +20,28 @@ export function HomeHeader() {
   const insets = useSafeAreaInsets();
   const [addressLine, setAddressLine] = useState('Add a delivery address');
   const [label, setLabel] = useState('Home');
-  const [initial, setInitial] = useState('?');
+  const [initial, setInitial] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    await loadDeliveryDraft();
     await loadAddressBook();
     const selected = getSelectedAddress();
-    const draft = getDeliveryDraft();
-    const last = await getLastDeliveryDetails();
     if (selected) {
       setLabel(formatSavedAddressLabel(selected.label));
       setAddressLine(formatSavedAddressLine(selected));
     } else {
-      const source = draft ?? last;
-      setLabel('Home');
-      const line = source ? formatSavedAddressLine({ ...source, id: 'draft', label: 'home' }) : '';
-      setAddressLine(line || 'Add a delivery address');
+      setLabel('Deliver to');
+      setAddressLine('Add a delivery address');
     }
 
     const user = await getSignedInUser();
     if (!user) {
-      setInitial('?');
+      setInitial(null);
       return;
     }
     const profile = await getCustomerProfile();
     const name = profile?.name?.trim() || '';
-    setInitial((name || 'G').charAt(0).toUpperCase());
+    const generic = !name || name.toLowerCase() === 'customer';
+    setInitial(generic ? null : name.charAt(0).toUpperCase());
   }, []);
 
   useEffect(() => subscribeAddressBook(() => {
@@ -81,7 +76,11 @@ export function HomeHeader() {
         accessibilityRole="button"
         accessibilityLabel="Account"
       >
-        <Text style={styles.avatarLabel}>{initial}</Text>
+        {initial ? (
+          <Text style={styles.avatarLabel}>{initial}</Text>
+        ) : (
+          <Ionicons name="person" size={20} color={colors.primaryText} />
+        )}
       </Pressable>
     </View>
   );
