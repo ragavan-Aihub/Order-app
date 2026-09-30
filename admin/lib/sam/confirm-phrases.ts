@@ -19,6 +19,8 @@ const ALLOWED = new Set([
   'confirm pannunga',
   'order pannunga',
   'seri',
+  'ok',
+  'okay',
 ]);
 
 export function isExplicitConfirm(transcript: string) {

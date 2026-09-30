@@ -1,4 +1,5 @@
 import type { CartItem } from '@/cart/CartContext';
+import { CART_LIMIT_ITEMS, CART_LIMIT_QTY, MAX_CART_ITEMS, MAX_ITEM_QTY } from '@/cart/limits';
 import { env } from '@/config/env';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
 import { getSupabaseClient } from '@/services/supabase';
@@ -93,6 +94,12 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
   }
   if (items.length === 0) {
     throw new Error('Your cart is empty.');
+  }
+  if (items.length > MAX_CART_ITEMS) {
+    throw new Error(CART_LIMIT_ITEMS);
+  }
+  if (items.some((item) => item.quantity > MAX_ITEM_QTY)) {
+    throw new Error(CART_LIMIT_QTY);
   }
 
   let signedIn;

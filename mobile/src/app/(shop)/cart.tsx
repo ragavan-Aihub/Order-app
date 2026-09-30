@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView, ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
+import { submitShopOrder } from '@/cart/submit-order';
 import {
   AddressPickerSheet,
   savedAddressLabel,
@@ -23,16 +24,19 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
+import { getSignedInUser } from '@/services/supabase';
 import { formatPrice } from '@/utils/format';
 
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, itemCount, totalAmount, increase, decrease, remove } = useCart();
-  const { offline } = useNetworkStatus();
+  const { items, itemCount, totalAmount, increase, decrease, remove, clearCart } = useCart();
+  const { offline, requireConnection } = useNetworkStatus();
   const bottomPad = Math.max(insets.bottom, spacing.sm) + spacing.md;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selected, setSelected] = useState<SavedAddress | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadAddress = useCallback(async () => {
     await loadAddressBook();
@@ -58,8 +62,73 @@ export default function CartScreen() {
     return <View style={styles.screen} />;
   }
 
+  function confirmClearCart() {
+    Alert.alert(
+      'Clear cart?',
+      'This will remove all items from your cart. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear cart',
+          style: 'destructive',
+          onPress: () => {
+            clearCart();
+            router.replace('/home');
+          },
+        },
+      ],
+    );
+  }
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Deliver to';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
+
+  async function onPlaceOrder() {
+    setError(null);
+    if (!selected) {
+      setPickerOpen(true);
+      return;
+    }
+    const user = await getSignedInUser();
+    if (!user) {
+      router.push({ pathname: '/login', params: { next: 'cart' } });
+      return;
+    }
+    if (!(await requireConnection())) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await submitShopOrder(items, selected);
+      if (!result.ok) {
+        if (result.reason === 'auth') {
+          router.push({ pathname: '/login', params: { next: 'cart' } });
+          return;
+        }
+        if (result.reason === 'network') {
+          await requireConnection();
+          return;
+        }
+        if (result.reason === 'address') {
+          setPickerOpen(true);
+          return;
+        }
+        setError(result.message);
+        return;
+      }
+      clearCart();
+      router.replace({
+        pathname: '/confirmation',
+        params: {
+          id: result.order.id,
+          orderNumber: result.order.order_number != null ? String(result.order.order_number) : '',
+          status: result.order.status,
+          payment: result.order.payment_method ?? 'pending',
+        },
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <GestureHandlerRootView style={styles.screen}>
@@ -89,9 +158,19 @@ export default function CartScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {offline ? <OfflineBanner /> : null}
-        <Text style={styles.count}>
-          {itemCount} {itemCount === 1 ? 'item' : 'items'}
-        </Text>
+        <View style={styles.countRow}>
+          <Text style={styles.count}>
+            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+          </Text>
+          <Pressable
+            onPress={confirmClearCart}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear cart"
+          >
+            <Text style={styles.clearLabel}>Clear cart</Text>
+          </Pressable>
+        </View>
         {items.map((item) => {
           const subtotal = item.product.price * item.quantity;
           return (
@@ -151,7 +230,12 @@ export default function CartScreen() {
           <Text style={styles.totalLabel}>To pay</Text>
           <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
         </View>
-        <PrimaryButton label="Continue to delivery" onPress={() => router.push('/checkout')} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <PrimaryButton
+          label={submitting ? 'Placing order…' : 'Place order'}
+          disabled={submitting}
+          onPress={() => onPlaceOrder().catch(() => undefined)}
+        />
       </View>
       <AddressPickerSheet
         visible={pickerOpen}
@@ -212,13 +296,23 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
+  countRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   count: {
     fontSize: 12,
     fontWeight: '700',
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 2,
+  },
+  clearLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.danger,
   },
   row: {
     flexDirection: 'row',
@@ -321,5 +415,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.primaryDark,
     letterSpacing: -0.3,
+  },
+  error: {
+    fontSize: 14,
+    color: colors.danger,
+    fontWeight: '600',
   },
 });

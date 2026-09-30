@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
+import { CART_LIMIT_QTY, MAX_ITEM_QTY } from '@/cart/limits';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { ViewCartBar } from '@/components/ViewCartBar';
@@ -79,7 +80,15 @@ export default function ProductDetailsScreen() {
           <QuantityStepper
             value={quantity}
             onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
-            onIncrease={() => setQuantity((value) => value + 1)}
+            onIncrease={() =>
+              setQuantity((value) => {
+                if (value >= MAX_ITEM_QTY) {
+                  Alert.alert('Order limit', CART_LIMIT_QTY);
+                  return value;
+                }
+                return value + 1;
+              })
+            }
           />
           <View style={styles.footerAction}>
             <PrimaryButton

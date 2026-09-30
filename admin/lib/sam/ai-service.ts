@@ -1,4 +1,6 @@
 import { fallbackParse } from '@/lib/sam/fallback-parser';
+import { buildIntentSystemPrompt } from '@/lib/sam/intent-prompt';
+import { normalizeParsedIntent, stripJsonFences } from '@/lib/sam/normalize-intent';
 import type { CatalogProduct, ParsedIntent } from '@/lib/sam/types';
 
 export interface LLMProvider {
@@ -25,10 +27,7 @@ export class LocalLLMProvider implements LLMProvider {
           messages: [
             {
               role: 'system',
-              content: `You extract grocery order intent for Farm2Flavours. Tamil, English, and Tanglish.
-Return JSON only: {"intent":"ADD_ITEMS|REMOVE_ITEM|CHANGE_QUANTITY|CLEAR_DRAFT|CONFIRM|CANCEL|PRODUCT_INFORMATION|INGREDIENTS|ORDER_STATUS|GENERAL_HELP|UNKNOWN","items":[{"product_name":"string","quantity":number}]}
-Use only these product names when possible: ${catalogNames.join('; ')}.
-Never include prices, product ids, or totals. Quantity defaults to 1.`,
+              content: buildIntentSystemPrompt(catalogNames),
             },
             { role: 'user', content: transcript },
           ],
@@ -39,14 +38,12 @@ Never include prices, product ids, or totals. Quantity defaults to 1.`,
         throw new Error('ollama failed');
       }
       const body = (await response.json()) as { message?: { content?: string } };
-      const parsed = JSON.parse(body.message?.content ?? '{}') as ParsedIntent;
-      if (!parsed?.intent) {
+      const parsed = JSON.parse(stripJsonFences(body.message?.content ?? '{}')) as unknown;
+      const normalized = normalizeParsedIntent(parsed);
+      if (!normalized.intent) {
         throw new Error('bad json');
       }
-      return {
-        intent: parsed.intent,
-        items: Array.isArray(parsed.items) ? parsed.items : [],
-      };
+      return normalized;
     } finally {
       clearTimeout(timer);
     }

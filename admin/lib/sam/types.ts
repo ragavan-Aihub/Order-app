@@ -14,6 +14,8 @@ export type SamIntent =
 
 export type SamLanguage = 'en' | 'ta' | 'mix';
 
+export type DetectedLlmLanguage = 'en' | 'ta' | 'tanglish';
+
 export type ConversationState =
   | 'IDLE'
   | 'LISTENING'
@@ -34,6 +36,9 @@ export type ParsedItem = {
 export type ParsedIntent = {
   intent: SamIntent;
   items: ParsedItem[];
+  detected_language?: DetectedLlmLanguage;
+  target_product?: string | null;
+  user_query_summary?: string;
 };
 
 export type CatalogProduct = {

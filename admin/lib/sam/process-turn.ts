@@ -4,7 +4,7 @@ import { env } from '@/config/env';
 import { addLine, setLine, viewDraft } from '@/lib/sam/apply-draft';
 import { createAIService } from '@/lib/sam/ai-service';
 import { isExplicitConfirm, isExplicitYes } from '@/lib/sam/confirm-phrases';
-import { detectLanguage } from '@/lib/sam/language';
+import { detectLanguage, mapLlmLanguage } from '@/lib/sam/language';
 import { matchProduct } from '@/lib/sam/match-products';
 import { replies } from '@/lib/sam/replies';
 import type {
@@ -54,9 +54,9 @@ export async function processSamTurn(
   body: SamTurnRequest,
   accessToken: string | null,
 ): Promise<SamTurnResponse> {
-  const language = detectLanguage(body.transcript);
   const catalog = await loadCatalog(body.businessId);
   if (/^\s*(hey\s+sam|ஹே\s*சாம்)\s*[.!?]*\s*$/i.test(body.transcript.trim())) {
+    const language = detectLanguage(body.transcript);
     const draft = viewDraft(catalog, body.draft ?? []);
     return {
       reply: replies.greet(language),
@@ -70,6 +70,7 @@ export async function processSamTurn(
   }
   const ai = createAIService();
   const parsed = await ai.parse(body.transcript, catalog);
+  const language = mapLlmLanguage(parsed.detected_language) ?? detectLanguage(body.transcript);
   let draft: DraftLine[] = body.draft.filter((line) => line.quantity > 0);
   let pendingNoteProductId = body.pendingNoteProductId ?? null;
   let conversationState: ConversationState = 'PROCESSING';
@@ -87,6 +88,7 @@ export async function processSamTurn(
     language,
     intent: parsed.intent,
     parsedItems: parsed.items,
+    user_query_summary: parsed.user_query_summary ?? null,
   });
 
   if (pendingNoteProductId && isExplicitYes(body.transcript) && user && supabaseUser) {
@@ -246,7 +248,7 @@ export async function processSamTurn(
         pendingNoteProductId,
       };
     }
-    const query = parsed.items[0]?.product_name ?? '';
+    const query = parsed.items[0]?.product_name ?? parsed.target_product ?? '';
     const match = matchProduct(catalog, query);
     matchLog.push({
       query,

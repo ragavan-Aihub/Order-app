@@ -15,8 +15,8 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 3,
-      "softwareKeyboardLayoutMode": "resize",
+      "versionCode": 6,
+      "softwareKeyboardLayoutMode": "pan",
       "permissions": ["RECORD_AUDIO"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
@@ -40,7 +40,11 @@
         "expo-speech-recognition",
         {
           "microphonePermission": "Allow Farm2Flavour to hear your order for Sam.",
-          "speechRecognitionPermission": "Allow Farm2Flavour to transcribe your order for Sam."
+          "speechRecognitionPermission": "Allow Farm2Flavour to transcribe your order for Sam.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.tts"
+          ]
         }
       ]
     ],

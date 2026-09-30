@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useCart } from '@/cart/CartContext';
 import {
   MAX_SAVED_ADDRESSES,
   deleteAddress,
-  formatAddressForOrder,
   getAddressBook,
   getSelectedAddress,
   loadAddressBook,
@@ -15,14 +15,11 @@ import {
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
-import { useCart } from '@/cart/CartContext';
+import { submitShopOrder } from '@/cart/submit-order';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { isNetworkFailure } from '@/services/network';
-import { placeOrder } from '@/services/orders';
-import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import { composeAddressLine, stateFromPincode } from '@/utils/address';
 import { formatPrice } from '@/utils/format';
@@ -86,21 +83,6 @@ export default function CheckoutScreen() {
 
   async function onPlaceOrder() {
     setError(null);
-    if (items.length === 0) {
-      setError('Your cart is empty.');
-      return;
-    }
-    if (!selected) {
-      setError('Add a delivery address.');
-      return;
-    }
-    const details = {
-      name: selected.name,
-      mobile: selected.mobile,
-      address: formatAddressForOrder(selected),
-      pincode: selected.pincode,
-      addressId: selected.id,
-    };
     const user = await getSignedInUser();
     if (!user) {
       router.push({ pathname: '/login', params: { next: 'checkout' } });
@@ -109,39 +91,31 @@ export default function CheckoutScreen() {
     if (!(await requireConnection())) {
       return;
     }
-    const catalog = await getAvailableProducts();
-    const blocked = items.find((item) => {
-      const live = catalog.find((product) => product.id === item.product.id);
-      return !live || live.available === false || live.active === false;
-    });
-    if (blocked) {
-      setError(`${blocked.product.name} is coming soon or no longer sold. Remove it from the cart.`);
-      return;
-    }
     setSubmitting(true);
     try {
-      const order = await placeOrder(details, items);
+      const result = await submitShopOrder(items, selected);
+      if (!result.ok) {
+        if (result.reason === 'auth') {
+          router.push({ pathname: '/login', params: { next: 'checkout' } });
+          return;
+        }
+        if (result.reason === 'network') {
+          await requireConnection();
+          return;
+        }
+        setError(result.message);
+        return;
+      }
       clearCart();
       router.replace({
         pathname: '/confirmation',
         params: {
-          id: order.id,
-          orderNumber: order.order_number != null ? String(order.order_number) : '',
-          status: order.status,
-          payment: order.payment_method ?? 'pending',
+          id: result.order.id,
+          orderNumber: result.order.order_number != null ? String(result.order.order_number) : '',
+          status: result.order.status,
+          payment: result.order.payment_method ?? 'pending',
         },
       });
-    } catch (placeError) {
-      const message = placeError instanceof Error ? placeError.message : 'Could not place the order.';
-      if (message.toLowerCase().includes('sign in')) {
-        router.push({ pathname: '/login', params: { next: 'checkout' } });
-        return;
-      }
-      if (isNetworkFailure(placeError) || isNetworkFailure(message)) {
-        await requireConnection();
-        return;
-      }
-      setError(message);
     } finally {
       setSubmitting(false);
     }

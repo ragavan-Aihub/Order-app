@@ -1,8 +1,8 @@
-import type { SamLanguage } from '@/lib/sam/types';
+import type { DetectedLlmLanguage, SamLanguage } from '@/lib/sam/types';
 
 const TAMIL = /[\u0B80-\u0BFF]/;
 const TANGLISH =
-  /\b(venum|venu|pannunga|pannu|seri|rendu|oru|moonu|naalu|add|pickle|oorukai|urugai)\b/i;
+  /\b(venum|venu|pannunga|pannu|seri|rendu|oru|onnu|moonu|naalu|anju|anai|vendaam|vendam|sertukonga|add|pickle|oorukai|urugai)\b/i;
 
 export function detectLanguage(transcript: string): SamLanguage {
   const hasTamil = TAMIL.test(transcript);
@@ -14,6 +14,30 @@ export function detectLanguage(transcript: string): SamLanguage {
     return 'ta';
   }
   if (TANGLISH.test(transcript) && hasLatin) {
+    return 'mix';
+  }
+  return 'en';
+}
+
+export function transcriptToLlmLanguage(transcript: string): DetectedLlmLanguage {
+  const lang = detectLanguage(transcript);
+  if (lang === 'ta') {
+    return 'ta';
+  }
+  if (lang === 'mix') {
+    return 'tanglish';
+  }
+  return 'en';
+}
+
+export function mapLlmLanguage(lang?: DetectedLlmLanguage): SamLanguage | null {
+  if (!lang) {
+    return null;
+  }
+  if (lang === 'ta') {
+    return 'ta';
+  }
+  if (lang === 'tanglish') {
     return 'mix';
   }
   return 'en';
