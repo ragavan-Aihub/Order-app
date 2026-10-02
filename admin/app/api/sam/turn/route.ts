@@ -7,7 +7,7 @@ import type { SamTurnRequest } from '@/lib/sam/types';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 function json(body: unknown, status = 200) {
@@ -16,6 +16,14 @@ function json(body: unknown, status = 200) {
 
 export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
+}
+
+export function GET() {
+  return json({
+    ok: true,
+    method: 'POST',
+    hint: 'Open this URL in a browser only to check that Sam is up. The app must POST JSON: transcript, businessId, draft.',
+  });
 }
 
 export async function POST(request: Request) {
@@ -44,6 +52,16 @@ export async function POST(request: Request) {
         businessId: body.businessId,
         draft: Array.isArray(body.draft) ? body.draft : [],
         pendingNoteProductId: body.pendingNoteProductId ?? null,
+        recentTurns: Array.isArray(body.recentTurns)
+          ? body.recentTurns
+              .filter((turn) => turn && (turn.role === 'user' || turn.role === 'sam') && typeof turn.text === 'string')
+              .slice(-4)
+              .map((turn) => ({ role: turn.role, text: turn.text.slice(0, 300) }))
+          : [],
+        displayedNames: Array.isArray(body.displayedNames)
+          ? body.displayedNames.filter((name): name is string => typeof name === 'string').slice(0, 12)
+          : [],
+        waitingForConfirm: body.waitingForConfirm === true,
       },
       token,
     );

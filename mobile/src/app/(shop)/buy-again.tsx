@@ -81,13 +81,13 @@ export default function BuyAgainScreen() {
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) {
-      return products;
-    }
-    return products.filter(
-      (product) =>
-        product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term),
-    );
+    const list = !term
+      ? products
+      : products.filter(
+          (product) =>
+            product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term),
+        );
+    return [...list].sort((a, b) => Number(a.available === false) - Number(b.available === false));
   }, [products, query]);
 
   const quantityById = useMemo(() => {

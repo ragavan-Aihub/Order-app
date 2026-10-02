@@ -1,9 +1,9 @@
-import type { CatalogProduct, ParsedItem } from '@/lib/sam/types';
+import type { CatalogProduct } from '@/lib/sam/types';
 
 function norm(value: string) {
   return value
     .toLowerCase()
-    .replace(/ஊறுகாய்|oorukai|urugai|pickle/g, 'pickle')
+    .replace(/ஊறுகாய்|oorukai|oorugai|urugai|pickle/g, 'pickle')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -73,6 +73,33 @@ export function matchProduct(catalog: CatalogProduct[], query: string): MatchRes
     return { status: 'unavailable', product };
   }
   return { status: 'unique', product };
+}
+
+export function searchProducts(catalog: CatalogProduct[], query: string, limit = 12): CatalogProduct[] {
+  const q = norm(query);
+  const pool = catalog.filter((p) => p.active !== false);
+  if (!q) {
+    return pool.filter((p) => p.available !== false).slice(0, limit);
+  }
+  return pool
+    .map((product) => {
+      const n = norm(product.name);
+      let score = 0;
+      if (n === q) {
+        score = 100;
+      } else if (n.includes(q) || q.includes(n)) {
+        score = 80;
+      } else {
+        const tokens = q.split(' ').filter((t) => t.length > 2);
+        const hits = tokens.filter((t) => n.includes(t)).length;
+        score = tokens.length ? (hits / tokens.length) * 60 : 0;
+      }
+      return { product, score };
+    })
+    .filter((row) => row.score >= 40)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => row.product);
 }
 
 export function formatSizeChoices(products: CatalogProduct[]) {

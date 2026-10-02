@@ -1,7 +1,14 @@
 import { ORDER_STATUSES, type OrderStatus, type OrderStatusEvent } from '@/types/order';
 import { formatDateTime } from '@/utils/format';
 
-const TRACK: OrderStatus[] = ['new', 'confirmed', 'preparing', 'delivered', 'cancelled'];
+const TRACK: OrderStatus[] = [
+  'new',
+  'confirmed',
+  'preparing',
+  'out_for_delivery',
+  'delivered',
+  'cancelled',
+];
 
 function label(status: string) {
   return ORDER_STATUSES.find((item) => item.value === status)?.label ?? status;
@@ -34,7 +41,8 @@ export function OrderTimeline({
           const event = [...events].reverse().find((item) => item.status === step);
           const current = currentStatus === step;
           const reached = Boolean(event) || (step === 'new' && events.length === 0);
-          const skippedDelivered = currentStatus === 'cancelled' && step === 'delivered';
+          const skippedDelivered =
+            currentStatus === 'cancelled' && (step === 'delivered' || step === 'out_for_delivery');
           const done = reached && !current && !skippedDelivered;
           return (
             <li key={step} className="flex gap-3">

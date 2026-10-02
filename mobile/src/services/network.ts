@@ -5,13 +5,12 @@ export const OFFLINE_MESSAGE =
   'You are not connected to the internet. Please connect to the internet and try again';
 
 export function isDefinitelyOffline(state: Network.NetworkState): boolean {
-  if (state.isInternetReachable === false) {
-    return true;
-  }
-  if (state.isConnected === false) {
-    return true;
-  }
   if (state.type === Network.NetworkStateType.NONE) {
+    return true;
+  }
+  const unknown =
+    !state.type || state.type === Network.NetworkStateType.UNKNOWN;
+  if (state.isConnected === false && !unknown) {
     return true;
   }
   return false;
@@ -22,7 +21,7 @@ export async function getIsOffline(): Promise<boolean> {
     const state = await Network.getNetworkStateAsync();
     return isDefinitelyOffline(state);
   } catch {
-    return true;
+    return false;
   }
 }
 

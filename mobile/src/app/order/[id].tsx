@@ -1,18 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useCart } from '@/cart/CartContext';
+import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { colors, radius, spacing } from '@/config/theme';
-import { getMyOrderById } from '@/services/orders';
-import type { OrderWithItems } from '@/types/order';
+import { cancelMyOrder, getMyOrderById } from '@/services/orders';
+import { isOpenOrderStatus, type OrderWithItems } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice, orderStatusTone } from '@/utils/format';
 
 export default function OrderDetailScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { beginEditOrder, forgetOpenOrder } = useCart();
   const { id: idParam } = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const [order, setOrder] = useState<OrderWithItems | null>(null);
@@ -103,6 +107,39 @@ export default function OrderDetailScreen() {
           />
         </View>
       </View>
+
+      {isOpenOrderStatus(order.status) ? (
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() => goModifyOrder(order.id, beginEditOrder, order)}
+            style={styles.modifyBtn}
+          >
+            <Text style={styles.modifyLabel}>Modify order</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              Alert.alert('Cancel order?', 'This cannot be undone.', [
+                { text: 'Keep', style: 'cancel' },
+                {
+                  text: 'Cancel order',
+                  style: 'destructive',
+                  onPress: () => {
+                    cancelMyOrder(order.id)
+                      .then(() => {
+                        forgetOpenOrder(order.id);
+                        return load(true);
+                      })
+                      .catch(() => undefined);
+                  },
+                },
+              ]);
+            }}
+            style={styles.cancelBtn}
+          >
+            <Text style={styles.cancelLabel}>Cancel order</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {order.status === 'cancelled' ? (
         <View style={styles.card}>
@@ -328,5 +365,34 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: colors.primaryDark,
+  },
+  actions: {
+    gap: 8,
+  },
+  modifyBtn: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modifyLabel: {
+    color: colors.primaryText,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  cancelBtn: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  cancelLabel: {
+    color: colors.danger,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

@@ -15,8 +15,9 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 6,
+      "versionCode": 7,
       "softwareKeyboardLayoutMode": "pan",
+      "usesCleartextTraffic": true,
       "permissions": ["RECORD_AUDIO"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {

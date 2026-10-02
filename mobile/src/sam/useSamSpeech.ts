@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { AppState, PermissionsAndroid, Platform, type AppStateStatus } from 'react-native';
 
 type SpeechLib = typeof import('expo-speech-recognition');
 
@@ -33,15 +33,32 @@ function supportsContinuousAndroid() {
 
 function messageForSpeechError(code?: string) {
   if (code === 'not-allowed') {
-    return 'Microphone permission is off. Allow it in Settings, or type your request.';
+    return 'Allow Microphone for Farm2Flavour in Settings (YouTube permission is separate).';
   }
   if (code === 'service-not-allowed') {
-    return 'Voice recognition is not available. Install Google Speech / Google app, then try again.';
+    return 'The mic works, but speech-to-text is off. In Settings set Speech recognition to Google, or install/update the Google app.';
   }
   if (code === 'network') {
     return 'Voice needs an internet connection. You can type your request instead.';
   }
   return FALLBACK;
+}
+
+async function requestAndroidMic() {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+  try {
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+      title: 'Microphone',
+      message: 'Sam needs the microphone to hear your order.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Not now',
+    });
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  } catch {
+    return false;
+  }
 }
 
 export function isHeySam(transcript: string) {
@@ -58,6 +75,8 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
   const enabledRef = useRef(enabled);
   const langIndexRef = useRef(0);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHeardRef = useRef('');
+  const deliveredRef = useRef(false);
   const startRef = useRef<() => Promise<void>>(async () => undefined);
   onFinalRef.current = onFinal;
   enabledRef.current = enabled;
@@ -81,8 +100,12 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
   useEffect(() => {
     const ok = Boolean(getSpeechLib());
     setAvailable(ok);
-    if (!ok && !isExpoGo()) {
-      setError(FALLBACK);
+    if (!ok) {
+      setError(
+        isExpoGo()
+          ? 'Voice works in the installed Farm2Flavour app, not in Expo Go. You can type instead.'
+          : FALLBACK,
+      );
     }
   }, []);
 
@@ -95,15 +118,33 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
       'result',
       (event: { isFinal?: boolean; results?: Array<{ transcript?: string }> }) => {
         const text = event.results?.[0]?.transcript?.trim();
-        if (!text || !event.isFinal) {
+        if (!text) {
+          return;
+        }
+        lastHeardRef.current = text;
+        if (event.isFinal === false) {
           return;
         }
         langIndexRef.current = 0;
+        deliveredRef.current = true;
+        lastHeardRef.current = '';
         onFinalRef.current(text);
       },
     );
     const endSub = lib.ExpoSpeechRecognitionModule.addListener('end', () => {
       setListening(false);
+      const pending = lastHeardRef.current.trim();
+      if (pending && !deliveredRef.current) {
+        deliveredRef.current = true;
+        lastHeardRef.current = '';
+        langIndexRef.current = 0;
+        onFinalRef.current(pending);
+        return;
+      }
+      if (deliveredRef.current) {
+        deliveredRef.current = false;
+        return;
+      }
       if (enabledRef.current) {
         scheduleRestart();
       }
@@ -161,6 +202,12 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
     }
     clearRestart();
     try {
+      if (!(await requestAndroidMic())) {
+        setDenied(true);
+        setListening(false);
+        setError(messageForSpeechError('not-allowed'));
+        return;
+      }
       const permission = await lib.ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
       if (!permission.granted) {
         const both = await lib.ExpoSpeechRecognitionModule.requestPermissionsAsync();
@@ -181,6 +228,8 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
         return;
       }
       setError(null);
+      lastHeardRef.current = '';
+      deliveredRef.current = false;
       try {
         lib.ExpoSpeechRecognitionModule.abort();
       } catch {
@@ -188,7 +237,7 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
       }
       lib.ExpoSpeechRecognitionModule.start({
         lang: LANGS[langIndexRef.current],
-        interimResults: false,
+        interimResults: true,
         continuous: supportsContinuousAndroid(),
       });
       setListening(true);
@@ -222,5 +271,5 @@ export function useSamSpeech(enabled: boolean, onFinal: (text: string) => void) 
     };
   }, [available, enabled, start, stop]);
 
-  return { listening, denied, error, start, stop, setError };
+  return { listening, denied, error, available, start, stop, setError };
 }

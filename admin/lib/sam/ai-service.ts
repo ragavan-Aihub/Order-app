@@ -1,10 +1,14 @@
 import { fallbackParse } from '@/lib/sam/fallback-parser';
-import { buildIntentSystemPrompt } from '@/lib/sam/intent-prompt';
+import { buildCorrectionPrompt, buildIntentSystemPrompt } from '@/lib/sam/intent-prompt';
 import { normalizeParsedIntent, stripJsonFences } from '@/lib/sam/normalize-intent';
-import type { CatalogProduct, ParsedIntent } from '@/lib/sam/types';
+import type { CatalogProduct, ParsedIntent, PromptContext } from '@/lib/sam/types';
 
 export interface LLMProvider {
-  parse(transcript: string, catalogNames: string[]): Promise<ParsedIntent>;
+  parse(ctx: PromptContext): Promise<ParsedIntent>;
+}
+
+function hasIntentField(raw: unknown) {
+  return Boolean(raw && typeof raw === 'object' && 'intent' in (raw as object));
 }
 
 export class LocalLLMProvider implements LLMProvider {
@@ -13,7 +17,7 @@ export class LocalLLMProvider implements LLMProvider {
     private readonly model: string,
   ) {}
 
-  async parse(transcript: string, catalogNames: string[]): Promise<ParsedIntent> {
+  private async chat(messages: { role: string; content: string }[]) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12_000);
     try {
@@ -24,13 +28,7 @@ export class LocalLLMProvider implements LLMProvider {
           model: this.model,
           stream: false,
           format: 'json',
-          messages: [
-            {
-              role: 'system',
-              content: buildIntentSystemPrompt(catalogNames),
-            },
-            { role: 'user', content: transcript },
-          ],
+          messages,
         }),
         signal: controller.signal,
       });
@@ -38,26 +36,45 @@ export class LocalLLMProvider implements LLMProvider {
         throw new Error('ollama failed');
       }
       const body = (await response.json()) as { message?: { content?: string } };
-      const parsed = JSON.parse(stripJsonFences(body.message?.content ?? '{}')) as unknown;
-      const normalized = normalizeParsedIntent(parsed);
-      if (!normalized.intent) {
-        throw new Error('bad json');
-      }
-      return normalized;
+      return JSON.parse(stripJsonFences(body.message?.content ?? '{}')) as unknown;
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  async parse(ctx: PromptContext): Promise<ParsedIntent> {
+    const system = buildIntentSystemPrompt(ctx);
+    const user = ctx.transcript;
+    let raw = await this.chat([
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ]);
+    if (!hasIntentField(raw)) {
+      raw = await this.chat([
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+        { role: 'assistant', content: '{}' },
+        { role: 'user', content: buildCorrectionPrompt() },
+      ]);
+    }
+    if (!hasIntentField(raw)) {
+      throw new Error('bad json');
+    }
+    const normalized = normalizeParsedIntent(raw);
+    if (!normalized.intent) {
+      throw new Error('bad json');
+    }
+    return normalized;
   }
 }
 
 export class AIService {
   constructor(private readonly provider: LLMProvider | null) {}
 
-  async parse(transcript: string, catalog: CatalogProduct[]): Promise<ParsedIntent> {
-    const names = catalog.map((p) => p.name);
+  async parse(transcript: string, catalog: CatalogProduct[], ctx: PromptContext): Promise<ParsedIntent> {
     if (this.provider) {
       try {
-        return await this.provider.parse(transcript, names);
+        return await this.provider.parse({ ...ctx, catalogNames: catalog.map((p) => p.name) });
       } catch {
         // Fall through to deterministic parser.
       }

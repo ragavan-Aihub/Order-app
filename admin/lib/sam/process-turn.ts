@@ -3,14 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 import { env } from '@/config/env';
 import { addLine, setLine, viewDraft } from '@/lib/sam/apply-draft';
 import { createAIService } from '@/lib/sam/ai-service';
+import { fallbackParse, tryConfidentCartIntent } from '@/lib/sam/fallback-parser';
 import { isExplicitConfirm, isExplicitYes } from '@/lib/sam/confirm-phrases';
 import { detectLanguage, mapLlmLanguage } from '@/lib/sam/language';
-import { matchProduct } from '@/lib/sam/match-products';
+import { matchProduct, searchProducts } from '@/lib/sam/match-products';
+import { normalizeTranscript } from '@/lib/sam/normalize-input';
 import { replies } from '@/lib/sam/replies';
 import type {
   CatalogProduct,
   ConversationState,
   DraftLine,
+  ParsedIntent,
   SamTurnRequest,
   SamTurnResponse,
 } from '@/lib/sam/types';
@@ -50,32 +53,87 @@ async function loadCatalog(businessId: string): Promise<CatalogProduct[]> {
   }));
 }
 
+function resolveQuery(raw: string, displayedNames: string[], lastDraftName: string | null) {
+  const key = raw.trim().toLowerCase();
+  if (key === '__last__') {
+    return displayedNames[displayedNames.length - 1] ?? lastDraftName ?? '';
+  }
+  if (key === '__first__' || key === '__1__') {
+    return displayedNames[0] ?? '';
+  }
+  if (key === '__second__' || key === '__2__') {
+    return displayedNames[1] ?? '';
+  }
+  if (key === '__third__' || key === '__3__') {
+    return displayedNames[2] ?? '';
+  }
+  return raw;
+}
+
+function cartLines(catalog: CatalogProduct[], draft: DraftLine[]) {
+  return viewDraft(catalog, draft).items.map((line) => ({ name: line.name, quantity: line.quantity }));
+}
+
 export async function processSamTurn(
   body: SamTurnRequest,
   accessToken: string | null,
 ): Promise<SamTurnResponse> {
   const catalog = await loadCatalog(body.businessId);
+  const displayedNames = (body.displayedNames ?? []).filter(Boolean).slice(0, 12);
+  const recentTurns = (body.recentTurns ?? []).slice(-4);
+  const waitingForConfirm = body.waitingForConfirm === true;
+  const normalized = normalizeTranscript(body.transcript);
+
   if (/^\s*(hey\s+sam|ஹே\s*சாம்)\s*[.!?]*\s*$/i.test(body.transcript.trim())) {
     const language = detectLanguage(body.transcript);
     const draft = viewDraft(catalog, body.draft ?? []);
+    logTurn({ normalized, intent: 'GREETING', match: [], validation: 'wake' });
     return {
       reply: replies.greet(language),
       language,
-      intent: 'UNKNOWN',
+      intent: 'GREETING',
       conversationState: 'LISTENING',
       draft,
       canPlace: false,
       pendingNoteProductId: body.pendingNoteProductId ?? null,
     };
   }
-  const ai = createAIService();
-  const parsed = await ai.parse(body.transcript, catalog);
+
+  const confident = tryConfidentCartIntent(body.transcript);
+  let parsed: ParsedIntent;
+  if (confident) {
+    parsed = confident;
+  } else {
+    const ai = createAIService();
+    parsed = await ai.parse(body.transcript, catalog, {
+      catalogNames: catalog.map((p) => p.name),
+      cartLines: cartLines(catalog, body.draft ?? []),
+      displayedNames,
+      recentTurns,
+      transcript: body.transcript,
+      hint: null,
+    });
+  }
+
+  if (parsed.intent === 'CONFIRM' && parsed.items.some((item) => item.product_name && item.product_name !== '__last__')) {
+    parsed = { ...parsed, intent: 'ADD_ITEMS' };
+  }
+  if (
+    parsed.intent === 'UNKNOWN' ||
+    (parsed.intent === 'ADD_ITEMS' && parsed.items.length === 0)
+  ) {
+    const fallback = fallbackParse(body.transcript);
+    if (fallback.intent !== 'UNKNOWN' && (fallback.items.length > 0 || fallback.intent !== 'ADD_ITEMS')) {
+      parsed = fallback;
+    }
+  }
+
   const language = mapLlmLanguage(parsed.detected_language) ?? detectLanguage(body.transcript);
-  let draft: DraftLine[] = body.draft.filter((line) => line.quantity > 0);
+  let draft: DraftLine[] = (body.draft ?? []).filter((line) => line.quantity > 0);
   let pendingNoteProductId = body.pendingNoteProductId ?? null;
   let conversationState: ConversationState = 'PROCESSING';
   let canPlace = false;
-  let reply = replies.unknown(language);
+  let reply = replies.trySayingAdd(language);
   const matchLog: SamTurnResponse['match'] = [];
 
   const supabaseUser = accessToken ? userClient(accessToken) : null;
@@ -85,6 +143,7 @@ export async function processSamTurn(
 
   logTurn({
     transcript: body.transcript,
+    normalized,
     language,
     intent: parsed.intent,
     parsedItems: parsed.items,
@@ -105,7 +164,7 @@ export async function processSamTurn(
     pendingNoteProductId = null;
     conversationState = 'IDLE';
     reply = replies.noted(language);
-    logTurn({ validation: 'noted_product_info' });
+    logTurn({ normalized, intent: 'NOTE_PRODUCT_INFO', validation: 'noted_product_info' });
     return {
       reply,
       language,
@@ -117,9 +176,9 @@ export async function processSamTurn(
     };
   }
 
-  if (isExplicitConfirm(body.transcript) && viewDraft(catalog, draft).items.length > 0) {
-    const viewed = viewDraft(catalog, draft);
-    const stillValid = viewed.items.every((line) => {
+  const viewedNow = viewDraft(catalog, draft);
+  if (isExplicitConfirm(body.transcript, waitingForConfirm) && viewedNow.items.length > 0) {
+    const stillValid = viewedNow.items.every((line) => {
       const product = catalog.find((p) => p.id === line.productId);
       return product && product.available !== false;
     });
@@ -132,15 +191,15 @@ export async function processSamTurn(
     } else {
       conversationState = 'CONFIRMED';
       canPlace = true;
-      reply = replies.updated(language, viewed.items, viewed.total);
+      reply = replies.updated(language, viewedNow.items, viewedNow.total);
     }
-    logTurn({ intent: 'CONFIRM', validation: stillValid, canPlace, signedIn: Boolean(user) });
+    logTurn({ normalized, intent: 'CONFIRM', validation: stillValid, canPlace, signedIn: Boolean(user) });
     return {
       reply,
       language,
       intent: 'CONFIRM',
       conversationState,
-      draft: viewed,
+      draft: viewedNow,
       canPlace,
       pendingNoteProductId: null,
       match: matchLog,
@@ -148,14 +207,62 @@ export async function processSamTurn(
   }
 
   if (parsed.intent === 'CONFIRM') {
-    conversationState = 'WAITING_FOR_CONFIRMATION';
-    reply = replies.notConfirm(language);
+    conversationState = viewedNow.items.length ? 'WAITING_FOR_CONFIRMATION' : 'IDLE';
+    reply = viewedNow.items.length ? replies.notConfirm(language) : replies.emptyDraft(language);
     return {
       reply,
       language,
       intent: 'CONFIRM',
       conversationState,
-      draft: viewDraft(catalog, draft),
+      draft: viewedNow,
+      canPlace: false,
+      pendingNoteProductId,
+    };
+  }
+
+  if (parsed.intent === 'GREETING') {
+    return {
+      reply: replies.greet(language),
+      language,
+      intent: parsed.intent,
+      conversationState: 'IDLE',
+      draft: viewedNow,
+      canPlace: false,
+      pendingNoteProductId,
+    };
+  }
+
+  if (parsed.intent === 'ABOUT_SAM') {
+    return {
+      reply: replies.aboutSam(language),
+      language,
+      intent: parsed.intent,
+      conversationState: 'IDLE',
+      draft: viewedNow,
+      canPlace: false,
+      pendingNoteProductId,
+    };
+  }
+
+  if (parsed.intent === 'SAM_CAPABILITIES') {
+    return {
+      reply: replies.capabilities(language),
+      language,
+      intent: parsed.intent,
+      conversationState: 'IDLE',
+      draft: viewedNow,
+      canPlace: false,
+      pendingNoteProductId,
+    };
+  }
+
+  if (parsed.intent === 'IRRELEVANT') {
+    return {
+      reply: replies.irrelevant(language),
+      language,
+      intent: parsed.intent,
+      conversationState: 'IDLE',
+      draft: viewedNow,
       canPlace: false,
       pendingNoteProductId,
     };
@@ -176,7 +283,11 @@ export async function processSamTurn(
     };
   }
 
-  if (parsed.intent === 'GENERAL_HELP') {
+  if (
+    parsed.intent === 'GENERAL_HELP' ||
+    parsed.intent === 'HOW_TO_ORDER' ||
+    parsed.intent === 'FARM2FLAVOURS_HELP'
+  ) {
     const lower = body.transcript.toLowerCase();
     if (/cancel/.test(lower)) {
       reply = replies.cannotCancel(language);
@@ -197,7 +308,28 @@ export async function processSamTurn(
     };
   }
 
-  if (parsed.intent === 'ORDER_STATUS') {
+  if (parsed.intent === 'SHOW_PRODUCTS' || parsed.intent === 'SEARCH_PRODUCTS') {
+    const query = parsed.search_query || parsed.target_product || parsed.items[0]?.product_name || '';
+    const hits =
+      parsed.intent === 'SEARCH_PRODUCTS'
+        ? searchProducts(catalog, query)
+        : searchProducts(catalog, '', 12);
+    const names = hits.map((p) => p.name);
+    matchLog.push({ query: query || '*', productIds: hits.map((p) => p.id) });
+    logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: hits.length ? 'ok' : 'missing' });
+    return {
+      reply: parsed.intent === 'SEARCH_PRODUCTS' ? replies.searchList(language, names) : replies.productList(language, names),
+      language,
+      intent: parsed.intent,
+      conversationState: hits.length ? 'IDLE' : 'CLARIFICATION_REQUIRED',
+      draft: viewDraft(catalog, draft),
+      canPlace: false,
+      pendingNoteProductId,
+      match: matchLog,
+    };
+  }
+
+  if (parsed.intent === 'ORDER_STATUS' || parsed.intent === 'ORDER_HISTORY') {
     conversationState = 'IDLE';
     if (!user || !supabaseUser) {
       reply = replies.needSignIn(language);
@@ -219,6 +351,7 @@ export async function processSamTurn(
         );
       }
     }
+    logTurn({ normalized, intent: parsed.intent, validation: 'orders_query' });
     return {
       reply,
       language,
@@ -230,7 +363,11 @@ export async function processSamTurn(
     };
   }
 
-  const infoIntents = parsed.intent === 'INGREDIENTS' || parsed.intent === 'PRODUCT_INFORMATION';
+  const infoIntents =
+    parsed.intent === 'INGREDIENTS' ||
+    parsed.intent === 'PRODUCT_INFORMATION' ||
+    parsed.intent === 'PRODUCT_AVAILABILITY' ||
+    parsed.intent === 'PRODUCT_PRICE';
   if (infoIntents) {
     const viewed = viewDraft(catalog, draft);
     if (!parsed.items[0]?.product_name && viewed.items.length && /\btotal\b/i.test(body.transcript)) {
@@ -248,7 +385,8 @@ export async function processSamTurn(
         pendingNoteProductId,
       };
     }
-    const query = parsed.items[0]?.product_name ?? parsed.target_product ?? '';
+    const lastName = viewed.items[viewed.items.length - 1]?.name ?? null;
+    const query = resolveQuery(parsed.items[0]?.product_name ?? parsed.target_product ?? '', displayedNames, lastName);
     const match = matchProduct(catalog, query);
     matchLog.push({
       query,
@@ -277,12 +415,15 @@ export async function processSamTurn(
           reply = replies.ingredients(language, product.name, text);
           conversationState = 'IDLE';
         }
+      } else if (parsed.intent === 'PRODUCT_AVAILABILITY') {
+        reply = replies.availability(language, product.name, product.available !== false);
+        conversationState = 'IDLE';
       } else {
         reply = replies.price(language, product.name, Number(product.price), product.available !== false);
         conversationState = 'IDLE';
       }
     }
-    logTurn({ match: matchLog, validation: match.status });
+    logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: match.status });
     return {
       reply,
       language,
@@ -300,11 +441,10 @@ export async function processSamTurn(
     parsed.intent === 'REMOVE_ITEM' ||
     parsed.intent === 'CHANGE_QUANTITY'
   ) {
-    let lastId = draft[draft.length - 1]?.productId ?? null;
+    const viewedStart = viewDraft(catalog, draft);
+    let lastName = viewedStart.items[viewedStart.items.length - 1]?.name ?? null;
     for (const item of parsed.items) {
-      const query = item.product_name === '__last__' && lastId
-        ? catalog.find((p) => p.id === lastId)?.name ?? ''
-        : item.product_name;
+      const query = resolveQuery(item.product_name, displayedNames, lastName);
       const match = matchProduct(catalog, query);
       matchLog.push({
         query,
@@ -318,7 +458,7 @@ export async function processSamTurn(
       if (match.status === 'missing') {
         reply = replies.missing(language);
         conversationState = 'CLARIFICATION_REQUIRED';
-        logTurn({ match: matchLog, validation: 'missing' });
+        logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: 'missing' });
         return {
           reply,
           language,
@@ -333,7 +473,7 @@ export async function processSamTurn(
       if (match.status === 'ambiguous') {
         reply = replies.ambiguous(language, match.products);
         conversationState = 'CLARIFICATION_REQUIRED';
-        logTurn({ match: matchLog, validation: 'ambiguous' });
+        logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: 'ambiguous' });
         return {
           reply,
           language,
@@ -348,6 +488,7 @@ export async function processSamTurn(
       if (match.status === 'unavailable' && parsed.intent === 'ADD_ITEMS') {
         reply = replies.unavailable(language, match.product.name);
         conversationState = 'CLARIFICATION_REQUIRED';
+        logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: 'unavailable' });
         return {
           reply,
           language,
@@ -360,7 +501,7 @@ export async function processSamTurn(
         };
       }
       const product = match.product;
-      lastId = product.id;
+      lastName = product.name;
       if (parsed.intent === 'ADD_ITEMS') {
         draft = addLine(draft, product.id, Math.max(1, item.quantity || 1));
       } else if (parsed.intent === 'REMOVE_ITEM') {
@@ -380,7 +521,7 @@ export async function processSamTurn(
       conversationState = 'WAITING_FOR_CONFIRMATION';
       reply = replies.updated(language, viewed.items, viewed.total);
     }
-    logTurn({ match: matchLog, validation: 'ok', draft: viewed });
+    logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: 'ok', draft: viewed });
     return {
       reply,
       language,
@@ -394,7 +535,8 @@ export async function processSamTurn(
   }
 
   conversationState = 'IDLE';
-  reply = replies.unknown(language);
+  reply = replies.trySayingAdd(language);
+  logTurn({ normalized, intent: parsed.intent, match: matchLog, validation: 'unknown' });
   return {
     reply,
     language,

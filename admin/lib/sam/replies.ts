@@ -16,6 +16,76 @@ export const replies = {
     }
     return "Hi! I'm Sam. What can I help you with?";
   },
+  aboutSam(lang: SamLanguage) {
+    if (lang === 'ta') {
+      return 'நான் சாம், Farm2Flavours உதவியாளர். பொருள் சேர்க்கவும், கேள்வி கேட்கவும் முடியும்.';
+    }
+    if (lang === 'mix') {
+      return 'Naan Sam, Farm2Flavours assistant. Products add panna, questions kekka help pannuven.';
+    }
+    return "I'm Sam, your Farm2Flavours assistant. I can help you add products and answer catalog questions.";
+  },
+  capabilities(lang: SamLanguage) {
+    if (lang === 'ta') {
+      return 'ஊறுகாய் சேர்க்க, அளவு மாற்ற, விலை கேட்க, ஆர்டர் நிலை பார்க்க உதவலாம். Confirm என்றால் ஆர்டர் உறுதி.';
+    }
+    if (lang === 'mix') {
+      return 'I can add pickles, change quantity, tell price, and check order status. Confirm nu sonna order confirm aagum.';
+    }
+    return 'I can add products, change quantities, share prices from the catalog, and check your last order. Say Confirm when you are ready to place.';
+  },
+  irrelevant(lang: SamLanguage) {
+    if (lang === 'ta') {
+      return 'நான் Farm2Flavours ஆர்டருக்கு மட்டும் உதவுவேன். ஊறுகாய் சேர்க்க சொல்லுங்கள்.';
+    }
+    if (lang === 'mix') {
+      return 'Naan Farm2Flavours orders-ku dhaan help pannuven. Pickle add pannunga.';
+    }
+    return "I can only help with Farm2Flavours products and orders. Try saying add two mango pickle.";
+  },
+  productList(lang: SamLanguage, names: string[]) {
+    const shown = names.slice(0, 12).join(', ');
+    if (!names.length) {
+      return this.noInfo(lang);
+    }
+    if (lang === 'ta') {
+      return `இப்போது உள்ளவை: ${shown}.`;
+    }
+    if (lang === 'mix') {
+      return `Ippo irukkuradhu: ${shown}.`;
+    }
+    return `We have: ${shown}.`;
+  },
+  searchList(lang: SamLanguage, names: string[]) {
+    if (!names.length) {
+      return this.missing(lang);
+    }
+    return this.productList(lang, names);
+  },
+  availability(lang: SamLanguage, name: string, available: boolean) {
+    if (available) {
+      if (lang === 'ta') {
+        return `${name} இப்போது கிடைக்கிறது.`;
+      }
+      if (lang === 'mix') {
+        return `${name} ippo available.`;
+      }
+      return `${name} is available.`;
+    }
+    return this.unavailable(lang, name);
+  },
+  farmHelp(lang: SamLanguage) {
+    return this.howToOrder(lang);
+  },
+  trySayingAdd(lang: SamLanguage) {
+    if (lang === 'ta') {
+      return 'இப்படி சொல்லுங்கள்: add two mango pickle.';
+    }
+    if (lang === 'mix') {
+      return 'Try: add two mango pickle nu sollunga.';
+    }
+    return 'Try saying add two mango pickle.';
+  },
   missing(lang: SamLanguage) {
     if (lang === 'ta') {
       return 'அந்த பொருள் கிடைக்கவில்லை. வேறு பெயர் சொல்லுங்களேன்?';

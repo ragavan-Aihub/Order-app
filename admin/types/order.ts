@@ -1,4 +1,10 @@
-export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled';
+export type OrderStatus =
+  | 'new'
+  | 'confirmed'
+  | 'preparing'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'cancelled';
 
 export type PaymentMethod = 'pending' | 'cash' | 'upi';
 
@@ -14,6 +20,7 @@ export type Order = {
   mobile: string;
   delivery_address: string;
   pincode: string;
+  customer_address_id?: string | null;
   total_amount: number;
   status: OrderStatus;
   payment_method: PaymentMethod;
@@ -73,6 +80,7 @@ export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'new', label: 'New' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'preparing', label: 'Processing' },
+  { value: 'out_for_delivery', label: 'Out for delivery' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
@@ -136,6 +144,8 @@ export function orderStatusBadgeClass(status: string): string {
       return 'bg-emerald-100 text-emerald-800';
     case 'preparing':
       return 'bg-amber-100 text-amber-800';
+    case 'out_for_delivery':
+      return 'bg-indigo-100 text-indigo-800';
     case 'confirmed':
       return 'bg-sky-100 text-sky-800';
     case 'cancelled':
@@ -195,7 +205,8 @@ export function paymentSummary(order: {
 export const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   new: ['confirmed', 'cancelled'],
   confirmed: ['preparing', 'delivered', 'cancelled'],
-  preparing: ['delivered', 'cancelled'],
+  preparing: ['out_for_delivery', 'delivered', 'cancelled'],
+  out_for_delivery: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],
 };

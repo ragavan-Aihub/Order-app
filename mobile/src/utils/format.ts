@@ -56,6 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
   new: 'Placed',
   confirmed: 'Confirmed',
   preparing: 'Preparing',
+  out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
@@ -76,6 +77,8 @@ export function orderStatusTone(status: string): { bg: string; fg: string } {
       return { bg: '#DBEAFE', fg: '#1D4ED8' };
     case 'preparing':
       return { bg: '#FFEDD5', fg: '#C2410C' };
+    case 'out_for_delivery':
+      return { bg: '#E0E7FF', fg: '#4338CA' };
     case 'delivered':
       return { bg: '#DCFCE7', fg: '#15803D' };
     case 'cancelled':

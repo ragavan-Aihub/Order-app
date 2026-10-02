@@ -7,6 +7,7 @@ const STEPS = [
   { status: 'new', label: 'Placed' },
   { status: 'confirmed', label: 'Confirmed' },
   { status: 'preparing', label: 'Preparing' },
+  { status: 'out_for_delivery', label: 'Out for delivery' },
   { status: 'delivered', label: 'Delivered' },
 ] as const;
 
@@ -16,24 +17,33 @@ function rank(status: string) {
       return 1;
     case 'preparing':
       return 2;
-    case 'delivered':
+    case 'out_for_delivery':
       return 3;
+    case 'delivered':
+      return 4;
     default:
       return 0;
   }
 }
 
 export function OrderProgress({ status }: { status: string }) {
+  if (status === 'cancelled') {
+    return (
+      <View style={styles.cancelledBox}>
+        <Text style={styles.cancelledLabel}>Cancelled</Text>
+      </View>
+    );
+  }
   const current = rank(status);
   return (
-    <View style={styles.row}>
+    <View style={styles.list} accessibilityRole="progressbar">
       {STEPS.map((step, index) => {
         const done = index < current;
         const here = index === current;
         const last = index === STEPS.length - 1;
         return (
-          <View key={step.status} style={styles.step}>
-            <View style={styles.track}>
+          <View key={step.status} style={styles.row}>
+            <View style={styles.rail}>
               <View
                 style={[
                   styles.dot,
@@ -42,23 +52,24 @@ export function OrderProgress({ status }: { status: string }) {
                   !done && !here && styles.dotUpcoming,
                 ]}
               >
-                {done ? <Ionicons name="checkmark" size={13} color={colors.primaryText} /> : null}
+                {done ? <Ionicons name="checkmark" size={12} color={colors.primaryText} /> : null}
                 {here ? <View style={styles.currentCore} /> : null}
               </View>
               {last ? null : <View style={[styles.line, index < current && styles.lineOn]} />}
             </View>
-            <Text
-              style={[
-                styles.label,
-                done && styles.labelDone,
-                here && styles.labelCurrent,
-                !done && !here && styles.labelUpcoming,
-              ]}
-              numberOfLines={1}
-            >
-              {step.label}
-            </Text>
-            {here ? <Text style={styles.now}>Current</Text> : <View style={styles.nowSpacer} />}
+            <View style={styles.copy}>
+              <Text
+                style={[
+                  styles.label,
+                  done && styles.labelDone,
+                  here && styles.labelCurrent,
+                  !done && !here && styles.labelUpcoming,
+                ]}
+              >
+                {step.label}
+              </Text>
+              {here ? <Text style={styles.now}>Current</Text> : null}
+            </View>
           </View>
         );
       })}
@@ -67,22 +78,22 @@ export function OrderProgress({ status }: { status: string }) {
 }
 
 const styles = StyleSheet.create({
+  list: {
+    paddingTop: 4,
+    gap: 0,
+  },
   row: {
     flexDirection: 'row',
-    paddingTop: 2,
+    minHeight: 36,
   },
-  step: {
-    flex: 1,
-    minWidth: 0,
-  },
-  track: {
-    flexDirection: 'row',
+  rail: {
+    width: 24,
     alignItems: 'center',
   },
   dot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
@@ -91,9 +102,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   dotCurrent: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.primarySoft,
     borderWidth: 2.5,
     borderColor: colors.primary,
@@ -111,18 +122,26 @@ const styles = StyleSheet.create({
   },
   line: {
     flex: 1,
-    height: 2,
+    width: 2,
+    minHeight: 14,
     backgroundColor: colors.border,
-    marginHorizontal: 3,
+    marginVertical: 2,
   },
   lineOn: {
     backgroundColor: colors.primary,
   },
+  copy: {
+    flex: 1,
+    minWidth: 0,
+    paddingLeft: 10,
+    paddingBottom: 10,
+    justifyContent: 'flex-start',
+  },
   label: {
-    marginTop: 6,
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 0.1,
+    lineHeight: 20,
+    color: colors.text,
   },
   labelDone: {
     color: colors.primaryDark,
@@ -137,12 +156,16 @@ const styles = StyleSheet.create({
   },
   now: {
     marginTop: 1,
-    fontSize: 10,
+    fontSize: 11,
     color: colors.primary,
     fontWeight: '800',
-    letterSpacing: 0.2,
   },
-  nowSpacer: {
-    height: 13,
+  cancelledBox: {
+    paddingVertical: 8,
+  },
+  cancelledLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.danger,
   },
 });

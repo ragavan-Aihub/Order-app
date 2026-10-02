@@ -30,7 +30,7 @@ export async function getShopCategories(): Promise<ShopCategory[]> {
       name: row.name,
       image_url: row.image_url ?? null,
     }));
-    await writeCachedCategories(categories);
+    void writeCachedCategories(categories);
     return categories;
   } catch {
     return cached;

@@ -13,6 +13,7 @@ type ProductCardProps = {
   onAddToCart: () => void;
   onIncrease: () => void;
   onDecrease: () => void;
+  compact?: boolean;
 };
 
 export function ProductCard({
@@ -22,6 +23,7 @@ export function ProductCard({
   onAddToCart,
   onIncrease,
   onDecrease,
+  compact = false,
 }: ProductCardProps) {
   const comingSoon = product.available === false;
 
@@ -30,18 +32,21 @@ export function ProductCard({
       <View>
         <Image
           source={product.image_url ? { uri: product.image_url } : undefined}
-          style={[styles.image, comingSoon && styles.dimmed]}
+          style={[styles.image, compact && styles.imageCompact, comingSoon && styles.dimmed]}
           contentFit="cover"
         />
         {comingSoon ? (
           <View style={styles.soonWrap} pointerEvents="none">
-            <Text style={styles.soon} numberOfLines={1}>
+            <Text style={[styles.soon, compact && styles.soonCompact]} numberOfLines={1}>
               Coming soon
             </Text>
           </View>
         ) : null}
       </View>
-      <Text style={[styles.name, comingSoon && styles.dimmedText]} numberOfLines={2}>
+      <Text
+        style={[styles.name, compact && styles.nameCompact, comingSoon && styles.dimmedText]}
+        numberOfLines={2}
+      >
         {product.name}
       </Text>
     </>
@@ -56,13 +61,17 @@ export function ProductCard({
           {body}
         </Pressable>
       )}
-      <View style={styles.footer}>
-        <Text style={styles.price}>{formatPrice(product.price)}</Text>
+      <View style={[styles.footer, compact && styles.footerCompact]}>
+        <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
         {comingSoon ? null : quantity > 0 ? (
           <QuantityStepper compact value={quantity} onDecrease={onDecrease} onIncrease={onIncrease} />
         ) : (
-          <Pressable onPress={onAddToCart} style={styles.addButton} accessibilityRole="button">
-            <Text style={styles.addLabel}>Add</Text>
+          <Pressable
+            onPress={onAddToCart}
+            style={[styles.addButton, compact && styles.addButtonCompact]}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.addLabel, compact && styles.addLabelCompact]}>Add</Text>
           </Pressable>
         )}
       </View>
@@ -88,6 +97,9 @@ const styles = StyleSheet.create({
     height: 112,
     backgroundColor: colors.border,
   },
+  imageCompact: {
+    height: 78,
+  },
   dimmed: {
     opacity: 0.4,
   },
@@ -105,6 +117,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     textAlign: 'center',
   },
+  soonCompact: {
+    fontSize: 10,
+  },
   name: {
     fontSize: 13,
     fontWeight: '700',
@@ -112,6 +127,13 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
+  },
+  nameCompact: {
+    fontSize: 11,
+    lineHeight: 14,
+    minHeight: 28,
+    paddingHorizontal: 6,
+    paddingTop: 4,
   },
   dimmedText: {
     color: colors.textMuted,
@@ -125,11 +147,22 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     paddingTop: 4,
   },
+  footerCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingBottom: 6,
+  },
   price: {
     flex: 1,
     fontSize: 14,
     fontWeight: '700',
     color: colors.primaryDark,
+  },
+  priceCompact: {
+    flex: 0,
+    fontSize: 12,
   },
   addButton: {
     minWidth: 56,
@@ -142,9 +175,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  addButtonCompact: {
+    minWidth: 0,
+    minHeight: 28,
+    paddingHorizontal: 0,
+  },
   addLabel: {
     color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
+  },
+  addLabelCompact: {
+    fontSize: 12,
   },
 });

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useCart } from '@/cart/CartContext';
@@ -13,34 +13,45 @@ import { ProductCard } from '@/components/ProductCard';
 import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { getBusiness } from '@/services/business';
-import { getAvailableProducts } from '@/services/products';
+import { refreshBusiness } from '@/services/business';
+import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
 import type { Product } from '@/types/product';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { addItem, increase, decrease, items, itemCount } = useCart();
   const { offline } = useNetworkStatus();
-  const { categoriesEnabled, categories, refreshCatalog } = useShopCatalog();
+  const { categoriesEnabled, categories } = useShopCatalog();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState(getHomeCategoryId());
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const painted = useRef(false);
 
   const loadCatalog = useCallback(async () => {
-    const [catalog, shop] = await Promise.all([getAvailableProducts(), getBusiness()]);
+    if (!painted.current) {
+      const cached = await getCachedProducts();
+      if (cached.length) {
+        setProducts(cached);
+        setLoading(false);
+        painted.current = true;
+      }
+    }
+    const [catalog, shop] = await Promise.all([refreshAvailableProducts(), refreshBusiness()]);
     setProducts(catalog);
     setBannerUrl(shop?.banner_url ?? null);
-    await refreshCatalog();
-  }, [refreshCatalog]);
+    painted.current = true;
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       setCategoryId(getHomeCategoryId());
       void loadCatalog()
         .catch(() => {
-          setProducts([]);
+          if (!painted.current) {
+            setProducts([]);
+          }
         })
         .finally(() => setLoading(false));
     }, [loadCatalog]),
@@ -51,7 +62,8 @@ export default function HomeScreen() {
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return products.filter((product) => {
+    return products
+      .filter((product) => {
       if (categoriesEnabled && categoryId && product.category_id !== categoryId) {
         return false;
       }
@@ -61,7 +73,8 @@ export default function HomeScreen() {
       return (
         product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term)
       );
-    });
+    })
+      .sort((a, b) => Number(a.available === false) - Number(b.available === false));
   }, [categoriesEnabled, categoryId, products, query]);
 
   const quantityById = useMemo(() => {
@@ -189,6 +202,7 @@ export default function HomeScreen() {
             {visibleProducts.map((product) => (
               <View key={product.id} style={styles.gridItem}>
                 <ProductCard
+                  compact
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
                   onPress={() => router.push(`/product/${product.id}`)}
@@ -326,11 +340,11 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -6,
+    marginHorizontal: -4,
   },
   gridItem: {
-    width: '50%',
-    padding: 6,
+    width: '33.3333%',
+    padding: 4,
   },
   centered: {
     flex: 1,

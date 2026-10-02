@@ -1,4 +1,16 @@
-export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled';
+export type OrderStatus =
+  | 'new'
+  | 'confirmed'
+  | 'preparing'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'cancelled';
+
+export const OPEN_ORDER_STATUSES: OrderStatus[] = ['new', 'confirmed', 'preparing'];
+
+export function isOpenOrderStatus(status: string) {
+  return OPEN_ORDER_STATUSES.includes(status as OrderStatus);
+}
 
 export type PaymentMethod = 'pending' | 'cash' | 'upi';
 
@@ -13,6 +25,7 @@ export type Order = {
   mobile: string;
   delivery_address: string;
   pincode: string;
+  customer_address_id?: string | null;
   total_amount: number;
   status: OrderStatus;
   payment_method: PaymentMethod;

@@ -1,8 +1,18 @@
 import { env } from '@/config/env';
 import { getSupabaseClient } from '@/services/supabase';
-import type { DraftViewLine, SamTurnResponse } from '@/sam/types';
+import type { DraftViewLine, SamTurnMessage, SamTurnResponse } from '@/sam/types';
 
-export async function sendSamTurn(transcript: string, draft: DraftViewLine[]): Promise<SamTurnResponse> {
+export type SamTurnContext = {
+  recentTurns?: SamTurnMessage[];
+  displayedNames?: string[];
+  waitingForConfirm?: boolean;
+};
+
+export async function sendSamTurn(
+  transcript: string,
+  draft: DraftViewLine[],
+  context?: SamTurnContext,
+): Promise<SamTurnResponse> {
   const url = env.samApiUrl.trim();
   if (!url) {
     throw new Error('Sam is not configured. Set EXPO_PUBLIC_SAM_API_URL to your admin /api/sam/turn URL.');
@@ -23,6 +33,9 @@ export async function sendSamTurn(transcript: string, draft: DraftViewLine[]): P
       businessId: env.businessId,
       draft: draft.map((item) => ({ productId: item.productId, quantity: item.quantity })),
       pendingNoteProductId: getPendingNoteProductId(),
+      recentTurns: context?.recentTurns?.slice(-4) ?? [],
+      displayedNames: context?.displayedNames?.slice(0, 12) ?? [],
+      waitingForConfirm: context?.waitingForConfirm === true,
     }),
   });
 

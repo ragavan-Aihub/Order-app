@@ -13,6 +13,7 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
+import { goModifyOrder } from '@/cart/modify-flow';
 import { submitShopOrder } from '@/cart/submit-order';
 import {
   AddressPickerSheet,
@@ -25,12 +26,13 @@ import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getSignedInUser } from '@/services/supabase';
-import { formatPrice } from '@/utils/format';
+import { formatOrderNumber, formatPrice } from '@/utils/format';
 
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, itemCount, totalAmount, increase, decrease, remove, clearCart } = useCart();
+  const { items, itemCount, totalAmount, increase, decrease, remove, clearCart, editingOrderId, beginEditOrder, hasOrderChanges, openOrder } =
+    useCart();
   const { offline, requireConnection } = useNetworkStatus();
   const bottomPad = Math.max(insets.bottom, spacing.sm) + spacing.md;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -79,6 +81,7 @@ export default function CartScreen() {
       ],
     );
   }
+  const editingOpen = Boolean(openOrder && editingOrderId === openOrder.id);
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Deliver to';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
 
@@ -88,17 +91,23 @@ export default function CartScreen() {
       setPickerOpen(true);
       return;
     }
-    const user = await getSignedInUser();
-    if (!user) {
-      router.push({ pathname: '/login', params: { next: 'cart' } });
-      return;
+    if (!editingOpen) {
+      const user = await getSignedInUser();
+      if (!user) {
+        router.push({ pathname: '/login', params: { next: 'cart' } });
+        return;
+      }
+      if (!(await requireConnection())) {
+        return;
+      }
     }
-    if (!(await requireConnection())) {
+    if (editingOpen && !hasOrderChanges) {
+      setError('Change an item first to save this order.');
       return;
     }
     setSubmitting(true);
     try {
-      const result = await submitShopOrder(items, selected);
+      const result = await submitShopOrder(items, selected, editingOpen ? editingOrderId : null);
       if (!result.ok) {
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'cart' } });
@@ -110,6 +119,19 @@ export default function CartScreen() {
         }
         if (result.reason === 'address') {
           setPickerOpen(true);
+          return;
+        }
+        if (result.reason === 'open_order' && result.openOrder) {
+          setError(result.message);
+          Alert.alert('Open order', result.message, [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Modify order',
+              onPress: () => {
+                setTimeout(() => goModifyOrder(result.openOrder!.id, beginEditOrder), 200);
+              },
+            },
+          ]);
           return;
         }
         setError(result.message);
@@ -125,6 +147,8 @@ export default function CartScreen() {
           payment: result.order.payment_method ?? 'pending',
         },
       });
+    } catch (placeError) {
+      setError(placeError instanceof Error ? placeError.message : 'Could not place the order.');
     } finally {
       setSubmitting(false);
     }
@@ -231,9 +255,23 @@ export default function CartScreen() {
           <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {openOrder && !editingOpen ? (
+          <Text style={styles.error}>
+            Order #{formatOrderNumber(openOrder.order_number)} is already open at this address. Pick another
+            address to place a new order, or modify the open one.
+          </Text>
+        ) : null}
         <PrimaryButton
-          label={submitting ? 'Placing order…' : 'Place order'}
-          disabled={submitting}
+          label={
+            submitting
+              ? editingOpen
+                ? 'Saving…'
+                : 'Placing order…'
+              : editingOpen
+                ? 'Save changes'
+                : 'Place order'
+          }
+          disabled={submitting || Boolean(editingOpen && !hasOrderChanges)}
           onPress={() => onPlaceOrder().catch(() => undefined)}
         />
       </View>

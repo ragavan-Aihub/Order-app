@@ -54,7 +54,8 @@ export default function AddressFormScreen() {
     next?: string;
   }>();
   const editingId = firstParam(params.id);
-  const nextPath = firstParam(params.next) === 'cart' ? '/cart' : '/checkout';
+  const nextPath =
+    firstParam(params.next) === 'cart' ? '/cart' : firstParam(params.next) === 'sam' ? '/sam' : '/checkout';
   const [house, setHouse] = useState('');
   const [area, setArea] = useState('');
   const [landmark, setLandmark] = useState(firstParam(params.locality));
@@ -81,7 +82,10 @@ export default function AddressFormScreen() {
         return;
       }
       if (!user) {
-        router.replace({ pathname: '/login', params: { next: nextPath === '/cart' ? 'cart' : 'checkout' } });
+        router.replace({
+          pathname: '/login',
+          params: { next: nextPath === '/sam' ? 'sam' : nextPath === '/cart' ? 'cart' : 'checkout' },
+        });
       }
     });
 
@@ -197,7 +201,10 @@ export default function AddressFormScreen() {
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Could not save this address.';
       if (message.toLowerCase().includes('sign in')) {
-        router.replace({ pathname: '/login', params: { next: nextPath === '/cart' ? 'cart' : 'checkout' } });
+        router.replace({
+          pathname: '/login',
+          params: { next: nextPath === '/sam' ? 'sam' : nextPath === '/cart' ? 'cart' : 'checkout' },
+        });
         return;
       }
       setError(message);

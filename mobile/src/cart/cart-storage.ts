@@ -67,3 +67,26 @@ export async function saveCart(items: StoredCartItem[]) {
   loadPromise = Promise.resolve(items);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 }
+
+const EDIT_KEY = 'farm2flavour.cart.edit.v1';
+
+export async function loadEditingOrderId(): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(EDIT_KEY);
+    return raw || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveEditingOrderId(orderId: string | null) {
+  try {
+    if (orderId) {
+      await AsyncStorage.setItem(EDIT_KEY, orderId);
+    } else {
+      await AsyncStorage.removeItem(EDIT_KEY);
+    }
+  } catch {
+    // keep in-memory cart even if persist fails
+  }
+}

@@ -44,6 +44,7 @@ export function parseReportFilters(params: Record<string, string | string[] | un
     statusRaw === 'new' ||
     statusRaw === 'confirmed' ||
     statusRaw === 'preparing' ||
+    statusRaw === 'out_for_delivery' ||
     statusRaw === 'delivered' ||
     statusRaw === 'cancelled'
       ? statusRaw

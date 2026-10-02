@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { OrderProgress } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
@@ -64,6 +65,7 @@ export default function ConfirmationScreen() {
           <Text style={styles.meta}>Status</Text>
           <StatusBadge status={Array.isArray(status) ? status[0] : status ?? 'new'} />
         </View>
+        <OrderProgress status={Array.isArray(status) ? status[0] : status ?? 'new'} />
         <View style={styles.metaRow}>
           <Text style={styles.meta}>Payment</Text>
           <PaymentBadge method={Array.isArray(payment) ? payment[0] : payment ?? 'pending'} />

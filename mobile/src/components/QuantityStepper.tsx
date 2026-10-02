@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonCompact: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 0,
     borderWidth: 0,
     backgroundColor: colors.primarySoft,
@@ -79,8 +79,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   valueCompact: {
-    minWidth: 26,
-    fontSize: 14,
+    minWidth: 22,
+    fontSize: 13,
     color: colors.primaryDark,
   },
 });

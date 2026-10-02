@@ -6,29 +6,34 @@ function normalize(raw: string) {
     .trim();
 }
 
-const ALLOWED = new Set([
+const PLACE_CONFIRM = new Set([
   'confirm',
-  'yes',
   'yes place the order',
   'place the order',
   'yes place order',
   'place order',
-  'ஆமாம்',
   'உறுதி',
   'ஆர்டர் செய்யலாம்',
   'confirm pannunga',
   'order pannunga',
-  'seri',
-  'ok',
-  'okay',
 ]);
 
-export function isExplicitConfirm(transcript: string) {
+const SOFT_YES = new Set(['yes', 'ok', 'okay', 'seri', 'ஆமாம்', 'aamaam', 'aama']);
+
+export function isPlaceConfirmPhrase(transcript: string) {
+  return PLACE_CONFIRM.has(normalize(transcript));
+}
+
+export function isSoftYes(transcript: string) {
+  return SOFT_YES.has(normalize(transcript));
+}
+
+export function isExplicitConfirm(transcript: string, waitingForConfirm = false) {
   const n = normalize(transcript);
-  if (ALLOWED.has(n)) {
+  if (PLACE_CONFIRM.has(n)) {
     return true;
   }
-  if (n === 'aamaam' || n === 'aama') {
+  if (waitingForConfirm && (SOFT_YES.has(n) || n === 'aamaam' || n === 'aama')) {
     return true;
   }
   return false;

@@ -15,6 +15,7 @@ import {
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
+import { goModifyOrder } from '@/cart/modify-flow';
 import { submitShopOrder } from '@/cart/submit-order';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -27,7 +28,7 @@ import { formatPrice } from '@/utils/format';
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, totalAmount, clearCart } = useCart();
+  const { items, totalAmount, clearCart, editingOrderId, beginEditOrder, hasOrderChanges } = useCart();
   const { offline, requireConnection } = useNetworkStatus();
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -91,9 +92,13 @@ export default function CheckoutScreen() {
     if (!(await requireConnection())) {
       return;
     }
+    if (editingOrderId && !hasOrderChanges) {
+      setError('Change an item first to save this order.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const result = await submitShopOrder(items, selected);
+      const result = await submitShopOrder(items, selected, editingOrderId);
       if (!result.ok) {
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'checkout' } });
@@ -101,6 +106,18 @@ export default function CheckoutScreen() {
         }
         if (result.reason === 'network') {
           await requireConnection();
+          return;
+        }
+        if (result.reason === 'open_order' && result.openOrder) {
+          Alert.alert('Open order', result.message, [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Modify order',
+              onPress: () => {
+                setTimeout(() => goModifyOrder(result.openOrder!.id, beginEditOrder), 200);
+              },
+            },
+          ]);
           return;
         }
         setError(result.message);
@@ -222,8 +239,16 @@ export default function CheckoutScreen() {
           <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
         </View>
         <PrimaryButton
-          label={submitting ? 'Placing order…' : 'Place order'}
-          disabled={submitting || !selected}
+          label={
+            submitting
+              ? editingOrderId
+                ? 'Saving…'
+                : 'Placing order…'
+              : editingOrderId
+                ? 'Save changes'
+                : 'Place order'
+          }
+          disabled={submitting || !selected || Boolean(editingOrderId && !hasOrderChanges)}
           onPress={onPlaceOrder}
         />
       </View>
