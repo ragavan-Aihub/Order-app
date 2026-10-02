@@ -94,12 +94,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     setOpenOrderReady(false);
-    const refresh = () => {
-      findOpenOrderForSelectedAddress()
+    const refresh = (reload: boolean) => {
+      findOpenOrderForSelectedAddress(reload)
         .then((open) => {
           if (!cancelled) {
             setOpenOrder((current) => {
               if (editingOrderId && current?.id === editingOrderId) {
+                return current;
+              }
+              if (
+                current &&
+                open &&
+                current.id === open.id &&
+                current.status === open.status &&
+                current.total_amount === open.total_amount &&
+                current.customer_address_id === open.customer_address_id
+              ) {
                 return current;
               }
               return open;
@@ -114,8 +124,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           }
         });
     };
-    refresh();
-    const unsubscribe = subscribeAddressBook(refresh);
+    refresh(true);
+    const unsubscribe = subscribeAddressBook(() => refresh(false));
     return () => {
       cancelled = true;
       unsubscribe();

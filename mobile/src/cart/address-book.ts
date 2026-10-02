@@ -22,6 +22,8 @@ export const MAX_SAVED_ADDRESSES = 3;
 
 let book: SavedAddress[] | null = null;
 let selectedId: string | null = null;
+let emittedFingerprint: string | null = null;
+let inflightLoad: Promise<SavedAddress[]> | null = null;
 const listeners = new Set<() => void>();
 
 export function subscribeAddressBook(listener: () => void) {
@@ -32,6 +34,11 @@ export function subscribeAddressBook(listener: () => void) {
 }
 
 function emitAddressBook() {
+  const fingerprint = JSON.stringify([selectedId, book]);
+  if (fingerprint === emittedFingerprint) {
+    return;
+  }
+  emittedFingerprint = fingerprint;
   for (const listener of listeners) {
     listener();
   }
@@ -122,19 +129,26 @@ async function persist() {
   applyRemote(synced.list, synced.selectedId);
 }
 
-export async function loadAddressBook(): Promise<SavedAddress[]> {
-  const user = await getSignedInUser();
-  if (!user) {
-    clearMemory();
-    return [];
+export function loadAddressBook(): Promise<SavedAddress[]> {
+  if (!inflightLoad) {
+    inflightLoad = (async () => {
+      const user = await getSignedInUser();
+      if (!user) {
+        clearMemory();
+        return [];
+      }
+      const remote = await fetchRemoteAddresses().catch(() => null);
+      if (!remote) {
+        book = book ?? [];
+        return book;
+      }
+      applyRemote(remote.list, remote.defaultId);
+      return book ?? [];
+    })().finally(() => {
+      inflightLoad = null;
+    });
   }
-  const remote = await fetchRemoteAddresses().catch(() => null);
-  if (!remote) {
-    book = book ?? [];
-    return book;
-  }
-  applyRemote(remote.list, remote.defaultId);
-  return book ?? [];
+  return inflightLoad;
 }
 
 export async function hydrateAddressBook(_seeds?: Array<DeliveryDetails | null | undefined>) {

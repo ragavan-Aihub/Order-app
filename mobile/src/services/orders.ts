@@ -12,8 +12,29 @@ const OFFLINE_ORDER =
 
 const ORDER_COLUMNS =
   'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, created_at, updated_at';
-const ORDER_COLUMNS_FALLBACK =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, created_at, updated_at';
+const ORDER_LOOKUP_COLUMNS =
+  'id, order_number, status, customer_address_id, pincode, delivery_address, created_at, total_amount';
+const UNDELIVERED_STATUSES = ['new', 'confirmed', 'preparing', 'out_for_delivery'] as const;
+const QUERY_MS = 4000;
+const ACTION_MS = 10000;
+const PLACE_MS = 15000;
+const PLACE_TIMEOUT = 'Placing your order is taking too long. Check My orders before trying again.';
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 export type DeliveryDetails = {
   name: string;
@@ -27,63 +48,232 @@ function normalizeAddress(value: string) {
   return value.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+export function matchOrderToAddress(
+  rows: Order[],
+  details: { addressId?: string; address?: string; pincode?: string },
+  allowLoneFallback = true,
+): Order | null {
+  if (!rows.length) {
+    return null;
+  }
+  if (details.addressId) {
+    const byId = rows.find((row) => row.customer_address_id === details.addressId);
+    if (byId) {
+      return byId;
+    }
+  }
+  const pin = details.pincode?.trim();
+  const addr = details.address ? normalizeAddress(details.address) : '';
+  const byLine = rows.find((row) => {
+    if (pin && row.pincode !== pin) {
+      return false;
+    }
+    if (!addr) {
+      return Boolean(pin);
+    }
+    const stored = normalizeAddress(row.delivery_address ?? '');
+    return stored === addr || stored.includes(addr) || addr.includes(stored);
+  });
+  if (byLine) {
+    return byLine;
+  }
+  return allowLoneFallback && rows.length === 1 ? rows[0] : null;
+}
+
+async function sessionUserId() {
+  const supabase = getSupabaseClient();
+  if (!supabase || !env.businessId) {
+    return { supabase: null, userId: null as string | null };
+  }
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return { supabase, userId: session?.user?.id ?? null };
+}
+
+export async function listMyOpenOrders(): Promise<Order[]> {
+  const { supabase, userId } = await sessionUserId();
+  if (!supabase || !userId) {
+    return [];
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('orders')
+        .select(ORDER_LOOKUP_COLUMNS)
+        .eq('user_id', userId)
+        .eq('business_id', env.businessId)
+        .in('status', OPEN_ORDER_STATUSES)
+        .order('created_at', { ascending: false })
+        .limit(8),
+      QUERY_MS,
+      'Checking your open order is taking too long. Try again.',
+    );
+    if (error || !data?.length) {
+      return [];
+    }
+    return data as Order[];
+  } catch {
+    return [];
+  }
+}
+
+export async function listMyUndeliveredOrders(): Promise<Order[]> {
+  const { supabase, userId } = await sessionUserId();
+  if (!supabase || !userId) {
+    return [];
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('orders')
+        .select(ORDER_LOOKUP_COLUMNS)
+        .eq('user_id', userId)
+        .eq('business_id', env.businessId)
+        .in('status', [...UNDELIVERED_STATUSES])
+        .order('created_at', { ascending: false })
+        .limit(8),
+      QUERY_MS,
+      'Checking your orders is taking too long. Try again.',
+    );
+    if (error || !data?.length) {
+      return [];
+    }
+    return data as Order[];
+  } catch {
+    return [];
+  }
+}
+
 export async function findOpenOrderForAddress(details: {
   addressId?: string;
   address?: string;
   pincode?: string;
 }): Promise<Order | null> {
-  const supabase = getSupabaseClient();
-  if (!supabase || !env.businessId) {
+  const { supabase, userId } = await sessionUserId();
+  if (!supabase || !userId) {
     return null;
   }
+
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) {
-      return null;
+    let query = supabase
+      .from('orders')
+      .select(ORDER_LOOKUP_COLUMNS)
+      .eq('user_id', userId)
+      .eq('business_id', env.businessId)
+      .in('status', OPEN_ORDER_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(details.addressId ? 1 : 8);
+    if (details.addressId) {
+      query = query.eq('customer_address_id', details.addressId);
+    } else if (details.pincode) {
+      query = query.eq('pincode', details.pincode.trim());
     }
-
-    const selectOpen = async (columns: string) =>
-      supabase
-        .from('orders')
-        .select(columns)
-        .eq('user_id', user.id)
-        .eq('business_id', env.businessId)
-        .in('status', OPEN_ORDER_STATUSES)
-        .order('created_at', { ascending: false });
-
-    let { data, error } = await selectOpen(ORDER_COLUMNS);
-    if (error) {
-      const retry = await selectOpen(ORDER_COLUMNS_FALLBACK);
-      data = retry.data;
-      error = retry.error;
-    }
+    const { data, error } = await withTimeout(
+      query,
+      QUERY_MS,
+      'Checking your open order is taking too long. Try again.',
+    );
     if (error || !data?.length) {
       return null;
     }
+    return matchOrderToAddress(data as Order[], details, !details.addressId);
+  } catch {
+    return null;
+  }
+}
 
-    const rows = data as Order[];
-    if (details.addressId) {
-      const byId = rows.find((row) => row.customer_address_id === details.addressId);
-      if (byId) {
-        return byId;
+export async function getLatestUndeliveredOrderForAddress(details: {
+  addressId?: string;
+  address?: string;
+  pincode?: string;
+}): Promise<Order | null> {
+  const { supabase, userId } = await sessionUserId();
+  if (!supabase || !userId) {
+    return null;
+  }
+  try {
+    const load = async (byAddressId: boolean) => {
+      let query = supabase
+        .from('orders')
+        .select(ORDER_COLUMNS)
+        .eq('user_id', userId)
+        .eq('business_id', env.businessId)
+        .in('status', [...UNDELIVERED_STATUSES])
+        .order('created_at', { ascending: false })
+        .limit(byAddressId ? 1 : 8);
+      if (byAddressId && details.addressId) {
+        query = query.eq('customer_address_id', details.addressId);
+      } else if (details.pincode) {
+        query = query.eq('pincode', details.pincode.trim());
       }
+      return withTimeout(query, QUERY_MS, 'Loading this order is taking too long. Try again.');
+    };
+
+    const first = await load(Boolean(details.addressId));
+    const rows = !first.error && first.data?.length ? (first.data as Order[]) : [];
+    if (!rows.length && details.addressId && details.pincode) {
+      const retry = await load(false);
+      if (retry.error || !retry.data?.length) {
+        return null;
+      }
+      return matchOrderToAddress(retry.data as Order[], details, true);
     }
-    const pin = details.pincode?.trim();
-    const addr = details.address ? normalizeAddress(details.address) : '';
-    const byLine = rows.find((row) => {
-      if (pin && row.pincode !== pin) {
-        return false;
-      }
-      if (!addr) {
-        return Boolean(pin);
-      }
-      const stored = normalizeAddress(row.delivery_address ?? '');
-      return stored === addr || stored.includes(addr) || addr.includes(stored);
-    });
-    return byLine ?? (rows.length === 1 ? rows[0] : null);
+    if (!rows.length) {
+      return null;
+    }
+    if (details.addressId && rows.length === 1) {
+      return rows[0];
+    }
+    return matchOrderToAddress(rows, details, true);
+  } catch {
+    return null;
+  }
+}
+
+function isMissingColumn(error: { code?: string; message?: string }) {
+  return error.code === 'PGRST204' || error.code === '42703' || /column .* does not exist/i.test(error.message ?? '');
+}
+
+async function findJustPlacedOrder(userId: string, addressId: string | undefined, since: string): Promise<Order | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !addressId) {
+    return null;
+  }
+  try {
+    const { data } = await withTimeout(
+      supabase
+        .from('orders')
+        .select(ORDER_COLUMNS)
+        .eq('user_id', userId)
+        .eq('business_id', env.businessId)
+        .eq('customer_address_id', addressId)
+        .eq('status', 'new')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      QUERY_MS,
+      PLACE_TIMEOUT,
+    );
+    return (data as Order | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function countOrderItems(orderId: string): Promise<number | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return null;
+  }
+  try {
+    const { count, error } = await withTimeout(
+      supabase.from('order_items').select('id', { count: 'exact', head: true }).eq('order_id', orderId),
+      QUERY_MS,
+      PLACE_TIMEOUT,
+    );
+    return error || count == null ? null : count;
   } catch {
     return null;
   }
@@ -129,8 +319,9 @@ export async function getCustomerProfile(): Promise<{ name: string | null; mobil
 
   try {
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       return null;
     }
@@ -221,17 +412,26 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
   }
 
   const totalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const startedAt = new Date(Date.now() - 60_000).toISOString();
 
   try {
   let communityId: string | null = null;
   if (details.addressId) {
-    const { data: saved } = await supabase
-      .from('customer_addresses')
-      .select('community_id')
-      .eq('id', details.addressId)
-      .eq('user_id', signedIn.id)
-      .maybeSingle();
-    communityId = (saved?.community_id as string | null) ?? null;
+    try {
+      const { data: saved } = await withTimeout(
+        supabase
+          .from('customer_addresses')
+          .select('community_id')
+          .eq('id', details.addressId)
+          .eq('user_id', signedIn.id)
+          .maybeSingle(),
+        QUERY_MS,
+        'Address lookup timed out.',
+      );
+      communityId = (saved?.community_id as string | null) ?? null;
+    } catch {
+      communityId = null;
+    }
   }
 
   const base = {
@@ -243,18 +443,38 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
     pincode: details.pincode.trim(),
     total_amount: totalAmount,
     status: 'new',
+    ...(communityId ? { community_id: communityId } : {}),
   };
   const first = {
     ...base,
-    ...(communityId ? { community_id: communityId } : {}),
     ...(details.addressId ? { customer_address_id: details.addressId } : {}),
   };
-  let inserted = await supabase.from('orders').insert(first).select().single();
-  if ((inserted.error || !inserted.data) && (communityId || details.addressId)) {
-    inserted = await supabase.from('orders').insert(base).select().single();
+
+  let order: Order | null = null;
+  let orderError: { code?: string; message?: string } | null = null;
+  let recovered = false;
+  try {
+    let inserted = await withTimeout(
+      supabase.from('orders').insert(first).select(ORDER_COLUMNS).single(),
+      PLACE_MS,
+      PLACE_TIMEOUT,
+    );
+    if (inserted.error && details.addressId && isMissingColumn(inserted.error)) {
+      inserted = await withTimeout(
+        supabase.from('orders').insert(base).select(ORDER_COLUMNS).single(),
+        PLACE_MS,
+        PLACE_TIMEOUT,
+      );
+    }
+    order = (inserted.data as Order | null) ?? null;
+    orderError = inserted.error;
+  } catch (insertError) {
+    order = await findJustPlacedOrder(signedIn.id, details.addressId, startedAt);
+    if (!order) {
+      throw insertError;
+    }
+    recovered = true;
   }
-  const order = inserted.data;
-  const orderError = inserted.error;
 
   if (orderError || !order) {
     if (isNetworkFailure(orderError)) {
@@ -265,42 +485,75 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
     }
     throw new Error(orderError?.message ?? 'Could not create the order.');
   }
+  const placed = order;
 
-  if (order.order_number == null) {
-    const { data: numbered } = await supabase
-      .from('orders')
-      .select('order_number')
-      .eq('id', order.id)
-      .maybeSingle();
-    if (numbered?.order_number != null) {
-      order.order_number = numbered.order_number;
+  if (placed.order_number == null) {
+    try {
+      const { data: numbered } = await withTimeout(
+        supabase.from('orders').select('order_number').eq('id', placed.id).maybeSingle(),
+        QUERY_MS,
+        PLACE_TIMEOUT,
+      );
+      if (numbered?.order_number != null) {
+        placed.order_number = numbered.order_number;
+      }
+    } catch {
+      // Order number is cosmetic here; the order itself is already saved.
     }
   }
 
-  const { error: itemsError } = await supabase.from('order_items').insert(
-    items.map((item) => ({
-      order_id: order.id,
-      product_id: item.product.id,
-      product_name: item.product.name,
-      product_price: item.product.price,
-      quantity: item.quantity,
-      subtotal: item.product.price * item.quantity,
-    })),
-  );
+  if (recovered && ((await countOrderItems(placed.id)) ?? 0) > 0) {
+    return placed;
+  }
+
+  let itemsError: { message?: string } | null = null;
+  try {
+    const result = await withTimeout(
+      supabase.from('order_items').insert(
+        items.map((item) => ({
+          order_id: placed.id,
+          product_id: item.product.id,
+          product_name: item.product.name,
+          product_price: item.product.price,
+          quantity: item.quantity,
+          subtotal: item.product.price * item.quantity,
+        })),
+      ),
+      PLACE_MS,
+      PLACE_TIMEOUT,
+    );
+    itemsError = result.error;
+  } catch (waitError) {
+    itemsError = { message: waitError instanceof Error ? waitError.message : PLACE_TIMEOUT };
+  }
 
   if (itemsError) {
-    if (isNetworkFailure(itemsError)) {
-      throw new Error(OFFLINE_ORDER);
+    const saved = await countOrderItems(placed.id);
+    if (saved == null) {
+      throw new Error(PLACE_TIMEOUT);
     }
-    throw new Error('Could not save the order items. Try again.');
+    if (saved !== items.length) {
+      void Promise.resolve(
+        supabase.rpc('customer_cancel_order', {
+          p_order_id: placed.id,
+          p_reason: 'Items could not be saved',
+        }),
+      ).catch(() => undefined);
+      if (isNetworkFailure(itemsError)) {
+        throw new Error(OFFLINE_ORDER);
+      }
+      throw new Error('Could not save the order items. Try again.');
+    }
   }
 
-  await supabase
-    .from('profiles')
-    .update({ name: details.name.trim(), mobile: details.mobile.trim() })
-    .eq('id', signedIn.id);
+  void Promise.resolve(
+    supabase
+      .from('profiles')
+      .update({ name: details.name.trim(), mobile: details.mobile.trim() })
+      .eq('id', signedIn.id),
+  ).catch(() => undefined);
 
-  return order as Order;
+  return placed;
   } catch (placeError) {
     if (isNetworkFailure(placeError) || (placeError instanceof Error && placeError.message === OFFLINE_ORDER)) {
       throw new Error(OFFLINE_ORDER);
@@ -346,7 +599,23 @@ export async function replaceOpenOrderItems(
         }
       : {}),
   };
-  const { data, error } = await supabase.rpc('customer_replace_order_items', payload);
+  const isMissingRpc = (err: { code?: string; message?: string } | null) =>
+    err?.code === 'PGRST202' || /could not find the function|does not exist|42883/i.test(err?.message ?? '');
+  let { data, error } = await withTimeout(
+    supabase.rpc('customer_replace_order_items', payload),
+    ACTION_MS,
+    'Saving your order is taking too long. Try again.',
+  );
+  if (error && delivery && isMissingRpc(error)) {
+    ({ data, error } = await withTimeout(
+      supabase.rpc('customer_replace_order_items', {
+        p_order_id: orderId,
+        p_items: cartLinesPayload(items),
+      }),
+      ACTION_MS,
+      'Saving your order is taking too long. Try again.',
+    ));
+  }
   if (!error && data) {
     const row = Array.isArray(data) ? data[0] : data;
     return row as Order;
@@ -354,7 +623,7 @@ export async function replaceOpenOrderItems(
   if (isNetworkFailure(error)) {
     throw new Error(OFFLINE_ORDER);
   }
-  const missingRpc = /could not find the function|does not exist|42883/i.test(error?.message ?? '');
+  const missingRpc = isMissingRpc(error);
   if (!missingRpc) {
     throw new Error(error?.message ?? 'Could not update this order.');
   }
@@ -368,7 +637,7 @@ export async function replaceOpenOrderItems(
   }
   const { data: current, error: loadError } = await supabase
     .from('orders')
-    .select(ORDER_COLUMNS_FALLBACK)
+    .select(ORDER_COLUMNS)
     .eq('id', orderId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -398,28 +667,12 @@ export async function replaceOpenOrderItems(
     .update({ total_amount: totalAmount })
     .eq('id', orderId)
     .eq('user_id', user.id)
-    .select(ORDER_COLUMNS_FALLBACK)
+    .select(ORDER_COLUMNS)
     .single();
   if (updateError || !updated) {
     throw new Error(updateError?.message ?? 'Could not update this order.');
   }
   return updated as Order;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 }
 
 export async function cancelMyOrder(orderId: string, reason?: string): Promise<Order> {
@@ -435,7 +688,7 @@ export async function cancelMyOrder(orderId: string, reason?: string): Promise<O
   let data: unknown = null;
   let error: { message?: string } | null = null;
   try {
-    const result = await withTimeout(rpc, 8000, 'Cancel is taking too long. Try again.');
+    const result = await withTimeout(rpc, QUERY_MS, 'Cancel is taking too long. Try again.');
     data = result.data;
     error = result.error;
   } catch (waitError) {
@@ -470,9 +723,9 @@ export async function cancelMyOrder(orderId: string, reason?: string): Promise<O
       .eq('id', orderId)
       .eq('user_id', user.id)
       .in('status', OPEN_ORDER_STATUSES)
-      .select(ORDER_COLUMNS_FALLBACK)
+      .select(ORDER_COLUMNS)
       .maybeSingle(),
-    8000,
+    QUERY_MS,
     'Cancel is taking too long. Try again.',
   );
   if (updateError || !updated) {
@@ -482,36 +735,23 @@ export async function cancelMyOrder(orderId: string, reason?: string): Promise<O
 }
 
 export async function getMyOrders(): Promise<Order[]> {
-  const supabase = getSupabaseClient();
-  if (!supabase || !env.businessId) {
+  const { supabase, userId } = await sessionUserId();
+  if (!supabase || !userId) {
     return [];
   }
 
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) {
-      return [];
-    }
-
-    let { data, error } = await supabase
-      .from('orders')
-      .select(ORDER_COLUMNS)
-      .eq('user_id', user.id)
-      .eq('business_id', env.businessId)
-      .order('created_at', { ascending: false });
-    if (error) {
-      const retry = await supabase
+    const { data, error } = await withTimeout(
+      supabase
         .from('orders')
-        .select(ORDER_COLUMNS_FALLBACK)
-        .eq('user_id', user.id)
+        .select(ORDER_COLUMNS)
+        .eq('user_id', userId)
         .eq('business_id', env.businessId)
-        .order('created_at', { ascending: false });
-      data = retry.data;
-      error = retry.error;
-    }
+        .order('created_at', { ascending: false })
+        .limit(40),
+      QUERY_MS,
+      'Loading orders is taking too long. Try again.',
+    );
 
     if (error || !data) {
       return [];
@@ -535,14 +775,18 @@ export async function getMyOrdersWithItems(): Promise<OrderWithItems[]> {
   }
 
   try {
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
-      .in(
-        'order_id',
-        orders.map((order) => order.id),
-      )
-      .order('created_at', { ascending: true });
+    const { data: items } = await withTimeout(
+      supabase
+        .from('order_items')
+        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+        .in(
+          'order_id',
+          orders.map((order) => order.id),
+        )
+        .order('created_at', { ascending: true }),
+      QUERY_MS,
+      'Loading orders is taking too long. Try again.',
+    );
 
     const byOrder = new Map<string, OrderItem[]>();
     for (const item of (items ?? []) as OrderItem[]) {
@@ -566,6 +810,30 @@ export async function getReorderOrders(): Promise<OrderWithItems[]> {
     .slice(0, 10);
 }
 
+export async function listMyOrderItems(orderId: string): Promise<OrderItem[] | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !orderId) {
+    return null;
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('order_items')
+        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true }),
+      ACTION_MS,
+      'Loading this order is taking too long. Try again.',
+    );
+    if (error) {
+      return null;
+    }
+    return (data ?? []) as OrderItem[];
+  } catch {
+    return null;
+  }
+}
+
 export async function getMyOrderById(id: string): Promise<OrderWithItems | null> {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -581,28 +849,48 @@ export async function getMyOrderById(id: string): Promise<OrderWithItems | null>
       return null;
     }
 
-    const selectOrder = (columns: string) =>
-      supabase.from('orders').select(columns).eq('id', id).eq('user_id', user.id).maybeSingle();
-    const itemsQuery = supabase
-      .from('order_items')
-      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
-      .eq('order_id', id)
-      .order('created_at', { ascending: true });
+    const orderQuery = supabase
+      .from('orders')
+      .select(
+        'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, created_at, updated_at',
+      )
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    let [{ data: order, error }, itemsResult] = await Promise.all([selectOrder(ORDER_COLUMNS), itemsQuery]);
-    if (error) {
-      const retry = await selectOrder(ORDER_COLUMNS_FALLBACK);
-      order = retry.data;
-      error = retry.error;
-    }
+    const [{ data: order, error }, lines] = await withTimeout(
+      Promise.all([orderQuery, listMyOrderItems(id)]),
+      QUERY_MS,
+      'Loading this order is taking too long. Try again.',
+    );
 
     if (error || !order) {
+      if (lines?.length) {
+        return {
+          id,
+          order_number: 0,
+          business_id: env.businessId,
+          user_id: user.id,
+          customer_name: '',
+          mobile: '',
+          delivery_address: '',
+          pincode: '',
+          total_amount: 0,
+          status: 'new',
+          payment_method: 'pending',
+          cancel_reason: null,
+          refund_status: null,
+          created_at: '',
+          updated_at: '',
+          order_items: lines,
+        } as OrderWithItems;
+      }
       return null;
     }
 
     return {
       ...(order as Order),
-      order_items: (itemsResult.data ?? []) as OrderItem[],
+      order_items: lines ?? [],
     };
   } catch {
     return null;

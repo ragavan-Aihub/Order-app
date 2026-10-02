@@ -17,6 +17,9 @@ export function PaymentBadge({
     payment_method: method,
     refund_status: refundStatus,
   });
+  if (status === 'not_applicable') {
+    return null;
+  }
   const tone = displayPaymentTone(status);
   return (
     <View style={[styles.badge, { backgroundColor: tone.bg }]}>

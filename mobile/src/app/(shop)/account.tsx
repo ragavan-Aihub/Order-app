@@ -3,19 +3,30 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { getSelectedAddress, loadAddressBook } from '@/cart/address-book';
+import {
+  formatSavedAddressLabel,
+  formatSavedAddressLine,
+  getSelectedAddress,
+  loadAddressBook,
+  type SavedAddress,
+} from '@/cart/address-book';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { signOut } from '@/services/auth';
-import { getCustomerProfile, type DeliveryDetails } from '@/services/orders';
+import { getCustomerProfile } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
+
+function formatMobile(value: string | null) {
+  const digits = (value ?? '').replace(/\D/g, '').slice(-10);
+  return digits.length === 10 ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}` : value;
+}
 
 export default function AccountScreen() {
   const router = useRouter();
   const [signedIn, setSignedIn] = useState(false);
   const [name, setName] = useState<string | null>(null);
   const [mobile, setMobile] = useState<string | null>(null);
-  const [delivery, setDelivery] = useState<DeliveryDetails | null>(null);
+  const [delivery, setDelivery] = useState<SavedAddress | null>(null);
 
   const load = useCallback(async () => {
     const user = await getSignedInUser();
@@ -43,62 +54,105 @@ export default function AccountScreen() {
   );
 
   const initial = signedIn && name?.trim() ? name.trim().charAt(0).toUpperCase() : null;
+  const addressLine = delivery ? formatSavedAddressLine(delivery) : '';
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <View style={styles.avatar}>
           {initial ? (
             <Text style={styles.avatarLabel}>{initial}</Text>
           ) : (
-            <Ionicons name="person" size={26} color={colors.primaryDark} />
+            <Ionicons name="person" size={26} color={colors.primaryText} />
           )}
         </View>
         <View style={styles.heroText}>
-          <Text style={styles.hello}>{signedIn ? `Hello${name ? `, ${name}` : ''}` : 'Hello'}</Text>
-          <Text style={styles.meta}>
-            {signedIn ? mobile || 'Signed in' : 'Sign in to see orders and save your profile.'}
+          <Text style={styles.hello} numberOfLines={1}>
+            {signedIn && name ? `Hello, ${name}` : 'Hello'}
+          </Text>
+          <Text style={styles.heroMeta} numberOfLines={1}>
+            {signedIn ? formatMobile(mobile) || 'Signed in' : 'Sign in to see orders and save your profile.'}
           </Text>
         </View>
       </View>
 
+      <Text style={styles.sectionLabel}>Delivery</Text>
       <Pressable
-        style={styles.card}
+        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
         onPress={() =>
           signedIn
             ? router.push('/checkout')
             : router.push({ pathname: '/login', params: { next: 'checkout' } })
         }
         accessibilityRole="button"
+        accessibilityLabel="Manage delivery address"
       >
-        <Text style={styles.cardTitle}>Delivery address</Text>
-        {delivery?.address ? (
-          <>
-            <Text style={styles.body}>{delivery.name}</Text>
-            <Text style={styles.body}>{delivery.address}</Text>
-            <Text style={styles.body}>
-              {delivery.pincode} · {delivery.mobile}
-            </Text>
-          </>
-        ) : (
-          <Text style={styles.meta}>No address yet. Add one at checkout.</Text>
-        )}
-        <Text style={styles.rowHint}>Manage</Text>
+        <View style={styles.iconTile}>
+          <Ionicons name="location" size={20} color={colors.primary} />
+        </View>
+        <View style={styles.cardBody}>
+          {delivery ? (
+            <>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>{formatSavedAddressLabel(delivery.label)}</Text>
+                <View style={styles.defaultPill}>
+                  <Text style={styles.defaultPillLabel}>Default</Text>
+                </View>
+              </View>
+              <Text style={styles.body} numberOfLines={2}>
+                {addressLine}
+              </Text>
+              {delivery.name ? (
+                <Text style={styles.subtle} numberOfLines={1}>
+                  {delivery.name}
+                  {delivery.mobile ? ` · ${delivery.mobile}` : ''}
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.cardTitle}>Delivery address</Text>
+              <Text style={styles.subtle}>No address yet. Add one at checkout.</Text>
+            </>
+          )}
+        </View>
+        <Text style={styles.manage}>Manage</Text>
       </Pressable>
 
-      <Pressable
-        onPress={() =>
-          signedIn ? router.push('/orders') : router.push({ pathname: '/login', params: { next: 'orders' } })
-        }
-        style={styles.row}
-        accessibilityRole="button"
-      >
-        <View style={styles.rowLeft}>
-          <Ionicons name="receipt-outline" size={22} color={colors.primary} />
-          <Text style={styles.rowLabel}>My orders</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </Pressable>
+      <Text style={styles.sectionLabel}>Orders</Text>
+      <View style={styles.group}>
+        <Pressable
+          onPress={() =>
+            signedIn ? router.push('/orders') : router.push({ pathname: '/login', params: { next: 'orders' } })
+          }
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          accessibilityRole="button"
+        >
+          <View style={styles.iconTile}>
+            <Ionicons name="receipt-outline" size={20} color={colors.primary} />
+          </View>
+          <View style={styles.rowCopy}>
+            <Text style={styles.rowLabel}>My orders</Text>
+            <Text style={styles.subtle}>Track, view items, or cancel</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+        <View style={styles.divider} />
+        <Pressable
+          onPress={() => router.push('/buy-again')}
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          accessibilityRole="button"
+        >
+          <View style={styles.iconTile}>
+            <Ionicons name="repeat-outline" size={20} color={colors.primary} />
+          </View>
+          <View style={styles.rowCopy}>
+            <Text style={styles.rowLabel}>Buy again</Text>
+            <Text style={styles.subtle}>Reorder your favourites</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+      </View>
 
       {signedIn ? (
         <Pressable
@@ -106,8 +160,10 @@ export default function AccountScreen() {
             await signOut();
             await load();
           }}
+          style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
           accessibilityRole="button"
         >
+          <Ionicons name="log-out-outline" size={18} color={colors.danger} />
           <Text style={styles.signOut}>Sign out</Text>
         </Pressable>
       ) : (
@@ -121,93 +177,171 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   content: {
     padding: spacing.md,
-    gap: spacing.md,
-    backgroundColor: colors.background,
+    paddingBottom: spacing.xl,
+    gap: spacing.sm,
   },
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    marginBottom: spacing.xs,
+    ...shadow.md,
   },
   avatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLabel: {
     fontSize: 22,
     fontWeight: '800',
-    color: colors.primaryDark,
+    color: colors.primaryText,
   },
   heroText: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
+    gap: 2,
   },
   hello: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: colors.text,
+    letterSpacing: -0.3,
+    color: colors.primaryText,
   },
-  meta: {
-    fontSize: 15,
-    lineHeight: 22,
+  heroMeta: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  sectionLabel: {
+    marginTop: spacing.sm,
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
     color: colors.textMuted,
   },
   card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
-    gap: 4,
+    ...shadow.sm,
+  },
+  cardBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
-    marginBottom: spacing.xs,
+  },
+  defaultPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+  },
+  defaultPillLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
   body: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.text,
   },
-  row: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  subtle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
-  rowLeft: {
+  manage: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary,
+    paddingTop: 2,
+  },
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  group: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    ...shadow.sm,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 64,
+  },
+  rowCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
   },
   rowLabel: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
   },
-  rowHint: {
-    marginTop: spacing.sm,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: spacing.md + 40 + spacing.sm,
+  },
+  signOutButton: {
+    marginTop: spacing.lg,
+    minHeight: 50,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
   signOut: {
-    textAlign: 'center',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.danger,
-    paddingVertical: spacing.sm,
+  },
+  pressed: {
+    opacity: 0.85,
   },
 });

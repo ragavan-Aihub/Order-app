@@ -2,7 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { useCart } from '@/cart/CartContext';
 import { useShopCatalog } from '@/catalog/ShopCatalogContext';
@@ -11,7 +21,7 @@ import { HomeHeader } from '@/components/HomeHeader';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
 import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { refreshBusiness } from '@/services/business';
 import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
@@ -27,7 +37,24 @@ export default function HomeScreen() {
   const [categoryId, setCategoryId] = useState(getHomeCategoryId());
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const painted = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (event) => setKeyboardHeight(event.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  const keyboardOpen = keyboardHeight > 0;
+  const searching = searchFocused && keyboardOpen;
 
   const loadCatalog = useCallback(async () => {
     if (!painted.current) {
@@ -101,13 +128,41 @@ export default function HomeScreen() {
           <OfflineBanner />
         </View>
       ) : null}
-      <View style={styles.searchBar}>
+      {searching ? null : (
+        <Pressable
+          style={({ pressed }) => [styles.samCta, pressed && styles.pressed]}
+          onPress={() => router.push('/sam')}
+          accessibilityRole="button"
+          accessibilityLabel="Order by Voice with Sam, AI assistant"
+        >
+          <View style={styles.samIcon}>
+            <Ionicons name="mic" size={22} color={colors.primaryText} />
+            <View style={styles.samSpark}>
+              <Ionicons name="sparkles" size={10} color={colors.primary} />
+            </View>
+          </View>
+          <View style={styles.samCopy}>
+            <Text style={styles.samTitle}>Order by Voice</Text>
+            <Text style={styles.samSubtitle}>Just tell Sam what you need</Text>
+          </View>
+          <View style={styles.samArrow}>
+            <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+          </View>
+        </Pressable>
+      )}
+      <View style={[styles.searchBar, searching && styles.searchBarFocused]}>
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
           <TextInput
             value={query}
-            onChangeText={setQuery}
-            placeholder="Search"
+            onChangeText={(text) => {
+              setQuery(text);
+              scrollRef.current?.scrollTo({ y: 0, animated: false });
+            }}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            onSubmitEditing={() => Keyboard.dismiss()}
+            placeholder="Search products"
             placeholderTextColor={colors.textMuted}
             style={styles.search}
             autoCorrect={false}
@@ -129,23 +184,17 @@ export default function HomeScreen() {
           ) : null}
         </View>
       </View>
-      <Pressable
-        style={styles.samCta}
-        onPress={() => router.push('/sam')}
-        accessibilityRole="button"
-        accessibilityLabel="Order by Voice with Sam"
-      >
-        <Text style={styles.samEmoji}>🎙️</Text>
-        <View style={styles.samCopy}>
-          <Text style={styles.samTitle}>Order by Voice</Text>
-          <Text style={styles.samSubtitle}>Just tell Sam what you need</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.primaryDark} />
-      </Pressable>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: itemCount > 0 ? VIEW_CART_BAR_SPACE + spacing.md : spacing.xl },
+          {
+            paddingBottom: keyboardOpen
+              ? keyboardHeight + spacing.md
+              : itemCount > 0
+                ? VIEW_CART_BAR_SPACE + spacing.md
+                : spacing.xl,
+          },
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -215,7 +264,7 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
-      <ViewCartBar />
+      {keyboardOpen ? null : <ViewCartBar />}
     </View>
   );
 }
@@ -237,52 +286,89 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     backgroundColor: colors.background,
   },
+  searchBarFocused: {
+    paddingTop: spacing.sm,
+  },
   samCta: {
     marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
     marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    minHeight: 64,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
+    minHeight: 68,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primarySoft,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    ...shadow.sm,
   },
-  samEmoji: {
-    fontSize: 28,
+  samIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  samSpark: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   samCopy: {
     flex: 1,
+    minWidth: 0,
   },
   samTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
+    letterSpacing: -0.2,
     color: colors.text,
   },
   samSubtitle: {
-    fontSize: 14,
-    color: colors.primaryDark,
+    fontSize: 13,
+    color: colors.textMuted,
     marginTop: 2,
+  },
+  samArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.88,
   },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
+    minHeight: 48,
+    ...shadow.sm,
   },
   search: {
     flex: 1,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: colors.text,
   },
   clearButton: {
@@ -297,7 +383,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   chip: {
-    minHeight: 36,
+    minHeight: 38,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.pill,
@@ -309,7 +395,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chipOn: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   chipPhoto: {
@@ -321,10 +407,10 @@ const styles = StyleSheet.create({
   chipLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: colors.text,
   },
   chipLabelOn: {
-    color: colors.primaryDark,
+    color: colors.primaryText,
   },
   banner: {
     width: '100%',

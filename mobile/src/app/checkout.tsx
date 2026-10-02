@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCart } from '@/cart/CartContext';
 import {
   MAX_SAVED_ADDRESSES,
   deleteAddress,
+  formatSavedAddressLabel,
+  formatSavedAddressLine,
   getAddressBook,
   getSelectedAddress,
   loadAddressBook,
@@ -15,25 +16,19 @@ import {
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
-import { goModifyOrder } from '@/cart/modify-flow';
-import { submitShopOrder } from '@/cart/submit-order';
-import { PrimaryButton } from '@/components/PrimaryButton';
+import { LABEL_ICONS } from '@/components/AddressPickerSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getSignedInUser } from '@/services/supabase';
-import { composeAddressLine, stateFromPincode } from '@/utils/address';
-import { formatPrice } from '@/utils/format';
+import type { AddressLabel } from '@/utils/address';
 
-export default function CheckoutScreen() {
+export default function SavedAddressesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, totalAmount, clearCart, editingOrderId, beginEditOrder, hasOrderChanges } = useCart();
-  const { offline, requireConnection } = useNetworkStatus();
+  const { offline } = useNetworkStatus();
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   const selected = useMemo(
     () => addresses.find((item) => item.id === selectedId) ?? addresses[0] ?? null,
@@ -60,8 +55,8 @@ export default function CheckoutScreen() {
     });
   }, []);
 
-  async function onDelete(id: string) {
-    Alert.alert('Delete address', 'Remove this address from the list?', [
+  function onDelete(id: string) {
+    Alert.alert('Delete address', 'Remove this address from your saved addresses?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -77,181 +72,140 @@ export default function CheckoutScreen() {
   }
 
   async function onSelect(id: string) {
-    setError(null);
     setSelectedId(id);
     await selectAddress(id);
   }
 
-  async function onPlaceOrder() {
-    setError(null);
+  async function onAddNew() {
     const user = await getSignedInUser();
     if (!user) {
       router.push({ pathname: '/login', params: { next: 'checkout' } });
       return;
     }
-    if (!(await requireConnection())) {
-      return;
-    }
-    if (editingOrderId && !hasOrderChanges) {
-      setError('Change an item first to save this order.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const result = await submitShopOrder(items, selected, editingOrderId);
-      if (!result.ok) {
-        if (result.reason === 'auth') {
-          router.push({ pathname: '/login', params: { next: 'checkout' } });
-          return;
-        }
-        if (result.reason === 'network') {
-          await requireConnection();
-          return;
-        }
-        if (result.reason === 'open_order' && result.openOrder) {
-          Alert.alert('Open order', result.message, [
-            { text: 'Not now', style: 'cancel' },
-            {
-              text: 'Modify order',
-              onPress: () => {
-                setTimeout(() => goModifyOrder(result.openOrder!.id, beginEditOrder), 200);
-              },
-            },
-          ]);
-          return;
-        }
-        setError(result.message);
-        return;
-      }
-      clearCart();
-      router.replace({
-        pathname: '/confirmation',
-        params: {
-          id: result.order.id,
-          orderNumber: result.order.order_number != null ? String(result.order.order_number) : '',
-          status: result.order.status,
-          payment: result.order.payment_method ?? 'pending',
-        },
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    router.push('/address/form');
   }
+
+  const canAdd = addresses.length < MAX_SAVED_ADDRESSES;
 
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: Math.max(insets.bottom, spacing.md) + 96 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg }]}
       >
         {offline ? <OfflineBanner /> : null}
-        {addresses.length < MAX_SAVED_ADDRESSES ? (
+
+        {canAdd ? (
           <Pressable
-            style={styles.addNew}
-            onPress={async () => {
-              const user = await getSignedInUser();
-              if (!user) {
-                router.push({ pathname: '/login', params: { next: 'checkout' } });
-                return;
-              }
-              router.push('/address/form');
-            }}
+            style={({ pressed }) => [styles.addNew, pressed && styles.pressed]}
+            onPress={() => onAddNew().catch(() => undefined)}
             accessibilityRole="button"
           >
-            <Text style={styles.addNewLabel}>+ Add new</Text>
+            <View style={styles.addIcon}>
+              <Ionicons name="add" size={20} color={colors.primaryText} />
+            </View>
+            <View style={styles.addCopy}>
+              <Text style={styles.addNewLabel}>Add new address</Text>
+              <Text style={styles.addNewHint}>
+                {addresses.length} of {MAX_SAVED_ADDRESSES} saved
+              </Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color={colors.primary} />
           </Pressable>
         ) : (
-          <Text style={styles.limit}>Maximum 3 addresses. Delete one to add another.</Text>
+          <View style={styles.limitCard}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.limit}>You can save up to 3 addresses. Delete one to add another.</Text>
+          </View>
         )}
-        <Text style={styles.kicker}>Saved addresses</Text>
+
+        {addresses.length > 0 ? <Text style={styles.kicker}>Saved addresses</Text> : null}
+
         {addresses.length === 0 ? (
-          <Text style={styles.muted}>No saved address yet. Add one to continue.</Text>
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="location-outline" size={28} color={colors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>No saved address yet</Text>
+            <Text style={styles.muted}>Add your delivery address to start ordering.</Text>
+          </View>
         ) : (
           addresses.map((item) => {
             const isSelected = item.id === selected?.id;
-            const line = [
-              composeAddressLine(item.house ?? '', item.address, item.locality ?? '', stateFromPincode(item.pincode)),
-              item.pincode,
-            ]
-              .filter(Boolean)
-              .join(', ');
+            const label = (item.label === 'work' || item.label === 'other' ? item.label : 'home') as AddressLabel;
             return (
               <Pressable
                 key={item.id}
                 onPress={() => onSelect(item.id)}
-                style={[styles.card, isSelected && styles.cardOn]}
+                style={({ pressed }) => [styles.card, isSelected && styles.cardOn, pressed && styles.pressed]}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`${formatSavedAddressLabel(label)} address`}
               >
-                <View style={styles.iconWrap}>
-                  <Ionicons
-                    name={
-                      item.label === 'work'
-                        ? 'briefcase-outline'
-                        : item.label === 'other'
-                          ? 'location-outline'
-                          : 'home-outline'
-                    }
-                    size={22}
-                    color={colors.primaryDark}
-                  />
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardName}>{item.name}</Text>
-                  <Text style={styles.cardLine} numberOfLines={2}>
-                    {line}
-                  </Text>
-                  <View style={styles.phoneRow}>
-                    <Ionicons name="call-outline" size={14} color={colors.textMuted} />
-                    <Text style={styles.phone}>{item.mobile}</Text>
+                <View style={styles.cardTop}>
+                  <View style={[styles.iconWrap, isSelected && styles.iconWrapOn]}>
+                    <Ionicons
+                      name={LABEL_ICONS[label]}
+                      size={20}
+                      color={isSelected ? colors.primaryText : colors.primaryDark}
+                    />
                   </View>
+                  <View style={styles.cardBody}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.cardName}>{formatSavedAddressLabel(label)}</Text>
+                      {isSelected ? (
+                        <View style={styles.defaultPill}>
+                          <Text style={styles.defaultPillLabel}>Default</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.cardLine} numberOfLines={3}>
+                      {formatSavedAddressLine(item)}
+                    </Text>
+                    <View style={styles.metaRow}>
+                      <Ionicons name="person-outline" size={13} color={colors.textMuted} />
+                      <Text style={styles.meta} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Ionicons name="call-outline" size={13} color={colors.textMuted} />
+                      <Text style={styles.meta}>{item.mobile}</Text>
+                    </View>
+                  </View>
+                  <Ionicons
+                    name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                    size={22}
+                    color={isSelected ? colors.primary : colors.border}
+                  />
                 </View>
                 <View style={styles.actions}>
                   <Pressable
                     onPress={() => router.push({ pathname: '/address/form', params: { id: item.id } })}
-                    style={styles.actionBtn}
+                    style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
                     accessibilityRole="button"
                     accessibilityLabel="Edit address"
                   >
-                    <Ionicons name="create-outline" size={20} color={colors.textMuted} />
+                    <Ionicons name="create-outline" size={16} color={colors.primaryDark} />
+                    <Text style={styles.actionLabel}>Edit</Text>
                   </Pressable>
+                  <View style={styles.actionDivider} />
                   <Pressable
                     onPress={() => onDelete(item.id)}
-                    style={styles.actionBtn}
+                    style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
                     accessibilityRole="button"
                     accessibilityLabel="Delete address"
                   >
-                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                    <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                    <Text style={[styles.actionLabel, styles.actionDanger]}>Delete</Text>
                   </Pressable>
                 </View>
               </Pressable>
             );
           })
         )}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {addresses.length > 1 ? (
+          <Text style={styles.footnote}>Tap an address to make it your default for new orders.</Text>
+        ) : null}
       </ScrollView>
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>To pay</Text>
-          <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
-        </View>
-        <PrimaryButton
-          label={
-            submitting
-              ? editingOrderId
-                ? 'Saving…'
-                : 'Placing order…'
-              : editingOrderId
-                ? 'Save changes'
-                : 'Place order'
-          }
-          disabled={submitting || !selected || Boolean(editingOrderId && !hasOrderChanges)}
-          onPress={onPlaceOrder}
-        />
-      </View>
     </View>
   );
 }
@@ -263,129 +217,195 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     gap: spacing.sm,
   },
   addNew: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.primarySoft,
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    minHeight: 48,
-    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderStyle: 'dashed',
     borderColor: colors.primary,
+  },
+  addIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addCopy: {
+    flex: 1,
   },
   addNewLabel: {
     fontSize: 16,
     fontWeight: '800',
     color: colors.primaryDark,
   },
-  kicker: {
+  addNewHint: {
+    marginTop: 1,
     fontSize: 12,
-    fontWeight: '700',
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: spacing.xs,
   },
-  muted: {
-    fontSize: 15,
-    color: colors.textMuted,
+  limitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
   },
   limit: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.textMuted,
   },
-  card: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  kicker: {
+    marginTop: spacing.sm,
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  emptyCard: {
     alignItems: 'center',
+    gap: 6,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    ...shadow.sm,
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  muted: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    overflow: 'hidden',
+    ...shadow.sm,
   },
   cardOn: {
     borderColor: colors.primary,
-    borderWidth: 1.5,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.md,
   },
   iconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconWrapOn: {
+    backgroundColor: colors.primary,
+  },
   cardBody: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: 4,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   cardName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.2,
   },
-  cardLine: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textMuted,
+  defaultPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
   },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-  },
-  phone: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  actions: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  actionBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  error: {
-    fontSize: 16,
-    color: colors.danger,
-  },
-  footer: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    gap: spacing.sm,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  totalLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textMuted,
-  },
-  total: {
-    fontSize: 22,
+  defaultPillLabel: {
+    fontSize: 11,
     fontWeight: '800',
     color: colors.primaryDark,
-    letterSpacing: -0.3,
+  },
+  cardLine: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  meta: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginRight: spacing.xs,
+    flexShrink: 1,
+  },
+  actions: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  actionBtn: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  actionDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primaryDark,
+  },
+  actionDanger: {
+    color: colors.danger,
+  },
+  footnote: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });

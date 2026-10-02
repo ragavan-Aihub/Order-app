@@ -57,20 +57,6 @@ export async function submitShopOrder(
       return { ok: false, reason: 'auth', message: 'Sign in to place your order.' };
     }
 
-    const open = await findOpenOrderForAddress({
-      addressId: selected.id,
-      address: details.address,
-      pincode: selected.pincode,
-    });
-    if (open) {
-      return {
-        ok: false,
-        reason: 'open_order',
-        openOrder: open,
-        message: `You already have order #${open.order_number} for this address. Edit that order, or place a new order at another address.`,
-      };
-    }
-
     const order = await placeOrder(details, items);
     return { ok: true, order };
   } catch (placeError) {

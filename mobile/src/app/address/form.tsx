@@ -54,8 +54,9 @@ export default function AddressFormScreen() {
     next?: string;
   }>();
   const editingId = firstParam(params.id);
+  const nextParam = firstParam(params.next);
   const nextPath =
-    firstParam(params.next) === 'cart' ? '/cart' : firstParam(params.next) === 'sam' ? '/sam' : '/checkout';
+    nextParam === 'cart' ? '/cart' : nextParam === 'sam' ? '/sam' : nextParam === 'home' ? '/home' : '/checkout';
   const [house, setHouse] = useState('');
   const [area, setArea] = useState('');
   const [landmark, setLandmark] = useState(firstParam(params.locality));

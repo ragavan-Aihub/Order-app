@@ -12,6 +12,10 @@ export function isOpenOrderStatus(status: string) {
   return OPEN_ORDER_STATUSES.includes(status as OrderStatus);
 }
 
+export function isUndeliveredOrder(status: string) {
+  return status !== 'delivered' && status !== 'cancelled';
+}
+
 export type PaymentMethod = 'pending' | 'cash' | 'upi';
 
 export type RefundStatus = 'pending' | 'refunded';

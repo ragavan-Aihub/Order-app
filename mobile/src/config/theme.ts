@@ -22,6 +22,23 @@ export const spacing = {
   xl: 32,
 } as const;
 
+export const shadow = {
+  sm: {
+    shadowColor: '#18181B',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#0F766E',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+} as const;
+
 export const radius = {
   sm: 10,
   md: 16,

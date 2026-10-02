@@ -55,14 +55,14 @@ export function formatDateTime(value: string): string {
 const STATUS_LABELS: Record<string, string> = {
   new: 'Placed',
   confirmed: 'Confirmed',
-  preparing: 'Preparing',
+  preparing: 'Confirmed',
   out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
-  pending: 'Pending',
+  pending: 'Payment pending',
   cash: 'Paid · Cash',
   upi: 'Paid · UPI',
 };
@@ -74,9 +74,8 @@ export function formatOrderStatus(status: string): string {
 export function orderStatusTone(status: string): { bg: string; fg: string } {
   switch (status) {
     case 'confirmed':
-      return { bg: '#DBEAFE', fg: '#1D4ED8' };
     case 'preparing':
-      return { bg: '#FFEDD5', fg: '#C2410C' };
+      return { bg: '#DBEAFE', fg: '#1D4ED8' };
     case 'out_for_delivery':
       return { bg: '#E0E7FF', fg: '#4338CA' };
     case 'delivered':
@@ -132,7 +131,7 @@ export function formatDisplayPayment(order: {
     case 'refunded':
       return 'Refunded';
     default:
-      return 'Pending';
+      return 'Payment pending';
   }
 }
 

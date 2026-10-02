@@ -6,7 +6,6 @@ import { colors } from '@/config/theme';
 const STEPS = [
   { status: 'new', label: 'Placed' },
   { status: 'confirmed', label: 'Confirmed' },
-  { status: 'preparing', label: 'Preparing' },
   { status: 'out_for_delivery', label: 'Out for delivery' },
   { status: 'delivered', label: 'Delivered' },
 ] as const;
@@ -14,13 +13,12 @@ const STEPS = [
 function rank(status: string) {
   switch (status) {
     case 'confirmed':
-      return 1;
     case 'preparing':
-      return 2;
+      return 1;
     case 'out_for_delivery':
-      return 3;
+      return 2;
     case 'delivered':
-      return 4;
+      return 3;
     default:
       return 0;
   }

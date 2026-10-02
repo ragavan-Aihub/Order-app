@@ -87,7 +87,7 @@ export default function RootLayout() {
           <Stack.Screen name="checkout" options={{ title: 'Saved addresses' }} />
           <Stack.Screen name="address/form" options={{ title: 'Add Address Details' }} />
           <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />
-          <Stack.Screen name="confirmation" options={{ title: 'Order confirmation' }} />
+          <Stack.Screen name="confirmation" options={{ title: 'Order status' }} />
           <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
         </Stack>
         </NetworkProvider>

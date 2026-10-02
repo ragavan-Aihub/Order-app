@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import { PaymentBadge } from '@/components/PaymentBadge';
 import { colors, radius, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
 import { isOpenOrderStatus, type OrderWithItems } from '@/types/order';
-import { formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice, orderStatusTone } from '@/utils/format';
+import { displayPaymentStatus, formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice, orderStatusTone } from '@/utils/format';
 
 export default function OrderDetailScreen() {
   const router = useRouter();
@@ -70,8 +70,58 @@ export default function OrderDetailScreen() {
   }
 
   const statusTone = orderStatusTone(order.status);
+  const current = order;
+
+  function confirmCancel() {
+    Alert.alert(
+      'Cancel this order?',
+      `Order #${formatOrderNumber(current.order_number)} will be cancelled. This cannot be undone.`,
+      [
+        { text: 'Keep order', style: 'cancel' },
+        {
+          text: 'Cancel order',
+          style: 'destructive',
+          onPress: () => {
+            cancelMyOrder(current.id)
+              .then(() => {
+                forgetOpenOrder(current.id);
+                return load(true);
+              })
+              .catch((error) => {
+                Alert.alert('Could not cancel', error instanceof Error ? error.message : 'Try again in a moment.');
+              });
+          },
+        },
+      ],
+    );
+  }
+
+  function openMore() {
+    Alert.alert(`Order #${formatOrderNumber(current.order_number)}`, undefined, [
+      { text: 'Cancel order', style: 'destructive', onPress: () => setTimeout(confirmCancel, 200) },
+      { text: 'Close', style: 'cancel' },
+    ]);
+  }
 
   return (
+    <>
+    <Stack.Screen
+      options={{
+        headerRight: isOpenOrderStatus(order.status)
+          ? () => (
+              <Pressable
+                onPress={openMore}
+                hitSlop={10}
+                style={styles.more}
+                accessibilityRole="button"
+                accessibilityLabel="More order options"
+              >
+                <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+              </Pressable>
+            )
+          : undefined,
+      }}
+    />
     <ScrollView
       contentContainerStyle={[
         styles.content,
@@ -97,15 +147,17 @@ export default function OrderDetailScreen() {
           <Ionicons name="time-outline" size={15} color={colors.textMuted} />
           <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
         </View>
-        <View style={styles.metaRow}>
-          <Ionicons name="card-outline" size={15} color={colors.textMuted} />
-          <Text style={styles.meta}>Payment</Text>
-          <PaymentBadge
-            method={order.payment_method ?? 'pending'}
-            orderStatus={order.status}
-            refundStatus={order.refund_status}
-          />
-        </View>
+        {displayPaymentStatus(order) === 'not_applicable' ? null : (
+          <View style={styles.metaRow}>
+            <Ionicons name="card-outline" size={15} color={colors.textMuted} />
+            <Text style={styles.meta}>Payment</Text>
+            <PaymentBadge
+              method={order.payment_method ?? 'pending'}
+              orderStatus={order.status}
+              refundStatus={order.refund_status}
+            />
+          </View>
+        )}
       </View>
 
       {isOpenOrderStatus(order.status) ? (
@@ -115,28 +167,6 @@ export default function OrderDetailScreen() {
             style={styles.modifyBtn}
           >
             <Text style={styles.modifyLabel}>Modify order</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              Alert.alert('Cancel order?', 'This cannot be undone.', [
-                { text: 'Keep', style: 'cancel' },
-                {
-                  text: 'Cancel order',
-                  style: 'destructive',
-                  onPress: () => {
-                    cancelMyOrder(order.id)
-                      .then(() => {
-                        forgetOpenOrder(order.id);
-                        return load(true);
-                      })
-                      .catch(() => undefined);
-                  },
-                },
-              ]);
-            }}
-            style={styles.cancelBtn}
-          >
-            <Text style={styles.cancelLabel}>Cancel order</Text>
           </Pressable>
         </View>
       ) : null}
@@ -208,6 +238,7 @@ export default function OrderDetailScreen() {
         </View>
       </View>
     </ScrollView>
+    </>
   );
 }
 
@@ -381,18 +412,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  cancelBtn: {
-    minHeight: 48,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+  more: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  cancelLabel: {
-    color: colors.danger,
-    fontSize: 16,
-    fontWeight: '700',
   },
 });

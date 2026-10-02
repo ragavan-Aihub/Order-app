@@ -7,6 +7,38 @@ import 'react-native-url-polyfill/auto';
 
 let client: SupabaseClient | null = null;
 
+const REQUEST_MS = 20000;
+
+const timedFetch: typeof fetch = async (input, init) => {
+  const controller = new AbortController();
+  const outer = init?.signal;
+  if (outer) {
+    if (outer.aborted) {
+      controller.abort();
+    } else {
+      outer.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+  }
+  const timer = setTimeout(() => controller.abort(), REQUEST_MS);
+  const started = Date.now();
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const label = `${init?.method ?? 'GET'} ${url.replace(env.supabaseUrl, '').split('?')[0]}`;
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    if (__DEV__) {
+      console.log(`[supabase] ${label} ${response.status} ${Date.now() - started}ms`);
+    }
+    return response;
+  } catch (error) {
+    if (__DEV__) {
+      console.log(`[supabase] ${label} FAILED ${Date.now() - started}ms ${String(error)}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) {
     return null;
@@ -20,6 +52,7 @@ export function getSupabaseClient(): SupabaseClient | null {
         persistSession: true,
         detectSessionInUrl: false,
       },
+      global: { fetch: timedFetch },
     });
   }
 

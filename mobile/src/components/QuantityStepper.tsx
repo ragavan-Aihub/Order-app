@@ -7,23 +7,32 @@ type QuantityStepperProps = {
   onDecrease: () => void;
   onIncrease: () => void;
   compact?: boolean;
+  stretch?: boolean;
 };
 
-export function QuantityStepper({ value, onDecrease, onIncrease, compact = false }: QuantityStepperProps) {
+export function QuantityStepper({
+  value,
+  onDecrease,
+  onIncrease,
+  compact = false,
+  stretch = false,
+}: QuantityStepperProps) {
   return (
-    <View style={[styles.row, compact && styles.rowCompact]}>
+    <View style={[styles.row, compact && styles.rowCompact, stretch && styles.rowStretch]}>
       <Pressable
         onPress={onDecrease}
         style={[styles.button, compact && styles.buttonCompact]}
         accessibilityRole="button"
+        accessibilityLabel="Decrease quantity"
       >
         <Text style={[styles.buttonLabel, compact && styles.buttonLabelCompact]}>−</Text>
       </Pressable>
-      <Text style={[styles.value, compact && styles.valueCompact]}>{value}</Text>
+      <Text style={[styles.value, compact && styles.valueCompact, stretch && styles.valueStretch]}>{value}</Text>
       <Pressable
         onPress={onIncrease}
         style={[styles.button, compact && styles.buttonCompact]}
         accessibilityRole="button"
+        accessibilityLabel="Increase quantity"
       >
         <Text style={[styles.buttonLabel, compact && styles.buttonLabelCompact]}>+</Text>
       </Pressable>
@@ -56,8 +65,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonCompact: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     borderRadius: 0,
     borderWidth: 0,
     backgroundColor: colors.primarySoft,
@@ -79,8 +88,15 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   valueCompact: {
-    minWidth: 22,
-    fontSize: 13,
+    minWidth: 26,
+    fontSize: 14,
+    fontWeight: '800',
     color: colors.primaryDark,
+  },
+  rowStretch: {
+    alignSelf: 'stretch',
+  },
+  valueStretch: {
+    flex: 1,
   },
 });

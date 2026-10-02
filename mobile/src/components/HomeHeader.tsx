@@ -11,6 +11,7 @@ import {
   loadAddressBook,
   subscribeAddressBook,
 } from '@/cart/address-book';
+import { AddressPickerSheet } from '@/components/AddressPickerSheet';
 import { colors, spacing } from '@/config/theme';
 import { getCustomerProfile } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
@@ -21,9 +22,9 @@ export function HomeHeader() {
   const [addressLine, setAddressLine] = useState('Add a delivery address');
   const [label, setLabel] = useState('Home');
   const [initial, setInitial] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    await loadAddressBook();
+  const showSelected = useCallback(() => {
     const selected = getSelectedAddress();
     if (selected) {
       setLabel(formatSavedAddressLabel(selected.label));
@@ -32,6 +33,11 @@ export function HomeHeader() {
       setLabel('Deliver to');
       setAddressLine('Add a delivery address');
     }
+  }, []);
+
+  const load = useCallback(async () => {
+    await loadAddressBook();
+    showSelected();
 
     const user = await getSignedInUser();
     if (!user) {
@@ -42,11 +48,9 @@ export function HomeHeader() {
     const name = profile?.name?.trim() || '';
     const generic = !name || name.toLowerCase() === 'customer';
     setInitial(generic ? null : name.charAt(0).toUpperCase());
-  }, []);
+  }, [showSelected]);
 
-  useEffect(() => subscribeAddressBook(() => {
-    load().catch(() => undefined);
-  }), [load]);
+  useEffect(() => subscribeAddressBook(showSelected), [showSelected]);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,7 +62,7 @@ export function HomeHeader() {
     <View style={[styles.band, { paddingTop: insets.top + spacing.sm }]}>
       <Pressable
         style={styles.address}
-        onPress={() => router.push('/checkout')}
+        onPress={() => setPickerOpen(true)}
         accessibilityRole="button"
         accessibilityLabel="Choose delivery address"
       >
@@ -82,6 +86,14 @@ export function HomeHeader() {
           <Ionicons name="person" size={20} color={colors.primaryText} />
         )}
       </Pressable>
+      <AddressPickerSheet
+        visible={pickerOpen}
+        returnTo="home"
+        onClose={() => {
+          setPickerOpen(false);
+          showSelected();
+        }}
+      />
     </View>
   );
 }

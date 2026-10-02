@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Dimensions,
   Keyboard,
   Pressable,
@@ -53,8 +54,6 @@ import {
 } from '@/sam/browse-catalog';
 import {
   OPEN_ORDER_CHIPS,
-  ORDER_STATUS_FOLLOWUPS,
-  PLACE_NEW_CHOICES,
   commandSuggestions,
   isCancelOrder,
   isModifyOrder,
@@ -63,18 +62,28 @@ import {
   isPlaceOrConfirm,
   isWhatsInMyOrder,
   isWhereIsMyOrder,
+  mentionsExistingOrder,
   utteranceKey,
 } from '@/sam/commands';
+import { NewOrderAddressPicker } from '@/sam/NewOrderAddressPicker';
 import { sendSamTurn } from '@/sam/api';
 import { speakSam } from '@/sam/speak';
 import { getPendingNoteProductId, setPendingNoteProductId, setSamDraftItems } from '@/sam/session';
 import type { DraftViewLine } from '@/sam/types';
 import { isHeySam, useSamSpeech } from '@/sam/useSamSpeech';
-import { cancelMyOrder, findOpenOrderForAddress, getMyOrderById } from '@/services/orders';
+import { cancelMyOrder, findOpenOrderForAddress, listMyOrderItems } from '@/services/orders';
 import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import type { Product } from '@/types/product';
+import { isOpenOrderStatus, isUndeliveredOrder, type Order } from '@/types/order';
 import { formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
+import {
+  canModifyExistingOrder,
+  findLatestOrderForAddress,
+  lockedOrderMessage,
+  newOrderEligibilityForAddresses,
+  type AddressNewOrderRow,
+} from '@/cart/open-cart-guard';
 
 type ChatTurn = {
   id: string;
@@ -90,14 +99,8 @@ type ChatTurn = {
 
 const ASK_CHIPS = [
   {
-    id: 'have',
-    label: 'What do you have?',
-    icon: 'sparkles-outline' as const,
-    prompt: 'What products do you have?',
-  },
-  {
     id: 'browse',
-    label: 'Browse Products',
+    label: 'Browse products',
     icon: 'storefront-outline' as const,
     prompt: 'Show products',
   },
@@ -181,6 +184,11 @@ export default function SamScreen() {
   const [selectedAddress, setSelectedAddress] = useState<SavedAddress | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [pickNewAddress, setPickNewAddress] = useState(false);
+  const [addressRows, setAddressRows] = useState<AddressNewOrderRow[]>([]);
+  const [addressRowsLoading, setAddressRowsLoading] = useState(false);
+  const [trackableOrder, setTrackableOrder] = useState<Order | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const lastSuggestRef = useRef<Product[]>([]);
   const waitingForConfirmRef = useRef(false);
@@ -191,7 +199,8 @@ export default function SamScreen() {
   const pendingCancelId = useRef<string | null>(null);
   const typingOpen = keyboardHeight > 0;
   const editingOpen = Boolean(openOrder && editingOrderId === openOrder.id);
-  const conversationOn = turns.length > 0 || editingOpen || (items.length > 0 && !openOrder);
+  const conversationOn = turns.length > 0 || editingOpen || pickNewAddress || (items.length > 0 && !openOrder);
+  const canShopNewOrder = editingOpen || Boolean(selectedAddress && !openOrder);
 
   const liveMatches = useMemo(() => {
     const term = typed.trim();
@@ -244,7 +253,18 @@ export default function SamScreen() {
       if (qtySpeakTimer.current) {
         clearTimeout(qtySpeakTimer.current);
       }
+      if (noticeTimer.current) {
+        clearTimeout(noticeTimer.current);
+      }
     };
+  }, []);
+
+  const flashNotice = useCallback((text: string) => {
+    if (noticeTimer.current) {
+      clearTimeout(noticeTimer.current);
+    }
+    setNotice(text);
+    noticeTimer.current = setTimeout(() => setNotice(null), 1600);
   }, []);
 
   const speakReply = useCallback((text: string, lang: 'en' | 'ta' | 'mix') => {
@@ -322,16 +342,33 @@ export default function SamScreen() {
             : pending.atMax
               ? `${pending.name} is now ${pending.quantity}. That's the most you can add.`
               : `${pending.name} is now ${pending.quantity}.`;
-        pushTurn('sam', msg);
+        flashNotice(
+          pending.quantity < 1
+            ? 'Removed'
+            : pending.atMax
+              ? `Qty ${pending.quantity} • Max reached`
+              : `Qty ${pending.quantity}`,
+        );
         speakReply(msg, 'en');
       }, 600);
     },
-    [pushTurn, speakReply],
+    [flashNotice, speakReply],
   );
+
+  const beginNewOrderPick = useCallback((_title?: string) => {
+    Keyboard.dismiss();
+    setTyped('');
+    setPickNewAddress(true);
+    speakReply('Where should we deliver your new order?', 'en');
+  }, [speakReply]);
 
   const addFromCatalog = useCallback(
     (product: Product) => {
       if (product.available === false) {
+        return;
+      }
+      if (!editingOpen && !canShopNewOrder) {
+        beginNewOrderPick('Choose a delivery address for your new order.');
         return;
       }
       const added = addItem(product, 1);
@@ -341,20 +378,34 @@ export default function SamScreen() {
       setTyped('');
       setBrowseQuery('');
       Keyboard.dismiss();
-      const msg = editingOrderId && openOrder
-        ? `Added ${product.name} to order #${formatOrderNumber(openOrder.order_number)}.`
-        : `Added ${product.name}.`;
-      pushTurn('sam', msg);
-      speakReply(msg, 'en');
+      const quantity = (qtyLive.current[product.id] ?? 0) + 1;
+      qtyLive.current[product.id] = quantity;
+      flashNotice(`Added • Qty ${quantity}`);
+      speakReply(`Added ${product.name}.`, 'en');
     },
-    [addItem, editingOrderId, openOrder, pushTurn, speakReply],
+    [addItem, beginNewOrderPick, canShopNewOrder, editingOpen, flashNotice, speakReply],
   );
 
   const refreshAddresses = useCallback(async () => {
     const list = await loadAddressBook();
     setAddresses(list);
-    setSelectedAddress(getSelectedAddress());
-  }, []);
+    const selected = getSelectedAddress();
+    setSelectedAddress(selected);
+    if (!selected) {
+      setTrackableOrder(null);
+      return;
+    }
+    if (openOrder) {
+      setTrackableOrder(openOrder);
+      return;
+    }
+    const latest = await findLatestOrderForAddress({
+      addressId: selected.id,
+      address: formatAddressForOrder(selected),
+      pincode: selected.pincode,
+    });
+    setTrackableOrder(latest && isUndeliveredOrder(latest.status) ? latest : null);
+  }, [openOrder]);
 
   const cancelOpenOrder = useCallback(
     async (orderId: string) => {
@@ -366,6 +417,7 @@ export default function SamScreen() {
         const cancelled = await cancelMyOrder(orderId);
         clearCart();
         forgetOpenOrder(orderId);
+        setTrackableOrder((current) => (current?.id === orderId ? null : current));
         setTurns((current) =>
           current.map((turn) =>
             turn.orderStatus && turn.orderStatus !== 'cancelled'
@@ -464,17 +516,22 @@ export default function SamScreen() {
         : 'Cancel this order? Say Confirm, or tap Cancel order.';
       pushTurn('sam', msg);
       speakReply(msg, 'en');
+      const keep = () => {
+        if (pendingCancelId.current !== orderId) {
+          return;
+        }
+        pendingCancelId.current = null;
+        const kept = number
+          ? `Okay, order #${number} is not cancelled. It stays as it is.`
+          : 'Okay, your order is not cancelled. It stays as it is.';
+        pushTurn('sam', kept);
+        speakReply(kept, 'en');
+      };
       Alert.alert(
         'Cancel order?',
         number ? `Cancel order #${number}? This cannot be undone.` : 'This cannot be undone.',
         [
-          {
-            text: 'Keep order',
-            style: 'cancel',
-            onPress: () => {
-              pendingCancelId.current = null;
-            },
-          },
+          { text: 'Keep order', style: 'cancel', onPress: keep },
           {
             text: 'Cancel order',
             style: 'destructive',
@@ -483,6 +540,7 @@ export default function SamScreen() {
             },
           },
         ],
+        { cancelable: true, onDismiss: keep },
       );
     },
     [cancelOpenOrder, pushTurn, speakReply],
@@ -501,63 +559,98 @@ export default function SamScreen() {
   }, [openOrder, selectedAddress]);
 
   const offerPlaceNewChoice = useCallback(
-    (open: { order_number: number }) => {
-      const msg = `You already have order #${formatOrderNumber(open.order_number)} at this address. Place at a new address, or edit the existing order?`;
-      pushTurn('sam', msg, { choices: PLACE_NEW_CHOICES });
+    (_open: { order_number: number }) => {
+      beginNewOrderPick('Choose a delivery address for your new order.');
+    },
+    [beginNewOrderPick],
+  );
+
+  const chooseNewOrderAddress = useCallback(
+    async (address: SavedAddress) => {
+      const blocking = await findOpenOrderForAddress({
+        addressId: address.id,
+        address: formatAddressForOrder(address),
+        pincode: address.pincode,
+      });
+      if (blocking) {
+        const rows = await newOrderEligibilityForAddresses(getAddressBook());
+        setAddressRows(rows);
+        speakReply(
+          `You already have order ${formatOrderNumber(blocking.order_number)} going to ${formatSavedAddressLabel(address.label)}. You can modify it, or choose another address.`,
+          'en',
+        );
+        return;
+      }
+      await selectAddress(address.id);
+      setSelectedAddress(getSelectedAddress());
+      setPickNewAddress(false);
+      const msg = `Delivering your new order to ${formatSavedAddressLabel(address.label)}. Search to add items.`;
+      pushTurn('sam', msg);
       speakReply(msg, 'en');
     },
     [pushTurn, speakReply],
   );
 
-  const startNewAddressOrder = useCallback(() => {
-    clearCart();
-    setPickNewAddress(true);
-    const extra =
-      addresses.length < MAX_SAVED_ADDRESSES
-        ? ' Pick another saved address or tap + Address.'
-        : ' Pick another saved address.';
-    const msg = `Starting a new order.${extra} Your open order stays as it is.`;
-    pushTurn('sam', msg);
-    speakReply(msg, 'en');
-    if (addresses.length < 2) {
-      router.push({ pathname: '/address/form', params: { next: 'sam' } });
-    }
-  }, [addresses.length, clearCart, pushTurn, router, speakReply]);
-
   const tellWhereIsOrder = useCallback(async () => {
-    const open = await resolveOpen();
-    if (!open) {
-      const msg = 'There is no open order for this address.';
+    const selected = selectedAddress ?? getSelectedAddress();
+    const order =
+      (openOrder && isUndeliveredOrder(openOrder.status) ? openOrder : null) ??
+      (trackableOrder && isUndeliveredOrder(trackableOrder.status) ? trackableOrder : null) ??
+      (await findLatestOrderForAddress({
+        addressId: selected?.id,
+        address: selected ? formatAddressForOrder(selected) : undefined,
+        pincode: selected?.pincode,
+      }));
+    if (!order || !isUndeliveredOrder(order.status)) {
+      const msg = 'There is no order in progress for this address.';
       pushTurn('sam', msg);
       speakReply(msg, 'en');
       return;
     }
-    const msg = `Order #${formatOrderNumber(open.order_number)} is ${formatOrderStatus(open.status)}.`;
-    pushTurn('sam', msg, { orderStatus: open.status });
+    const msg = `Order #${formatOrderNumber(order.order_number)} is ${formatOrderStatus(order.status)}.`;
+    pushTurn('sam', msg, { orderStatus: order.status });
     speakReply(msg, 'en');
-  }, [pushTurn, resolveOpen, speakReply]);
+  }, [openOrder, pushTurn, selectedAddress, speakReply, trackableOrder]);
 
   const tellWhatsInOrder = useCallback(async () => {
-    const open = await resolveOpen();
-    if (!open) {
-      const msg = 'There is no open order for this address.';
+    const selected = selectedAddress ?? getSelectedAddress();
+    const order =
+      (openOrder && isUndeliveredOrder(openOrder.status) ? openOrder : null) ??
+      (trackableOrder && isUndeliveredOrder(trackableOrder.status) ? trackableOrder : null) ??
+      (await findLatestOrderForAddress({
+        addressId: selected?.id,
+        address: selected ? formatAddressForOrder(selected) : undefined,
+        pincode: selected?.pincode,
+      }));
+    if (!order || !isUndeliveredOrder(order.status)) {
+      const msg = 'There is no order in progress for this address.';
       pushTurn('sam', msg);
       speakReply(msg, 'en');
       return;
     }
-    const full = await getMyOrderById(open.id);
-    const lines = full?.order_items ?? [];
+    const fromCart =
+      items.length > 0 && editingOrderId === order.id
+        ? items.map((item) => ({ product_name: item.product.name, quantity: item.quantity }))
+        : [];
+    const loaded = fromCart.length ? fromCart : await listMyOrderItems(order.id);
+    if (!loaded) {
+      const msg = 'I could not load the items for this order. Try again in a moment.';
+      pushTurn('sam', msg);
+      speakReply(msg, 'en');
+      return;
+    }
+    const lines = loaded.filter((line) => line.product_name && line.quantity > 0);
     if (lines.length === 0) {
-      const msg = `Order #${formatOrderNumber(open.order_number)} has no items yet.`;
+      const msg = `Order #${formatOrderNumber(order.order_number)} has no items yet.`;
       pushTurn('sam', msg);
       speakReply(msg, 'en');
       return;
     }
     const listed = lines.map((line) => `${line.product_name} ${line.quantity}`).join(', ');
-    const msg = `Order #${formatOrderNumber(open.order_number)} has ${listed}.`;
+    const msg = `Order #${formatOrderNumber(order.order_number)} has ${listed}.`;
     pushTurn('sam', msg);
     speakReply(msg, 'en');
-  }, [pushTurn, resolveOpen, speakReply]);
+  }, [editingOrderId, items, openOrder, pushTurn, selectedAddress, speakReply, trackableOrder]);
 
   const placeFromChat = useCallback(async () => {
     if (!editingOrderId) {
@@ -571,7 +664,7 @@ export default function SamScreen() {
       }
     }
     if (items.length === 0) {
-      const msg = 'Add an item first, then say Place order.';
+      const msg = 'Add an item first, then tap Place order.';
       pushTurn('sam', msg);
       speakReply(msg, 'en');
       return;
@@ -584,7 +677,7 @@ export default function SamScreen() {
     }
     const selected = selectedAddress ?? getSelectedAddress();
     if (!selected) {
-      const msg = 'Add a delivery address, then say Place order.';
+      const msg = 'Add a delivery address, then tap Place order.';
       pushTurn('sam', msg);
       speakReply(msg, 'en');
       router.push({ pathname: '/address/form', params: { next: 'sam' } });
@@ -592,8 +685,8 @@ export default function SamScreen() {
     }
     setBusy(true);
     setBusyKind(editingOrderId ? 'save' : 'place');
-    Speech.stop();
     try {
+      Speech.stop();
       const result = await submitShopOrder(items, selected, editingOrderId);
       if (!result.ok) {
         if (result.reason === 'auth') {
@@ -607,21 +700,28 @@ export default function SamScreen() {
         speakReply(result.message, 'en');
         return;
       }
-      if (editingOrderId) {
-        markOrderSaved(items);
-      } else {
-        clearCart();
-        setPickNewAddress(false);
-      }
-      const line = formatSavedAddressLine(selected);
-      const msg = editingOrderId
-        ? `Updated order #${result.order.order_number}. Delivering to ${line}. Total ${formatPrice(result.order.total_amount)}.`
-        : `Placed order #${result.order.order_number}. Delivering to ${line}. Total ${formatPrice(result.order.total_amount)}.`;
-      pushTurn('sam', msg, {
-        modifyOrderId: result.order.id,
-        cancelOrderId: result.order.id,
-        orderStatus: result.order.status,
+      const wasEditing = Boolean(editingOrderId);
+      clearCart();
+      setPickNewAddress(false);
+      speakReply(
+        wasEditing
+          ? `Order ${result.order.order_number} updated.`
+          : `Order ${result.order.order_number} placed.`,
+        'en',
+      );
+      router.replace({
+        pathname: '/confirmation',
+        params: {
+          id: result.order.id,
+          orderNumber: String(result.order.order_number ?? ''),
+          status: result.order.status,
+          total: String(result.order.total_amount),
+          fresh: wasEditing ? 'updated' : 'placed',
+        },
       });
+    } catch (placeError) {
+      const msg = placeError instanceof Error ? placeError.message : 'Could not place the order.';
+      pushTurn('sam', msg);
       speakReply(msg, 'en');
     } finally {
       setBusy(false);
@@ -636,6 +736,7 @@ export default function SamScreen() {
     markOrderSaved,
     offerPlaceNewChoice,
     pushTurn,
+    refreshAddresses,
     router,
     selectedAddress,
     speakReply,
@@ -653,6 +754,7 @@ export default function SamScreen() {
         isWhatsInMyOrder(text) ||
         isModifyOrder(text) ||
         isPlaceNewOrder(text) ||
+        isNewAddress(text) ||
         isPlaceOrConfirm(text) ||
         isConfirmCancelUtterance(text);
       if (busy && (busyKind === 'place' || busyKind === 'save' || busyKind === 'cancel')) {
@@ -684,6 +786,13 @@ export default function SamScreen() {
           return;
         }
         pendingCancelId.current = null;
+        const key = utteranceKey(text);
+        if (/^(no|nope|keep|keep (it|order|my order)|dont cancel|do not cancel|vendam|venam|illa)$/.test(key)) {
+          const kept = 'Okay, your order is not cancelled. It stays as it is.';
+          pushTurn('sam', kept);
+          speakReply(kept, 'en');
+          return;
+        }
       }
       if (isFillerUtterance(text)) {
         const hint = 'Say a product name, or say Show products.';
@@ -696,41 +805,54 @@ export default function SamScreen() {
         return;
       }
       if (isWhatsInMyOrder(text)) {
-        await tellWhatsInOrder();
-        return;
-      }
-      if (isPlaceNewOrder(text)) {
-        const open = await resolveOpen();
-        if (open) {
-          offerPlaceNewChoice(open);
-          return;
+        try {
+          await tellWhatsInOrder();
+        } catch {
+          const msg = 'I could not load what is in this order. Try again.';
+          pushTurn('sam', msg);
+          speakReply(msg, 'en');
         }
-        await placeFromChat();
         return;
       }
-      if (isNewAddress(text)) {
-        startNewAddressOrder();
+      if (isPlaceNewOrder(text) || isNewAddress(text)) {
+        beginNewOrderPick('Where should we deliver your new order?');
         return;
       }
       if (isPlaceOrConfirm(text)) {
         await placeFromChat();
         return;
       }
-      if (isModifyOrder(text)) {
+      let allowShop = canShopNewOrder;
+      if (isModifyOrder(text) || (mentionsExistingOrder(text) && looksLikeAddOrder(text))) {
         const selected = selectedAddress ?? getSelectedAddress();
-        const open = await findOpenOrderForAddress({
+        const details = {
           addressId: selected?.id,
           address: selected ? formatAddressForOrder(selected) : undefined,
           pincode: selected?.pincode,
-        });
-        if (!open) {
-          const msg = 'There is no open order for this address.';
-          pushTurn('sam', msg);
-          speakReply(msg, 'en');
-          return;
+        };
+        const open = await findOpenOrderForAddress(details);
+        if (canModifyExistingOrder(open) && open) {
+          await startModify(open.id);
+          allowShop = true;
+          if (isModifyOrder(text) && !looksLikeAddOrder(text)) {
+            return;
+          }
+        } else {
+          const latest = await findLatestOrderForAddress(details);
+          if (latest?.status === 'out_for_delivery') {
+            const msg = lockedOrderMessage(latest);
+            pushTurn('sam', msg);
+            speakReply(msg, 'en');
+            beginNewOrderPick('Choose a delivery address for your new order.');
+            return;
+          }
+          if (isModifyOrder(text)) {
+            const msg = 'There is no open order to change for this address.';
+            pushTurn('sam', msg);
+            speakReply(msg, 'en');
+            return;
+          }
         }
-        await startModify(open.id);
-        return;
       }
       if (isCancelOrder(text)) {
         const open = await resolveOpen();
@@ -771,6 +893,10 @@ export default function SamScreen() {
       if (matched !== null) {
         const availableHits = matched.filter((product) => product.available !== false);
         const wantsAdd = looksLikeAddOrder(text);
+        if (wantsAdd && !allowShop) {
+          beginNewOrderPick('Choose a delivery address for your new order.');
+          return;
+        }
         if (wantsAdd && availableHits.length === 1 && !/\d/.test(text)) {
           addFromCatalog(availableHits[0]);
           return;
@@ -786,6 +912,10 @@ export default function SamScreen() {
           speakReply(reply, 'en');
           return;
         }
+      }
+      if (!allowShop && looksLikeAddOrder(text)) {
+        beginNewOrderPick('Choose a delivery address for your new order.');
+        return;
       }
       setBusy(true);
       setBusyKind('think');
@@ -804,7 +934,9 @@ export default function SamScreen() {
           setCatalog(fresh);
         }
         const nextCart = cartFromDraft(result.draft.items, fresh);
-        replaceItems(nextCart);
+        if (allowShop || editingOpen) {
+          replaceItems(nextCart);
+        }
         pushTurn('sam', result.reply);
         speakReply(result.reply, result.language);
       } catch (turnError) {
@@ -823,6 +955,8 @@ export default function SamScreen() {
       busy,
       busyKind,
       cancelOpenOrder,
+      beginNewOrderPick,
+      canShopNewOrder,
       catalog,
       items,
       turns,
@@ -835,14 +969,13 @@ export default function SamScreen() {
       selectedAddress,
       speakReply,
       startModify,
-      startNewAddressOrder,
       tellWhatsInOrder,
       tellWhereIsOrder,
     ],
   );
 
   const { listening, denied, error, start, stop } = useSamSpeech(
-    micArmed && !busy && !ttsHold,
+    micArmed && !busy && !ttsHold && !pickNewAddress,
     handleUtterance,
   );
 
@@ -869,6 +1002,33 @@ export default function SamScreen() {
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [turns, busy]);
+
+  useEffect(() => {
+    if (!pickNewAddress) {
+      return;
+    }
+    let active = true;
+    setAddressRowsLoading(true);
+    newOrderEligibilityForAddresses(addresses)
+      .then((rows) => {
+        if (active) {
+          setAddressRows(rows);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAddressRows(addresses.map((address) => ({ address, blockingOrder: null })));
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setAddressRowsLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [addresses, pickNewAddress]);
 
   useFocusEffect(
     useCallback(() => {
@@ -899,7 +1059,23 @@ export default function SamScreen() {
     }
   }, [listening]);
 
+  useEffect(() => {
+    if (!pickNewAddress) {
+      return;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setPickNewAddress(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [pickNewAddress]);
+
   function onClose() {
+    if (pickNewAddress) {
+      Speech.stop();
+      setPickNewAddress(false);
+      return;
+    }
     Speech.stop();
     stop();
     setMicArmed(false);
@@ -968,10 +1144,19 @@ export default function SamScreen() {
   }
 
   const canUpdate = !editingOpen || hasOrderChanges;
-  const orderCta = editingOpen ? 'Update' : 'Place';
+  const orderCta = editingOpen ? 'Update' : 'Place order';
   const trackingOrder = turns.some((turn) => Boolean(turn.orderStatus));
-  const headerTitle = trackingOrder ? 'Order Status' : 'Sam';
+  const headerTitle = trackingOrder ? 'Order Status' : '';
   const showStatusFollowups = trackingOrder && !busy && !catalogTurn;
+  const activeTrack = openOrder ?? trackableOrder;
+  const orderChips = activeTrack
+    ? OPEN_ORDER_CHIPS.filter((chip) => {
+        if (chip.id === 'modify') {
+          return isOpenOrderStatus(activeTrack.status) && !editingOpen;
+        }
+        return chip.id !== 'cancel' || isOpenOrderStatus(activeTrack.status);
+      })
+    : ASK_CHIPS;
 
   const statusLabel = busy
     ? busyKind === 'place'
@@ -989,6 +1174,41 @@ export default function SamScreen() {
         ? 'Responding...'
         : null;
 
+  if (pickNewAddress) {
+    return (
+      <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
+          <Pressable
+            onPress={onClose}
+            style={styles.back}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            New order
+          </Text>
+          <View style={styles.headerAction} />
+        </View>
+        <NewOrderAddressPicker
+          rows={addressRows.length ? addressRows : addresses.map((address) => ({ address, blockingOrder: null }))}
+          loading={addressRowsLoading}
+          onSelect={(address) => {
+            chooseNewOrderAddress(address).catch(() => undefined);
+          }}
+          onModify={(order) => {
+            setPickNewAddress(false);
+            startModify(order.id).catch(() => undefined);
+          }}
+          onViewOrder={(order) => router.push({ pathname: '/confirmation', params: { id: order.id } })}
+          onAdd={() => router.push({ pathname: '/address/form', params: { next: 'sam' } })}
+          onManage={() => router.push('/checkout')}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.screen, { paddingBottom: keyboardHeight }]}>
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
@@ -1003,14 +1223,7 @@ export default function SamScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {headerTitle}
         </Text>
-        <Pressable
-          onPress={() => router.push('/account')}
-          style={styles.headerAction}
-          accessibilityRole="button"
-          accessibilityLabel="Settings"
-        >
-          <Ionicons name="settings-outline" size={22} color={colors.text} />
-        </Pressable>
+        <View style={styles.headerAction} />
       </View>
       {editingOpen && openOrder ? (
         <View style={styles.editBanner} accessibilityRole="header">
@@ -1031,18 +1244,18 @@ export default function SamScreen() {
           <View style={[styles.landing, typingOpen && styles.landingCompact]}>
             {statusLabel ? <Text style={styles.status}>{statusLabel}</Text> : null}
             <Text style={styles.hello}>Hi, I'm Sam 👋</Text>
-            {openOrder ? (
+            {activeTrack ? (
               <Text style={styles.support}>
-                Order #{formatOrderNumber(openOrder.order_number)} is {formatOrderStatus(openOrder.status)}
+                Order #{formatOrderNumber(activeTrack.order_number)} is {formatOrderStatus(activeTrack.status)}
               </Text>
             ) : (
               <Text style={styles.question}>What are you looking for today?</Text>
             )}
             {typingOpen ? null : (
               <>
-                {openOrder ? null : <Text style={styles.support}>Speak or type — I'm here to help.</Text>}
+                {activeTrack ? null : <Text style={styles.support}>Speak or type — I'm here to help.</Text>}
                 <View style={styles.chips}>
-                  {(openOrder ? OPEN_ORDER_CHIPS : ASK_CHIPS).map((chip) => (
+                  {(activeTrack ? orderChips : ASK_CHIPS).map((chip) => (
                     <Pressable
                       key={chip.id}
                       onPress={() => {
@@ -1092,37 +1305,24 @@ export default function SamScreen() {
                         <OrderProgress status={turn.orderStatus} />
                       </View>
                     ) : null}
-                    {turn.modifyOrderId || turn.cancelOrderId ? (
+                    {turn.cancelOrderId ? (
                       <View style={styles.turnActions}>
-                        {turn.modifyOrderId && turn.modifyOrderId !== editingOrderId ? (
-                          <Pressable
-                            onPress={() => startModify(turn.modifyOrderId as string).catch(() => undefined)}
-                            disabled={busy}
-                            style={({ pressed }) => [styles.turnAction, pressed && styles.pressed]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Modify order"
-                          >
-                            <Text style={styles.turnActionLabel}>Modify</Text>
-                          </Pressable>
-                        ) : null}
-                        {turn.cancelOrderId ? (
-                          <Pressable
-                            onPress={() =>
-                              requestCancelOrder(
-                                turn.cancelOrderId as string,
-                                openOrder && openOrder.id === turn.cancelOrderId
-                                  ? openOrder.order_number
-                                  : undefined,
-                              ).catch(() => undefined)
-                            }
-                            disabled={busy}
-                            style={({ pressed }) => [styles.turnActionGhost, pressed && styles.pressed]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Cancel order"
-                          >
-                            <Text style={styles.turnActionGhostLabel}>Cancel order</Text>
-                          </Pressable>
-                        ) : null}
+                        <Pressable
+                          onPress={() =>
+                            requestCancelOrder(
+                              turn.cancelOrderId as string,
+                              openOrder && openOrder.id === turn.cancelOrderId
+                                ? openOrder.order_number
+                                : undefined,
+                            ).catch(() => undefined)
+                          }
+                          disabled={busy}
+                          style={({ pressed }) => [styles.turnActionGhost, pressed && styles.pressed]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Cancel order"
+                        >
+                          <Text style={styles.turnActionGhostLabel}>Cancel order</Text>
+                        </Pressable>
                       </View>
                     ) : null}
                     {turn.choices?.length ? (
@@ -1161,12 +1361,7 @@ export default function SamScreen() {
               <View style={styles.hintBlock}>
                 <Text style={styles.hintLabel}>Try saying</Text>
                 <View style={styles.chips}>
-                  {(trackingOrder
-                    ? ORDER_STATUS_FOLLOWUPS
-                    : openOrder && !editingOpen
-                      ? OPEN_ORDER_CHIPS
-                      : ASK_CHIPS.filter((chip) => chip.prompt)
-                  ).map((chip) => (
+                  {orderChips.filter((chip) => chip.prompt).map((chip) => (
                     <Pressable
                       key={chip.id}
                       onPress={() => handleUtterance(chip.prompt as string).catch(() => undefined)}
@@ -1179,39 +1374,6 @@ export default function SamScreen() {
                     </Pressable>
                   ))}
                 </View>
-              </View>
-            ) : null}
-            {pickNewAddress ? (
-              <View style={styles.addressCard}>
-                <Text style={styles.addressKicker}>Place a new order at</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addrChips}>
-                  {addresses.map((row) => (
-                    <Pressable
-                      key={row.id}
-                      onPress={() => pickAddress(row.id)}
-                      style={[styles.addrChip, selectedAddress?.id === row.id && styles.addrChipOn]}
-                    >
-                      <Text
-                        style={[
-                          styles.addrChipLabel,
-                          selectedAddress?.id === row.id && styles.addrChipLabelOn,
-                        ]}
-                      >
-                        {formatSavedAddressLabel(row.label)}
-                      </Text>
-                    </Pressable>
-                  ))}
-                  {addresses.length < MAX_SAVED_ADDRESSES ? (
-                    <Pressable
-                      onPress={() => router.push({ pathname: '/address/form', params: { next: 'sam' } })}
-                      style={styles.addrChip}
-                      accessibilityRole="button"
-                      accessibilityLabel="Add address"
-                    >
-                      <Text style={styles.addrChipLabel}>+ Address</Text>
-                    </Pressable>
-                  ) : null}
-                </ScrollView>
               </View>
             ) : null}
             {items.length > 0 && (editingOpen || !openOrder) ? (
@@ -1312,7 +1474,7 @@ export default function SamScreen() {
                       ? canUpdate
                         ? 'Tap Update to save your changes.'
                         : 'Change an item to enable Update.'
-                      : 'Say Place order or Confirm when you are ready.'}
+                      : 'Tap Place order when you are ready.'}
                   </Text>
                 </View>
               </View>
@@ -1326,6 +1488,14 @@ export default function SamScreen() {
       ) : null}
 
       <View style={[styles.dock, { paddingBottom: dockPad }]}>
+        {notice ? (
+          <View style={styles.noticeWrap} pointerEvents="none">
+            <View style={styles.notice} accessibilityLiveRegion="polite">
+              <Ionicons name="checkmark-circle" size={16} color={colors.primaryText} />
+              <Text style={styles.noticeText}>{notice}</Text>
+            </View>
+          </View>
+        ) : null}
         {itemCount > 0 && (editingOpen || !openOrder) ? (
           <View style={styles.actionRow}>
             <Pressable
@@ -1340,7 +1510,19 @@ export default function SamScreen() {
               accessibilityState={{ disabled: busy || !canUpdate }}
               accessibilityLabel={orderCta}
             >
-              <Text style={styles.checkoutTitle}>{orderCta}</Text>
+              {busyKind === 'place' || busyKind === 'save' ? (
+                <ActivityIndicator color={colors.primaryText} size="small" />
+              ) : (
+                <Ionicons
+                  name={editingOpen ? 'checkmark-circle' : 'bag-check'}
+                  size={18}
+                  color={colors.primaryText}
+                />
+              )}
+              <Text style={styles.checkoutTitle}>
+                {busyKind === 'place' ? 'Placing…' : busyKind === 'save' ? 'Saving…' : orderCta}
+              </Text>
+              <Text style={styles.checkoutTotal}>{formatPrice(totalAmount)}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -1581,12 +1763,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    minHeight: 42,
-    paddingHorizontal: 14,
+    minHeight: 44,
+    paddingHorizontal: 16,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.primarySoft,
     shadowColor: '#18181B',
     shadowOpacity: 0.04,
     shadowRadius: 6,
@@ -1780,17 +1962,30 @@ const styles = StyleSheet.create({
     maxHeight: 120,
   },
   checkoutBar: {
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: radius.pill,
+    flex: 1,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
     backgroundColor: colors.primary,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    shadowColor: '#0F766E',
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   checkoutTitle: {
+    flex: 1,
     color: colors.primaryText,
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  checkoutTotal: {
+    color: colors.primaryText,
+    fontSize: 16,
     fontWeight: '800',
   },
   micHint: {
@@ -1888,6 +2083,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     backgroundColor: colors.background,
+  },
+  noticeWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: '100%',
+    alignItems: 'center',
+    paddingBottom: spacing.xs,
+    zIndex: 10,
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(24, 24, 27, 0.88)',
+  },
+  noticeText: {
+    color: colors.primaryText,
+    fontSize: 13,
+    fontWeight: '700',
   },
   composer: {
     flexDirection: 'row',

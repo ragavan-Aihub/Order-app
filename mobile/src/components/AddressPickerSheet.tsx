@@ -15,14 +15,14 @@ import {
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { getSignedInUser } from '@/services/supabase';
 import type { AddressLabel } from '@/utils/address';
 
-const LABEL_ICONS: Record<AddressLabel, keyof typeof Ionicons.glyphMap> = {
-  home: 'home-outline',
-  work: 'briefcase-outline',
-  other: 'location-outline',
+export const LABEL_ICONS: Record<AddressLabel, keyof typeof Ionicons.glyphMap> = {
+  home: 'home',
+  work: 'briefcase',
+  other: 'location',
 };
 
 export function savedAddressLabel(label?: AddressLabel) {
@@ -36,9 +36,11 @@ export function savedAddressLine(item: SavedAddress) {
 export function AddressPickerSheet({
   visible,
   onClose,
+  returnTo = 'cart',
 }: {
   visible: boolean;
   onClose: () => void;
+  returnTo?: 'cart' | 'home';
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -73,10 +75,15 @@ export function AddressPickerSheet({
     onClose();
     const user = await getSignedInUser();
     if (!user) {
-      router.push({ pathname: '/login', params: { next: 'cart' } });
+      router.push({ pathname: '/login', params: { next: returnTo === 'home' ? 'checkout' : 'cart' } });
       return;
     }
-    router.push({ pathname: '/address/form', params: { next: 'cart' } });
+    router.push({ pathname: '/address/form', params: { next: returnTo } });
+  }
+
+  function onManage() {
+    onClose();
+    router.push('/checkout');
   }
 
   return (
@@ -84,29 +91,28 @@ export function AddressPickerSheet({
       <View style={styles.overlay}>
         <Pressable style={styles.dismiss} onPress={onClose} accessibilityLabel="Close address picker" />
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+          <View style={styles.grabber} />
           <View style={styles.header}>
-            <Text style={styles.title}>Select Address</Text>
+            <View>
+              <Text style={styles.title}>Deliver to</Text>
+              <Text style={styles.subtitle}>Choose a saved address or add a new one</Text>
+            </View>
             <Pressable
               onPress={onClose}
               style={styles.close}
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <Ionicons name="close" size={22} color={colors.text} />
+              <Ionicons name="close" size={20} color={colors.text} />
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.body}>
-            {addresses.length < MAX_SAVED_ADDRESSES ? (
-              <Pressable style={styles.addNew} onPress={onAddNew} accessibilityRole="button">
-                <Text style={styles.addNewLabel}>+ Add New Address</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-              </Pressable>
-            ) : (
-              <Text style={styles.limit}>Maximum 3 addresses. Delete one to add another.</Text>
-            )}
-            <Text style={styles.kicker}>Saved Addresses</Text>
             {addresses.length === 0 ? (
-              <Text style={styles.empty}>No saved address yet. Add one to continue.</Text>
+              <View style={styles.emptyCard}>
+                <Ionicons name="location-outline" size={28} color={colors.primary} />
+                <Text style={styles.emptyTitle}>No saved address yet</Text>
+                <Text style={styles.empty}>Add one to start ordering.</Text>
+              </View>
             ) : (
               addresses.map((item) => {
                 const selected = item.id === selectedId;
@@ -115,26 +121,58 @@ export function AddressPickerSheet({
                   <Pressable
                     key={item.id}
                     onPress={() => onSelect(item.id)}
-                    style={[styles.card, selected && styles.cardOn]}
+                    style={({ pressed }) => [styles.card, selected && styles.cardOn, pressed && styles.pressed]}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                   >
-                    <View style={styles.iconWrap}>
-                      <Ionicons name={LABEL_ICONS[label]} size={22} color={colors.primaryDark} />
+                    <View style={[styles.iconWrap, selected && styles.iconWrapOn]}>
+                      <Ionicons
+                        name={LABEL_ICONS[label]}
+                        size={20}
+                        color={selected ? colors.primaryText : colors.primaryDark}
+                      />
                     </View>
                     <View style={styles.cardBody}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.cardName}>{savedAddressLabel(label)}</Text>
-                        {selected ? <Text style={styles.badge}>Selected</Text> : null}
-                      </View>
-                      <Text style={styles.cardLine} numberOfLines={3}>
+                      <Text style={styles.cardName}>{savedAddressLabel(label)}</Text>
+                      <Text style={styles.cardLine} numberOfLines={2}>
                         {savedAddressLine(item)}
                       </Text>
+                      {item.name ? (
+                        <Text style={styles.cardMeta} numberOfLines={1}>
+                          {item.name}
+                          {item.mobile ? ` · ${item.mobile}` : ''}
+                        </Text>
+                      ) : null}
                     </View>
+                    <Ionicons
+                      name={selected ? 'radio-button-on' : 'radio-button-off'}
+                      size={22}
+                      color={selected ? colors.primary : colors.border}
+                    />
                   </Pressable>
                 );
               })
             )}
+
+            {addresses.length < MAX_SAVED_ADDRESSES ? (
+              <Pressable
+                style={({ pressed }) => [styles.addNew, pressed && styles.pressed]}
+                onPress={onAddNew}
+                accessibilityRole="button"
+              >
+                <Ionicons name="add-circle" size={22} color={colors.primary} />
+                <Text style={styles.addNewLabel}>Add new address</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.limit}>You can save up to 3 addresses. Delete one to add another.</Text>
+            )}
+
+            {addresses.length > 0 ? (
+              <Pressable onPress={onManage} style={styles.manage} accessibilityRole="button">
+                <Text style={styles.manageLabel}>Manage saved addresses</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+              </Pressable>
+            ) : null}
           </ScrollView>
         </View>
       </View>
@@ -157,110 +195,143 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
   },
+  grabber: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginTop: spacing.xs,
+  },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   title: {
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
     color: colors.text,
   },
+  subtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
   close: {
-    minWidth: 44,
-    minHeight: 44,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   body: {
     padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  addNew: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  addNewLabel: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  limit: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  kicker: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  empty: {
-    fontSize: 15,
-    color: colors.textMuted,
+    gap: spacing.sm,
+    paddingBottom: spacing.lg,
   },
   card: {
     flexDirection: 'row',
     gap: spacing.sm,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     borderRadius: radius.md,
-    padding: spacing.md,
+    padding: spacing.sm,
+    ...shadow.sm,
   },
   cardOn: {
     borderColor: colors.primary,
   },
   iconWrap: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: colors.background,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconWrapOn: {
+    backgroundColor: colors.primary,
+  },
   cardBody: {
     flex: 1,
-    gap: 6,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexWrap: 'wrap',
+    minWidth: 0,
+    gap: 2,
   },
   cardName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  cardLine: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  addNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 52,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+  },
+  addNewLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  manage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    minHeight: 44,
+  },
+  manageLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  limit: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  emptyCard: {
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+  },
+  emptyTitle: {
+    marginTop: 4,
     fontSize: 16,
     fontWeight: '800',
     color: colors.text,
   },
-  badge: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.success,
-    backgroundColor: '#DCFCE7',
-    overflow: 'hidden',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  cardLine: {
+  empty: {
     fontSize: 14,
-    lineHeight: 20,
     color: colors.textMuted,
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });

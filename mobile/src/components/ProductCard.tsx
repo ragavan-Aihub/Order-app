@@ -64,12 +64,19 @@ export function ProductCard({
       <View style={[styles.footer, compact && styles.footerCompact]}>
         <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
         {comingSoon ? null : quantity > 0 ? (
-          <QuantityStepper compact value={quantity} onDecrease={onDecrease} onIncrease={onIncrease} />
+          <QuantityStepper
+            compact
+            stretch={compact}
+            value={quantity}
+            onDecrease={onDecrease}
+            onIncrease={onIncrease}
+          />
         ) : (
           <Pressable
             onPress={onAddToCart}
             style={[styles.addButton, compact && styles.addButtonCompact]}
             accessibilityRole="button"
+            accessibilityLabel={`Add ${product.name}`}
           >
             <Text style={[styles.addLabel, compact && styles.addLabelCompact]}>Add</Text>
           </Pressable>
@@ -84,27 +91,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
     elevation: 2,
     shadowColor: '#1C1917',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
   image: {
     width: '100%',
     height: 112,
-    backgroundColor: colors.border,
+    backgroundColor: colors.background,
   },
   imageCompact: {
-    height: 78,
+    height: 84,
   },
   dimmed: {
     opacity: 0.4,
   },
   soonWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
@@ -129,11 +134,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   nameCompact: {
-    fontSize: 11,
-    lineHeight: 14,
-    minHeight: 28,
-    paddingHorizontal: 6,
-    paddingTop: 4,
+    fontSize: 12.5,
+    lineHeight: 16,
+    minHeight: 38,
+    paddingHorizontal: 8,
+    paddingTop: 6,
   },
   dimmedText: {
     color: colors.textMuted,
@@ -150,42 +155,43 @@ const styles = StyleSheet.create({
   footerCompact: {
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingBottom: 6,
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
   price: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primaryDark,
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
   },
   priceCompact: {
     flex: 0,
-    fontSize: 12,
+    fontSize: 14,
   },
   addButton: {
     minWidth: 56,
     minHeight: 32,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
     borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonCompact: {
     minWidth: 0,
-    minHeight: 28,
+    minHeight: 30,
     paddingHorizontal: 0,
   },
   addLabel: {
-    color: colors.primary,
+    color: colors.primaryDark,
     fontSize: 13,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
   addLabelCompact: {
-    fontSize: 12,
+    fontSize: 13,
   },
 });

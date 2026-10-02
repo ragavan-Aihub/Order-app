@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -59,6 +60,11 @@ export function SamOrderLine({
   const line = unit * quantity;
   return (
     <View style={styles.orderRow}>
+      <Image
+        source={product.image_url ? { uri: product.image_url } : undefined}
+        style={styles.thumb}
+        contentFit="cover"
+      />
       <View style={styles.meta}>
         <Text style={styles.name} numberOfLines={1}>
           {product.name}
@@ -99,6 +105,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 10,
     minHeight: 52,
+  },
+  thumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.background,
   },
   meta: {
     flex: 1,

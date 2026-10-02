@@ -45,8 +45,9 @@ export async function fetchRemoteAddresses(): Promise<{ list: SavedAddress[]; de
   }
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) {
     return null;
   }

@@ -7,24 +7,21 @@ export type SamCommand = {
 export const SAM_COMMANDS: SamCommand[] = [
   { id: 'confirm', label: 'Confirm', prompt: 'Confirm' },
   { id: 'place', label: 'Place order', prompt: 'Place order' },
-  { id: 'show', label: 'Show products', prompt: 'Show products' },
-  { id: 'have', label: 'What do you have?', prompt: 'What products do you have?' },
+  { id: 'show', label: 'Browse products', prompt: 'Show products' },
   { id: 'where', label: 'Where is my order?', prompt: 'Where is my order?' },
   { id: 'contents', label: "What's in my order?", prompt: "What's in my order?" },
-  { id: 'modify', label: 'Modify this order', prompt: 'Modify this order' },
-  { id: 'cancel', label: 'Cancel this order', prompt: 'Cancel this order' },
-  { id: 'new', label: 'Place a new order', prompt: 'Place a new order' },
+  { id: 'new', label: 'Start another order', prompt: 'Start another order' },
 ];
 
 export const OPEN_ORDER_CHIPS: SamCommand[] = [
   { id: 'where', label: 'Where is my order?', prompt: 'Where is my order?' },
   { id: 'contents', label: "What's in my order?", prompt: "What's in my order?" },
-  { id: 'modify', label: 'Modify this order', prompt: 'Modify this order' },
+  { id: 'modify', label: 'Modify order', prompt: 'Modify order' },
   { id: 'cancel', label: 'Cancel this order', prompt: 'Cancel this order' },
-  { id: 'new', label: 'Place a new order', prompt: 'Place a new order' },
+  { id: 'new', label: 'Start another order', prompt: 'Start another order' },
 ];
 
-export const ORDER_STATUS_FOLLOWUPS: SamCommand[] = OPEN_ORDER_CHIPS.filter((chip) => chip.id !== 'where');
+export const ORDER_STATUS_FOLLOWUPS: SamCommand[] = OPEN_ORDER_CHIPS;
 
 export const PLACE_NEW_CHOICES: SamCommand[] = [
   { id: 'new-address', label: 'New address', prompt: 'New address' },
@@ -35,6 +32,7 @@ export function utteranceKey(raw: string) {
   return raw
     .trim()
     .toLowerCase()
+    .replace(/['’]/g, '')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -47,6 +45,7 @@ const CONFIRM = new Set([
   'place the order',
   'yes place order',
   'place order',
+  'place',
   'update',
   'update order',
   'update the order',
@@ -81,7 +80,12 @@ export function isModifyOrder(transcript: string) {
     t === 'modify existing order' ||
     t === 'change the existing order' ||
     t === 'change existing order' ||
-    t === 'edit this order'
+    t === 'edit this order' ||
+    t === 'i want to change my order' ||
+    t === 'change my order' ||
+    t === 'remove one item' ||
+    t === 'remove an item' ||
+    t === 'remove item'
   );
 }
 
@@ -104,17 +108,32 @@ export function isWhereIsMyOrder(transcript: string) {
 export function isWhatsInMyOrder(transcript: string) {
   const t = utteranceKey(transcript);
   return (
-    t === 'whats in my order' ||
-    t === 'what is in my order' ||
+    t.includes('whats in my order') ||
+    t.includes('what is in my order') ||
+    t.includes('what s in my order') ||
+    t.includes('whats in the order') ||
     t === 'show my items' ||
     t === 'show my order' ||
-    t === 'what is in the order'
+    t === 'what is in the order' ||
+    /\bwhats in\b/.test(t)
   );
 }
 
 export function isPlaceNewOrder(transcript: string) {
   const t = utteranceKey(transcript);
-  return t === 'place a new order' || t === 'new order' || t === 'place new order';
+  return (
+    t === 'place a new order' ||
+    t === 'new order' ||
+    t === 'place new order' ||
+    t === 'start another order' ||
+    t === 'start a new order' ||
+    t === 'another order'
+  );
+}
+
+export function mentionsExistingOrder(transcript: string) {
+  const t = utteranceKey(transcript);
+  return /\b(my order|this order|the order)\b/.test(t);
 }
 
 export function isNewAddress(transcript: string) {
