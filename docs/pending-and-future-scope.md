@@ -63,12 +63,11 @@ Last updated: 3 Oct 2026.
 - **Question:** On the customer "Start another order" screen, should an address whose order is out for delivery keep the "Deliver a new order here" link? Today it does, because the database only blocks a second order while the first is Placed or Confirmed.
 - **Files:** `mobile/src/sam/NewOrderAddressPicker.tsx`
 
-### Payment extras (decision needed)
+### Mark a payment as unpaid (decision needed)
 
 - **Status:** Phase 2 (decision needed, changes business rules)
-- **Mark as unpaid:** a More menu item to undo a payment saved by mistake. The server currently refuses to set payment back to pending (`updateOrderPayment` in `admin/services/order-actions.ts`).
-- **Payment on delivery:** when marking an unpaid order delivered, ask "Payment collected? Cash / UPI / Not yet" in the same confirmation.
-- **Files:** `admin/components/OrderPaymentForm.tsx`, `admin/components/OrderWorkflow.tsx`, `admin/services/order-actions.ts`
+- **What:** a More menu item on the payment card to undo a payment saved by mistake. The server currently refuses to set payment back to pending (`updateOrderPayment` in `admin/services/order-actions.ts`).
+- **Files:** `admin/components/OrderPaymentForm.tsx`, `admin/services/order-actions.ts`
 
 ### Next-step actions on the dashboard
 

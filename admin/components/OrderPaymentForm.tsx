@@ -1,6 +1,6 @@
 'use client';
 
-import { Banknote, CheckCircle2, RefreshCw, Smartphone, Undo2 } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Undo2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
@@ -8,6 +8,7 @@ import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
 import { StepTrack } from '@/components/OrderStepper';
+import { PaymentMethodPicker } from '@/components/PaymentMethodPicker';
 import { updateOrderPayment, updateOrderRefund } from '@/services/order-actions';
 import {
   displayPaymentStatus,
@@ -20,38 +21,6 @@ import { formatPrice } from '@/utils/format';
 
 type Collectable = Exclude<PaymentMethod, 'pending'>;
 type Dialog = 'collect' | 'change' | 'refund' | null;
-
-const METHOD_CHOICES: { value: Collectable; label: string; Icon: typeof Banknote }[] = [
-  { value: 'cash', label: 'Cash', Icon: Banknote },
-  { value: 'upi', label: 'UPI', Icon: Smartphone },
-];
-
-function MethodPicker({ value, onChange }: { value: Collectable | null; onChange: (value: Collectable) => void }) {
-  return (
-    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
-      {METHOD_CHOICES.map(({ value: option, label, Icon }) => {
-        const selected = value === option;
-        return (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(option)}
-            className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 text-sm font-semibold ${
-              selected
-                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
-            }`}
-          >
-            <Icon size={20} aria-hidden />
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export function OrderPaymentForm({
   orderId,
@@ -136,7 +105,11 @@ export function OrderPaymentForm({
     ? state === 'not_applicable'
       ? null
       : { steps: ['Paid', 'Refund pending', 'Refunded'], current: state === 'refunded' ? 2 : 1, finished: state === 'refunded' }
-    : { steps: ['Awaiting payment', 'Paid'], current: state === 'paid' ? 1 : 0, finished: state === 'paid' };
+    : {
+        steps: [state === 'outstanding' ? 'Outstanding' : 'Awaiting payment', 'Paid'],
+        current: state === 'paid' ? 1 : 0,
+        finished: state === 'paid',
+      };
 
   const menu =
     state === 'paid' ? (
@@ -164,7 +137,7 @@ export function OrderPaymentForm({
   );
 
   const primary =
-    state === 'pending' ? (
+    state === 'pending' || state === 'outstanding' ? (
       <button
         type="button"
         onClick={openCollect}
@@ -212,6 +185,11 @@ export function OrderPaymentForm({
         </p>
       )}
 
+      {state === 'outstanding' ? (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">
+          Delivered but not paid yet. {price} is outstanding.
+        </p>
+      ) : null}
       {primary ? <div className="flex">{primary}</div> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       <ActionNotice message={notice.message} />
@@ -229,7 +207,7 @@ export function OrderPaymentForm({
           onConfirm={confirmMethod}
           onCancel={closeDialog}
         >
-          <MethodPicker value={choice} onChange={setChoice} />
+          <PaymentMethodPicker value={choice} onChange={setChoice} />
         </ConfirmDialog>
       ) : null}
       {dialog === 'refund' ? (

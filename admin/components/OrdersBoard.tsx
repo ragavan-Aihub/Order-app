@@ -405,6 +405,7 @@ export function OrdersBoard({
                       orderNumber={`#${formatOrderNumber(order.order_number)}`}
                       status={order.status}
                       cancelReason={order.cancel_reason}
+                      paymentMethod={order.payment_method ?? 'pending'}
                       detailsHref={`/orders/${order.id}`}
                     />
                   </div>
@@ -474,6 +475,7 @@ export function OrdersBoard({
                             orderNumber={`#${formatOrderNumber(order.order_number)}`}
                             status={order.status}
                             cancelReason={order.cancel_reason}
+                            paymentMethod={order.payment_method ?? 'pending'}
                             detailsHref={`/orders/${order.id}`}
                           />
                         </td>

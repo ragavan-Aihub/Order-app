@@ -5,12 +5,12 @@ export const REPORT_CHANNELS = [
   { value: 'app', label: 'App' },
   { value: 'admin', label: 'Admin' },
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'phone', label: 'Phone' },
+  { value: 'phone', label: 'Phone / Offline' },
   { value: 'direct', label: 'Direct' },
 ] as const;
 
 export type ReportRangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom';
-export type ReportPaymentFilter = 'all' | 'paid' | 'pending' | 'refunded';
+export type ReportPaymentFilter = 'all' | 'paid' | 'pending' | 'outstanding' | 'refunded';
 
 export type ReportFilters = {
   preset: ReportRangePreset;
@@ -50,7 +50,7 @@ export function parseReportFilters(params: Record<string, string | string[] | un
       : 'all';
   const paymentRaw = first('payment');
   const payment: ReportPaymentFilter =
-    paymentRaw === 'paid' || paymentRaw === 'pending' || paymentRaw === 'refunded'
+    paymentRaw === 'paid' || paymentRaw === 'pending' || paymentRaw === 'outstanding' || paymentRaw === 'refunded'
       ? paymentRaw
       : 'all';
   const methodRaw = first('method');

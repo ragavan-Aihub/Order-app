@@ -6,7 +6,7 @@ export function isSale(order: Order): boolean {
 }
 
 export function isOutstanding(order: Order): boolean {
-  return order.status === 'delivered' && displayPaymentStatus(order) === 'pending';
+  return displayPaymentStatus(order) === 'outstanding';
 }
 
 export function isCollected(order: Order): boolean {

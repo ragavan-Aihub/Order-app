@@ -62,15 +62,13 @@ export const ORDER_CHANNELS: { value: string; label: string }[] = [
   { value: 'app', label: 'App' },
   { value: 'web', label: 'Web' },
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'phone', label: 'Phone' },
+  { value: 'phone', label: 'Phone / Offline' },
   { value: 'direct', label: 'Direct' },
   { value: 'admin', label: 'Admin' },
   { value: 'api', label: 'Partner API' },
 ];
 
-export const MANUAL_ORDER_CHANNELS = ORDER_CHANNELS.filter((item) =>
-  item.value === 'whatsapp' || item.value === 'phone' || item.value === 'direct',
-);
+export const ADMIN_ORDER_CHANNEL = 'phone';
 
 export function orderChannelLabel(channel: string | null | undefined) {
   return ORDER_CHANNELS.find((item) => item.value === channel)?.label ?? channel ?? '—';
@@ -99,10 +97,17 @@ export function isPaymentCollected(method: string | null | undefined): boolean {
   return method === 'cash' || method === 'upi';
 }
 
-export type DisplayPaymentStatus = 'pending' | 'paid' | 'not_applicable' | 'refund_pending' | 'refunded';
+export type DisplayPaymentStatus =
+  | 'pending'
+  | 'outstanding'
+  | 'paid'
+  | 'not_applicable'
+  | 'refund_pending'
+  | 'refunded';
 
 export const DISPLAY_PAYMENT_STATUSES: { value: DisplayPaymentStatus; label: string }[] = [
   { value: 'pending', label: 'Pending' },
+  { value: 'outstanding', label: 'Outstanding' },
   { value: 'paid', label: 'Paid' },
   { value: 'not_applicable', label: 'Not Applicable' },
   { value: 'refund_pending', label: 'Refund pending' },
@@ -121,7 +126,10 @@ export function displayPaymentStatus(order: {
     }
     return order.refund_status === 'refunded' ? 'refunded' : 'refund_pending';
   }
-  return collected ? 'paid' : 'pending';
+  if (collected) {
+    return 'paid';
+  }
+  return order.status === 'delivered' ? 'outstanding' : 'pending';
 }
 
 export function paymentStatusLabel(order: {
@@ -157,6 +165,8 @@ export function paymentStatusBadgeClass(status: DisplayPaymentStatus): string {
   switch (status) {
     case 'paid':
       return 'bg-emerald-100 text-emerald-800';
+    case 'outstanding':
+      return 'bg-red-100 text-red-800';
     case 'refunded':
     case 'refund_pending':
       return 'bg-violet-100 text-violet-800';

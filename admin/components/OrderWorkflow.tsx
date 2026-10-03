@@ -9,8 +9,16 @@ import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
 import { OrderStepper } from '@/components/OrderStepper';
-import { updateOrderStatus } from '@/services/order-actions';
-import { CANCEL_REASON_PRESETS, ORDER_STATUSES, orderStatusLabel, type OrderStatus } from '@/types/order';
+import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
+import { updateOrderPayment, updateOrderStatus } from '@/services/order-actions';
+import {
+  CANCEL_REASON_PRESETS,
+  ORDER_STATUSES,
+  isPaymentCollected,
+  orderStatusLabel,
+  paymentModeLabel,
+  type OrderStatus,
+} from '@/types/order';
 import { canCancel, nextAction, normalizeStatus } from '@/types/order-workflow';
 
 type Variant = 'panel' | 'card' | 'row';
@@ -74,6 +82,7 @@ export function OrderWorkflow({
   orderNumber,
   status,
   cancelReason,
+  paymentMethod,
   detailsHref,
   allowCorrection = false,
   variant = 'panel',
@@ -82,6 +91,7 @@ export function OrderWorkflow({
   orderNumber: string;
   status: OrderStatus | string;
   cancelReason?: string | null;
+  paymentMethod?: string | null;
   detailsHref?: string;
   allowCorrection?: boolean;
   variant?: Variant;
@@ -97,17 +107,20 @@ export function OrderWorkflow({
   const [preset, setPreset] = useState<string>(CANCEL_REASON_PRESETS[0]);
   const [other, setOther] = useState('');
   const [correctTo, setCorrectTo] = useState<OrderStatus>('new');
+  const [payChoice, setPayChoice] = useState<PaymentChoice | null>(null);
 
   const live = pending && pending.from === status ? pending : null;
   const current = live ? live.status : normalizeStatus(status);
   const reason = live ? live.reason : cancelReason ?? null;
   const action = nextAction(current);
+  const askPayment = action?.target === 'delivered' && paymentMethod !== undefined && !isPaymentCollected(paymentMethod);
   const closeDialog = useCallback(() => setDialog(null), []);
 
   async function commit(
     target: OrderStatus,
     options: { mode?: 'normal' | 'correct'; cancelReason?: string | null },
     done: string,
+    collect?: 'cash' | 'upi',
   ) {
     setError(null);
     notice.clear();
@@ -118,22 +131,44 @@ export function OrderWorkflow({
     });
     setBusy(true);
     const result = await updateOrderStatus(orderId, target, options);
-    setBusy(false);
     if (result.error) {
+      setBusy(false);
       setPending(null);
       setError(result.error);
       return;
     }
+    if (collect) {
+      const paid = await updateOrderPayment(orderId, collect);
+      if (paid.error) {
+        setBusy(false);
+        setError(`Order saved, but the payment was not recorded: ${paid.error} Use Collect on the payment card.`);
+        router.refresh();
+        return;
+      }
+    }
+    setBusy(false);
     notice.show(done);
     router.refresh();
   }
 
+  function openAdvance() {
+    setPayChoice(null);
+    setDialog('advance');
+  }
+
   function confirmAdvance() {
-    if (!action) {
+    if (!action || (askPayment && !payChoice)) {
       return;
     }
+    const collect = askPayment && payChoice !== 'later' ? (payChoice as 'cash' | 'upi') : undefined;
+    const base = `Order ${orderNumber} is now ${orderStatusLabel(action.target)}`;
+    const done = collect
+      ? `${base} · paid by ${paymentModeLabel(collect)}`
+      : askPayment
+        ? `${base} · payment outstanding`
+        : base;
     setDialog(null);
-    void commit(action.target, { mode: 'normal' }, `Order ${orderNumber} is now ${orderStatusLabel(action.target)}`);
+    void commit(action.target, { mode: 'normal' }, done, collect);
   }
 
   function confirmCancel() {
@@ -214,7 +249,7 @@ export function OrderWorkflow({
   const primary = action ? (
     <button
       type="button"
-      onClick={() => setDialog('advance')}
+      onClick={openAdvance}
       disabled={busy}
       className={`inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 ${
         variant === 'row'
@@ -257,9 +292,20 @@ export function OrderWorkflow({
               : 'The customer will see this update in the app.'
           }
           confirmLabel={action.confirmLabel}
+          confirmDisabled={askPayment && !payChoice}
           onConfirm={confirmAdvance}
           onCancel={closeDialog}
-        />
+        >
+          {askPayment ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-stone-500">Payment collected?</p>
+              <PaymentMethodPicker value={payChoice} onChange={setPayChoice} allowLater />
+              {payChoice === 'later' ? (
+                <p className="text-xs text-red-700">The order will show as Outstanding until payment is collected.</p>
+              ) : null}
+            </div>
+          ) : null}
+        </ConfirmDialog>
       ) : null}
       {dialog === 'cancel' ? (
         <ConfirmDialog

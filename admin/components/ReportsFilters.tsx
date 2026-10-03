@@ -138,6 +138,7 @@ export function ReportsFilters({
           <option value="all">All</option>
           <option value="paid">Paid</option>
           <option value="pending">Pending</option>
+          <option value="outstanding">Outstanding</option>
           <option value="refunded">Refunded</option>
         </select>
       </label>

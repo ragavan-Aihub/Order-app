@@ -60,7 +60,7 @@ export default async function DashboardPage() {
   }
 
   const data = result.data;
-  const outstandingHref = '/reports?range=30d&status=delivered&payment=pending&focus=outstanding';
+  const outstandingHref = '/reports?range=30d&status=delivered&payment=outstanding&focus=outstanding';
 
   return (
     <div className="space-y-6">

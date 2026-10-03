@@ -7,7 +7,7 @@ import type { CustomerAddress } from '@/services/customers';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import { CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
 import { composeAddressLine, isValidPincode, stateFromPincode } from '@/types/address';
-import { MANUAL_ORDER_CHANNELS, type PaymentMethod } from '@/types/order';
+import { ADMIN_ORDER_CHANNEL, type PaymentMethod } from '@/types/order';
 
 export type ExistingCustomerMatch = {
   id: string;
@@ -441,7 +441,6 @@ export async function createAdminOrder(input: {
   address?: string;
   pincode?: string;
   notes?: string;
-  channel?: string;
   items: Array<{ productId: string; quantity: number }>;
   paymentMethod?: PaymentMethod;
 }): Promise<{ error: string | null; orderId?: string }> {
@@ -546,11 +545,6 @@ export async function createAdminOrder(input: {
   const total = lines.reduce((sum, line) => sum + line.subtotal, 0);
   const paymentMethod: PaymentMethod =
     input.paymentMethod === 'cash' || input.paymentMethod === 'upi' ? input.paymentMethod : 'pending';
-  const channel = MANUAL_ORDER_CHANNELS.find((item) => item.value === input.channel)?.value;
-  if (!channel) {
-    return { error: 'Choose WhatsApp, Phone, or Direct as the order channel.' };
-  }
-
   const seeded = await ctx.supabase.rpc('ensure_order_channels');
   if (seeded.error && seeded.error.code !== 'PGRST202') {
     return { error: seeded.error.message };
@@ -568,7 +562,7 @@ export async function createAdminOrder(input: {
       pincode,
       total_amount: total,
       status: 'new',
-      channel,
+      channel: ADMIN_ORDER_CHANNEL,
       payment_method: paymentMethod,
       ...(communityId ? { community_id: communityId } : {}),
     })
@@ -581,7 +575,7 @@ export async function createAdminOrder(input: {
       if (missingChannel || seeded.error?.code === 'PGRST202') {
         return {
           error:
-            'Phone and Direct are not in the database yet. Open the Supabase SQL editor, paste supabase/migrations/20260923000000_order_channels_sources.sql, run it, then create the order again.',
+            'The Phone order channel is not in the database yet. Open the Supabase SQL editor, paste supabase/migrations/20260923000000_order_channels_sources.sql, run it, then create the order again.',
         };
       }
       return { error: orderError.details ?? orderError.message ?? 'Could not create the order.' };

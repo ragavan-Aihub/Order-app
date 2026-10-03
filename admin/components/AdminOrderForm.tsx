@@ -1,17 +1,17 @@
 'use client';
 
-import { Minus, Plus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { AlertCircle, MapPin, Minus, Plus, Search, Trash2, UserPlus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
+import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
 import { createAdminOrder, createCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
 import { CUSTOMER_SOURCES, customerSourceLabel, normalizeMobile, type CustomerSource } from '@/types/customer';
-import { MANUAL_ORDER_CHANNELS } from '@/types/order';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
@@ -28,6 +28,20 @@ type AdminOrderFormProps = {
 };
 
 const fieldClass = 'min-h-10 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
+const searchClass =
+  'min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-stone-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100';
+const labelClass = 'mb-1.5 block text-xs font-medium text-stone-500';
+const sectionTitle = 'text-[15px] font-semibold text-stone-900';
+const cardClass = 'rounded-xl border bg-white shadow-sm';
+const issueBorder = 'border-red-300 ring-2 ring-red-50';
+
+function MissingNote({ children }: { children: ReactNode }) {
+  return (
+    <p className="flex items-center gap-1.5 text-sm font-medium text-red-700" role="alert">
+      <AlertCircle size={15} aria-hidden /> {children}
+    </p>
+  );
+}
 
 function addressLine(address: CustomerAddress) {
   return composeAddressLine(
@@ -86,12 +100,15 @@ export function AdminOrderForm({
   const [name, setName] = useState(initialPerson?.name ?? '');
   const [mobile, setMobile] = useState(initialPerson?.mobile ?? '');
   const [source, setSource] = useState<CustomerSource>((initialPerson?.source as CustomerSource) || 'whatsapp');
-  const [channel, setChannel] = useState('');
   const [addressId, setAddressId] = useState(initialPreferred?.id ?? '');
   const [ship, setShip] = useState(fromBook(initialPreferred, initialPerson));
   const [productQuery, setProductQuery] = useState('');
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [paymentMethod, setPaymentMethod] = useState<'pending' | 'cash' | 'upi'>('pending');
+  const [payChoice, setPayChoice] = useState<PaymentChoice>('later');
+  const [attempted, setAttempted] = useState(false);
+  const [changingCustomer, setChangingCustomer] = useState(false);
+  const customerSectionRef = useRef<HTMLElement>(null);
+  const productsSectionRef = useRef<HTMLElement>(null);
   const [differentAddress, setDifferentAddress] = useState(false);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +158,14 @@ export function AdminOrderForm({
       subtotal: product.price * (qty[product.id] ?? 0),
     }));
   const total = lines.reduce((sum, line) => sum + line.subtotal, 0);
+  const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const activeAddress = book.find((item) => item.id === activeAddressId) ?? null;
+  const showCustomerSearch = !creatingCustomer && (!selected || changingCustomer);
+  const summaryFor = creatingCustomer
+    ? name.trim() || 'New customer'
+    : selected
+      ? `For ${selected.name || 'customer'}`
+      : 'No customer selected';
 
   const phoneOk = normalizeMobile(mobile).length === 10;
   const nameOk = name.trim().length >= 2;
@@ -153,8 +178,16 @@ export function AdminOrderForm({
   const savedOk = Boolean(selected) && !creatingCustomer && !differentAddress && Boolean(activeAddressId);
   const addressOk = savedOk || structuredOk;
   const customerOk = creatingCustomer ? nameOk && phoneOk : Boolean(selected);
-  const channelOk = MANUAL_ORDER_CHANNELS.some((item) => item.value === channel);
-  const canCreate = customerOk && addressOk && channelOk && lines.length > 0 && !submitting && !duplicate;
+  const customerMissing = !customerOk;
+  const addressMissing = (creatingCustomer || Boolean(selected)) && !addressOk;
+  const productsMissing = lines.length === 0;
+  const customerNote = creatingCustomer
+    ? [!nameOk ? 'Enter the customer name' : null, !phoneOk ? 'Enter a 10-digit phone' : null]
+        .filter(Boolean)
+        .join(' and ')
+    : 'Select or add a customer';
+  const showCustomerIssue = attempted && (customerMissing || addressMissing);
+  const showProductsIssue = attempted && productsMissing;
 
   function applyCustomer(person: CustomerOption) {
     const nextBook = books.filter((item) => item.customer_id === person.id);
@@ -170,6 +203,11 @@ export function AdminOrderForm({
     setAddressId(preferred?.id ?? '');
     setShip(fromBook(preferred, person));
     setDifferentAddress(!preferred);
+  }
+
+  function pickCustomer(person: CustomerOption) {
+    applyCustomer(person);
+    setChangingCustomer(false);
   }
 
   function mergeFoundCustomer(match: {
@@ -326,8 +364,13 @@ export function AdminOrderForm({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (!canCreate) {
-      setError('Select a customer, a delivery address, and at least one product.');
+    if (submitting || duplicate) {
+      return;
+    }
+    if (customerMissing || addressMissing || productsMissing) {
+      setAttempted(true);
+      const first = customerMissing || addressMissing ? customerSectionRef.current : productsSectionRef.current;
+      first?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     setSubmitting(true);
@@ -349,218 +392,271 @@ export function AdminOrderForm({
       landmark: useTypedAddress ? ship.landmark : undefined,
       pincode: useTypedAddress ? ship.pincode : undefined,
       notes,
-      channel,
       items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
-      paymentMethod,
+      paymentMethod: payChoice === 'later' ? 'pending' : payChoice,
     });
     setSubmitting(false);
     if (result.error || !result.orderId) {
       setError(result.error ?? 'Could not create the order.');
       return;
     }
+    setAttempted(false);
     router.push(`/orders/${result.orderId}`);
     router.refresh();
   }
 
   return (
-    <form onSubmit={onSubmit} autoComplete="off" className="relative space-y-4">
+    <form onSubmit={onSubmit} autoComplete="off" className="relative">
       <BrowserAddressDecoy />
-      <section className="rounded-xl border border-stone-200 bg-white p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">Customer & delivery</h2>
-          {creatingCustomer ? (
-            <button
-              type="button"
-              onClick={() => {
-                setCreatingCustomer(false);
-                setDuplicate(null);
-                setIgnoredMobile('');
-                setName('');
-                setMobile('');
-                setShip(emptyAddress());
-              }}
-              className="text-sm font-medium text-stone-600"
-            >
-              Cancel
-            </button>
-          ) : (
-            <button type="button" onClick={startNewCustomer} className="text-sm font-medium text-emerald-800">
-              + New Customer
-            </button>
-          )}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-3">
-            {!creatingCustomer ? (
-            <div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-stone-400" aria-hidden />
-                <NoFillInput
-                  type="search"
-                  value={customerQuery}
-                  onChange={(event) => setCustomerQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') {
-                      return;
-                    }
-                    event.preventDefault();
-                    if (customerMatches.length === 1) {
-                      applyCustomer(customerMatches[0]);
-                    }
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="min-w-0 space-y-5">
+          <section
+            ref={customerSectionRef}
+            className={`${cardClass} scroll-mt-4 p-5 ${showCustomerIssue ? issueBorder : 'border-stone-200'}`}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className={sectionTitle}>{creatingCustomer ? 'New customer' : 'Customer & delivery'}</h2>
+              {creatingCustomer ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatingCustomer(false);
+                    setDuplicate(null);
+                    setIgnoredMobile('');
+                    setName('');
+                    setMobile('');
+                    setShip(emptyAddress());
                   }}
-                  name="q-cust"
-                  placeholder="Search name or phone, or press space to list"
-                  className={`${fieldClass} pl-9`}
-                />
+                  className="text-sm font-medium text-stone-500 hover:text-stone-800"
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChangingCustomer(false);
+                    startNewCustomer();
+                  }}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-emerald-700"
+                >
+                  <UserPlus size={15} aria-hidden /> New customer
+                </button>
+              )}
+            </div>
+
+            {creatingCustomer ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className={labelClass}>Name</span>
+                    <NoFillInput
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      name="cust-nm"
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>Phone</span>
+                    <NoFillInput
+                      value={mobile}
+                      onChange={(event) => {
+                        setIgnoredMobile('');
+                        setMobile(event.target.value.replace(/\D/g, '').slice(0, 10));
+                      }}
+                      inputMode="numeric"
+                      name="cust-ph"
+                      className={`${fieldClass} tabular-nums`}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>Customer source</span>
+                    <select
+                      value={source}
+                      onChange={(event) => setSource(event.target.value as CustomerSource)}
+                      className={fieldClass}
+                    >
+                      {CUSTOMER_SOURCES.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="border-t border-stone-100 pt-4">
+                  <AddressFields compact value={ship} onChange={setShip} showReceiver={false} />
+                </div>
               </div>
-              {customerQuery.length > 0 ? (
-                <ul className="mt-2 max-h-56 overflow-y-auto rounded-md border border-stone-100">
-                  {customerMatches.length === 0 ? (
-                    <li className="px-3 py-2.5 text-sm text-stone-500">No match. Use + New Customer.</li>
-                  ) : (
-                    customerMatches.map((person) => (
-                      <li key={person.id} className="border-b border-stone-100 last:border-b-0">
-                        <button
-                          type="button"
-                          onClick={() => applyCustomer(person)}
-                          className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-stone-50"
+            ) : showCustomerSearch ? (
+              <div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-3 size-4 text-stone-400" aria-hidden />
+                  <NoFillInput
+                    type="search"
+                    value={customerQuery}
+                    onChange={(event) => setCustomerQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') {
+                        return;
+                      }
+                      event.preventDefault();
+                      if (customerMatches.length === 1) {
+                        pickCustomer(customerMatches[0]);
+                      }
+                    }}
+                    name="q-cust"
+                    placeholder="Search name or phone, or press space to list"
+                    className={`${searchClass} pl-9`}
+                  />
+                </div>
+                {customerQuery.length > 0 ? (
+                  <ul className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-sm">
+                    {customerMatches.length === 0 ? (
+                      <li className="px-3 py-2.5 text-sm text-stone-500">No match. Use New customer.</li>
+                    ) : (
+                      customerMatches.map((person) => (
+                        <li key={person.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickCustomer(person)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-stone-50"
+                          >
+                            <span className="truncate font-medium text-stone-900">{person.name || 'Customer'}</span>
+                            <span className="shrink-0 text-xs tabular-nums text-stone-500">
+                              {person.mobile} · {person.orderCount} orders
+                            </span>
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                ) : null}
+                {selected ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChangingCustomer(false);
+                      setCustomerQuery('');
+                    }}
+                    className="mt-2 text-sm font-medium text-stone-500 hover:text-stone-800"
+                  >
+                    Keep {selected.name || 'current customer'}
+                  </button>
+                ) : null}
+              </div>
+            ) : selected ? (
+              <div className="rounded-lg border border-stone-200 bg-stone-50/60 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
+                    {(selected.name || 'C').trim().charAt(0).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <p className="font-semibold text-stone-900">{selected.name || 'Customer'}</p>
+                      <p className="text-sm tabular-nums text-stone-600">{selected.mobile}</p>
+                    </div>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      {customerSourceLabel(selected.source)} · {selected.orderCount} orders
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setChangingCustomer(true)}
+                    className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                  >
+                    Change
+                  </button>
+                </div>
+
+                <div className="mt-3 space-y-3 border-t border-stone-200/70 pt-3">
+                  {!differentAddress && activeAddress ? (
+                    <div className="flex items-start gap-2 text-sm text-stone-700">
+                      <MapPin size={16} className="mt-0.5 shrink-0 text-stone-400" aria-hidden />
+                      {book.length > 1 ? (
+                        <select
+                          value={activeAddressId}
+                          onChange={(event) => {
+                            const next = book.find((item) => item.id === event.target.value);
+                            setAddressId(event.target.value);
+                            if (next) {
+                              setShip(fromBook(next, selected));
+                            }
+                          }}
+                          aria-label="Delivery address"
+                          className="min-h-9 w-full min-w-0 rounded-md border border-stone-200 bg-white px-2 py-1 text-sm"
                         >
-                          <span className="font-medium">{person.name || 'Customer'}</span>
-                          <span className="text-xs text-stone-500">
-                            {person.mobile} · {person.orderCount} orders
-                          </span>
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
+                          {book.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {addressLine(item)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="min-w-0">{addressLine(activeAddress)}</span>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {needAddressFields ? (
+                    <AddressFields compact value={ship} onChange={setShip} showReceiver={!creatingCustomer} />
+                  ) : null}
+
+                  {book.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDifferentAddress((open) => {
+                          const next = !open;
+                          if (next) {
+                            setShip(emptyAddress(selected));
+                          } else {
+                            const preferred = book.find((item) => item.is_default) ?? book[0];
+                            setAddressId(preferred?.id ?? '');
+                            setShip(fromBook(preferred, selected));
+                          }
+                          return next;
+                        });
+                      }}
+                      className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                    >
+                      {differentAddress ? 'Use saved address' : 'Change / add address'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {attempted && customerMissing && customerNote ? (
+              <div className="mt-3">
+                <MissingNote>{customerNote}</MissingNote>
+              </div>
+            ) : null}
+            {attempted && addressMissing ? (
+              <div className="mt-3">
+                <MissingNote>
+                  {creatingCustomer ? 'Add house, area and pincode' : 'Add house, area, pincode and receiver details'}
+                </MissingNote>
+              </div>
+            ) : null}
+          </section>
+
+          <section
+            ref={productsSectionRef}
+            className={`${cardClass} scroll-mt-4 p-5 ${showProductsIssue ? issueBorder : 'border-stone-200'}`}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className={sectionTitle}>Products</h2>
+              {itemCount > 0 ? (
+                <span className="text-sm tabular-nums text-stone-500">
+                  {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                </span>
               ) : null}
             </div>
-            ) : null}
 
-            {selected && !creatingCustomer ? (
-              <div className="rounded-md bg-stone-50 px-3 py-2.5">
-                <p className="font-medium">{selected.name}</p>
-                <p className="text-sm text-stone-600">{selected.mobile}</p>
-                <p className="text-xs text-stone-500">
-                  Source {customerSourceLabel(selected.source)} · {selected.orderCount} orders
-                </p>
-              </div>
-            ) : creatingCustomer ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block sm:col-span-1">
-                  <span className="mb-1 block text-xs font-medium text-stone-500">Name</span>
-                  <NoFillInput
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    name="cust-nm"
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-stone-500">Phone</span>
-                  <NoFillInput
-                    value={mobile}
-                    onChange={(event) => {
-                      setIgnoredMobile('');
-                      setMobile(event.target.value.replace(/\D/g, '').slice(0, 10));
-                    }}
-                    inputMode="numeric"
-                    name="cust-ph"
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="block sm:col-span-2">
-                  <span className="mb-1 block text-xs font-medium text-stone-500">Customer source</span>
-                  <select
-                    value={source}
-                    onChange={(event) => setSource(event.target.value as CustomerSource)}
-                    className={fieldClass}
-                  >
-                    {CUSTOMER_SOURCES.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ) : (
-              <p className="text-sm text-stone-500">Search for a customer or add a new one.</p>
-            )}
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-stone-500">Order channel</span>
-              <select value={channel} onChange={(event) => setChannel(event.target.value)} className={fieldClass}>
-                <option value="">Select channel</option>
-                {MANUAL_ORDER_CHANNELS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="space-y-3">
-            {selected && !creatingCustomer && book.length > 0 && !differentAddress ? (
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-stone-500">Delivery address</span>
-                <select
-                  value={activeAddressId}
-                  onChange={(event) => {
-                    const next = book.find((item) => item.id === event.target.value);
-                    setAddressId(event.target.value);
-                    if (next) {
-                      setShip(fromBook(next, selected));
-                    }
-                  }}
-                  className={fieldClass}
-                >
-                  {book.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {addressLine(item)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-
-            {needAddressFields ? (
-              <AddressFields compact value={ship} onChange={setShip} showReceiver={!creatingCustomer} />
-            ) : null}
-
-            {selected && !creatingCustomer ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDifferentAddress((open) => {
-                    const next = !open;
-                    if (next) {
-                      setShip(emptyAddress(selected));
-                    } else {
-                      const preferred = book.find((item) => item.is_default) ?? book[0];
-                      setAddressId(preferred?.id ?? '');
-                      setShip(fromBook(preferred, selected));
-                    }
-                    return next;
-                  });
-                }}
-                className="text-sm font-medium text-emerald-800"
-              >
-                {differentAddress ? 'Use saved address' : 'Change / add address'}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-stone-200 bg-white p-4">
-        <h2 className="text-base font-semibold">Products</h2>
-        <div className="mt-3 grid gap-4 lg:grid-cols-2">
-          <div>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-stone-400" aria-hidden />
+              <Search className="pointer-events-none absolute left-3 top-3 size-4 text-stone-400" aria-hidden />
               <NoFillInput
                 type="search"
                 value={productQuery}
@@ -575,151 +671,149 @@ export function AdminOrderForm({
                   }
                 }}
                 name="q-prod"
-                placeholder="Search product name"
-                className={`${fieldClass} pl-9`}
+                placeholder="Search products to add"
+                className={`${searchClass} pl-9`}
               />
             </div>
-            <ul className="mt-2 max-h-72 overflow-y-auto rounded-md border border-stone-100">
-              {productQuery.length === 0 ? (
-                <li className="px-3 py-4 text-sm text-stone-500">Search products to add them to this order.</li>
-              ) : productMatches.length === 0 ? (
-                <li className="px-3 py-4 text-sm text-stone-500">No products match that search.</li>
-              ) : (
-                productMatches.map((product) => (
-                  <li
-                    key={product.id}
-                    className="flex items-center justify-between gap-3 border-b border-stone-100 px-3 py-2 last:border-b-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{product.name}</p>
-                      <p className="text-xs text-stone-500">
-                        {formatPrice(product.price)} ·{' '}
-                        {product.active === false
-                          ? 'Inactive'
-                          : product.available
-                            ? 'Available'
-                            : 'Coming soon'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => addProduct(product)}
-                      disabled={!product.available || product.active === false}
-                      className="shrink-0 rounded-md bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 disabled:opacity-40"
-                    >
-                      Add
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
 
-          <div className="flex min-h-0 flex-col">
+            {productQuery.length > 0 ? (
+              <ul className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-sm">
+                {productMatches.length === 0 ? (
+                  <li className="px-3 py-2.5 text-sm text-stone-500">No products match that search.</li>
+                ) : (
+                  productMatches.map((product) => {
+                    const blocked = !product.available || product.active === false;
+                    return (
+                      <li key={product.id} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-stone-50">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-stone-900">{product.name}</p>
+                          <p className="text-xs tabular-nums text-stone-500">
+                            {formatPrice(product.price)}
+                            {product.active === false ? ' · Inactive' : !product.available ? ' · Coming soon' : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => addProduct(product)}
+                          disabled={blocked}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                        >
+                          <Plus size={14} aria-hidden /> Add
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            ) : null}
+
+            {showProductsIssue ? (
+              <div className="mt-3">
+                <MissingNote>Add at least one product</MissingNote>
+              </div>
+            ) : null}
+
             {lines.length === 0 ? (
-              <p className="rounded-md border border-dashed border-stone-200 px-3 py-6 text-sm text-stone-500">
-                No items yet. Add products from the list.
-              </p>
+              <p className="mt-4 text-sm text-stone-500">No items yet. Search to add products.</p>
             ) : (
-              <ul className="max-h-72 overflow-y-auto">
+              <ul className="mt-4 divide-y divide-stone-100 rounded-lg border border-stone-200">
                 {lines.map((line) => (
-                  <li
-                    key={line.product.id}
-                    className="flex items-center justify-between gap-3 border-b border-stone-100 py-2 last:border-b-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{line.product.name}</p>
-                      <p className="text-xs text-stone-500">{formatPrice(line.product.price)}</p>
+                  <li key={line.product.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-stone-900">{line.product.name}</p>
+                      <p className="text-xs tabular-nums text-stone-500">{formatPrice(line.product.price)} each</p>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center rounded-lg border border-stone-200 bg-white">
                       <button
                         type="button"
                         onClick={() => setLineQty(line.product.id, line.quantity - 1)}
-                        className="inline-flex size-8 items-center justify-center rounded-md border border-stone-300"
+                        className="inline-flex size-8 items-center justify-center rounded-l-lg text-stone-600 hover:bg-stone-50"
                         aria-label={`Decrease ${line.product.name}`}
                       >
                         <Minus size={14} />
                       </button>
-                      <span className="w-6 text-center text-sm font-medium">{line.quantity}</span>
+                      <span className="w-8 text-center text-sm font-semibold tabular-nums">{line.quantity}</span>
                       <button
                         type="button"
                         onClick={() => setLineQty(line.product.id, line.quantity + 1)}
-                        className="inline-flex size-8 items-center justify-center rounded-md border border-stone-300"
+                        className="inline-flex size-8 items-center justify-center rounded-r-lg text-stone-600 hover:bg-stone-50"
                         aria-label={`Increase ${line.product.name}`}
                       >
                         <Plus size={14} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setLineQty(line.product.id, 0)}
-                        className="inline-flex size-8 items-center justify-center text-stone-500"
-                        aria-label={`Remove ${line.product.name}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
                     </div>
+                    <span className="w-20 text-right text-sm font-semibold tabular-nums text-stone-900">
+                      {formatPrice(line.subtotal)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setLineQty(line.product.id, 0)}
+                      className="inline-flex size-8 items-center justify-center rounded-md text-stone-400 hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Remove ${line.product.name}`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
-            <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3">
-              <span className="text-sm text-stone-500">Total</span>
-              <span className="text-lg font-semibold">{formatPrice(total)}</span>
-            </div>
-          </div>
+          </section>
         </div>
-      </section>
 
-      <section className="rounded-xl border border-stone-200 bg-white p-4">
-        <div className="grid gap-3 lg:grid-cols-[12rem_minmax(0,1fr)_auto] lg:items-end">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-stone-500">Payment</span>
-            <select
-              value={paymentMethod}
-              onChange={(event) => setPaymentMethod(event.target.value as 'pending' | 'cash' | 'upi')}
-              className={fieldClass}
-            >
-              <option value="pending">Pending</option>
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-stone-500">Order notes (optional)</span>
-            <input
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Shown with delivery details"
-              className={fieldClass}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={!canCreate}
-            className="min-h-10 rounded-md bg-emerald-600 hover:bg-emerald-700 px-5 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {submitting ? 'Creating…' : 'Create order'}
-          </button>
-        </div>
-        {!canCreate && !submitting ? (
-          <p className="mt-2 text-sm text-stone-500">
-            {!customerOk
-              ? 'Select or add a customer.'
-              : !addressOk
-                ? 'Add house, area, pincode, and receiver details.'
-                : !channelOk
-                  ? 'Select WhatsApp, Phone, or Direct.'
-                  : 'Add at least one product.'}
-          </p>
-        ) : null}
-        {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
-      </section>
+        <aside className="lg:sticky lg:top-4">
+          <section className={`${cardClass} border-stone-200`}>
+            <div className="border-b border-stone-100 px-5 py-4">
+              <h2 className={sectionTitle}>Order summary</h2>
+              <p className="mt-0.5 truncate text-sm text-stone-500">{summaryFor}</p>
+            </div>
+            <div className="space-y-5 p-5">
+              <dl className="space-y-2">
+                <div className="flex items-center justify-between text-sm text-stone-600">
+                  <dt>Items</dt>
+                  <dd className="tabular-nums">{itemCount}</dd>
+                </div>
+                <div className="flex items-baseline justify-between border-t border-stone-100 pt-3">
+                  <dt className="text-sm font-medium text-stone-900">Total</dt>
+                  <dd className="text-2xl font-bold tracking-tight tabular-nums text-stone-900">{formatPrice(total)}</dd>
+                </div>
+              </dl>
+
+              <div>
+                <p className={labelClass}>Payment collected?</p>
+                <PaymentMethodPicker value={payChoice} onChange={setPayChoice} allowLater size="segmented" />
+              </div>
+
+              <label className="block">
+                <span className={labelClass}>
+                  Notes <span className="font-normal text-stone-400">(optional)</span>
+                </span>
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Shown with delivery details"
+                  rows={2}
+                  className="w-full resize-none rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={submitting || Boolean(duplicate)}
+                className="min-h-11 w-full rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {submitting ? 'Creating…' : 'Create order'}
+              </button>
+              {error ? <p className="text-sm text-red-700">{error}</p> : null}
+            </div>
+          </section>
+        </aside>
+      </div>
       {duplicate ? (
         <DuplicateCustomerDialog
           name={duplicate.name}
           mobile={duplicate.mobile}
           orderCount={duplicate.orderCount}
-          onLoad={() => applyCustomer(duplicate)}
+          onLoad={() => pickCustomer(duplicate)}
           onDismiss={() => {
             setIgnoredMobile(normalizeMobile(duplicate.mobile ?? mobile));
             setDuplicate(null);

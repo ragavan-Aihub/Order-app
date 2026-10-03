@@ -71,8 +71,8 @@ export function AddressFields({
   return (
     <div className="relative space-y-4">
       <BrowserAddressDecoy />
-      <div className="space-y-3">
-        <p className={headingClass}>Add address</p>
+      <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
+        <p className={`${headingClass} ${compact ? 'sm:col-span-2' : ''}`}>Add address</p>
         <label className="block">
           <span className={labelClass}>{ADDRESS_FIELD_COPY.house}</span>
           <NoFillInput
@@ -148,8 +148,8 @@ export function AddressFields({
       </div>
 
       {showReceiver ? (
-        <div className="space-y-3">
-          <p className={headingClass}>{ADDRESS_FIELD_COPY.receiver}</p>
+        <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
+          <p className={`${headingClass} ${compact ? 'sm:col-span-2' : ''}`}>{ADDRESS_FIELD_COPY.receiver}</p>
           <label className="block">
             <span className={labelClass}>{ADDRESS_FIELD_COPY.receiverName}</span>
             <NoFillInput

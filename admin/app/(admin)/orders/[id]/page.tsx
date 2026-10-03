@@ -60,6 +60,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
             orderNumber={`#${formatOrderNumber(order.order_number)}`}
             status={order.status}
             cancelReason={order.cancel_reason}
+            paymentMethod={order.payment_method ?? 'pending'}
             allowCorrection
           />
         </div>
