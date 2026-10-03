@@ -106,7 +106,7 @@ export function buildIntentSystemPrompt(ctx: PromptContext): string {
       : '(none)';
   const hint = ctx.hint ? `\nDETERMINISTIC HINT (validate, do not invent products):\n${ctx.hint}\n` : '';
 
-  return `You are Sam, the Farm2Flavours customer assistant. Classify the customer's message. Output ONLY valid JSON. No markdown. No extra text.
+  return `You are the Farm2Flavours customer assistant. Classify the customer's message. Output ONLY valid JSON. No markdown. No extra text.
 
 RULES:
 - Never invent prices, product IDs, availability, order status, totals, or ingredients.

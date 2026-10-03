@@ -1,147 +1,246 @@
 'use client';
 
+import { Banknote, CheckCircle2, RefreshCw, Smartphone, Undo2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
-import { PaymentStatusBadge } from '@/components/OrderBadges';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
+import { StepTrack } from '@/components/OrderStepper';
 import { updateOrderPayment, updateOrderRefund } from '@/services/order-actions';
 import {
-  COLLECTABLE_PAYMENT_METHODS,
   displayPaymentStatus,
-  isPaymentCollected,
   paymentModeLabel,
   type OrderStatus,
   type PaymentMethod,
   type RefundStatus,
 } from '@/types/order';
+import { formatPrice } from '@/utils/format';
+
+type Collectable = Exclude<PaymentMethod, 'pending'>;
+type Dialog = 'collect' | 'change' | 'refund' | null;
+
+const METHOD_CHOICES: { value: Collectable; label: string; Icon: typeof Banknote }[] = [
+  { value: 'cash', label: 'Cash', Icon: Banknote },
+  { value: 'upi', label: 'UPI', Icon: Smartphone },
+];
+
+function MethodPicker({ value, onChange }: { value: Collectable | null; onChange: (value: Collectable) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
+      {METHOD_CHOICES.map(({ value: option, label, Icon }) => {
+        const selected = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option)}
+            className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 text-sm font-semibold ${
+              selected
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+            }`}
+          >
+            <Icon size={20} aria-hidden />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function OrderPaymentForm({
   orderId,
+  orderNumber,
+  amount,
   status,
   paymentMethod,
   refundStatus,
 }: {
   orderId: string;
+  orderNumber: string;
+  amount: number;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   refundStatus: RefundStatus | null;
 }) {
   const router = useRouter();
-  const collected = isPaymentCollected(paymentMethod);
-  const paymentState = displayPaymentStatus({
-    status,
-    payment_method: paymentMethod,
-    refund_status: refundStatus,
-  });
-  const canCollect = status !== 'cancelled';
-  const canMarkRefunded = paymentState === 'refund_pending';
-  const [value, setValue] = useState<Exclude<PaymentMethod, 'pending'>>(
-    paymentMethod === 'upi' ? 'upi' : 'cash',
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [refunding, setRefunding] = useState(false);
   const notice = useActionNotice();
+  const source = `${status}|${paymentMethod}|${refundStatus ?? ''}`;
+  const [pending, setPending] = useState<{ from: string; method: PaymentMethod; refund: RefundStatus | null } | null>(
+    null,
+  );
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [choice, setChoice] = useState<Collectable | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setValue(paymentMethod === 'upi' ? 'upi' : 'cash');
-  }, [paymentMethod]);
+  const live = pending && pending.from === source ? pending : null;
+  const method = live ? live.method : paymentMethod;
+  const refund = live ? live.refund : refundStatus;
+  const state = displayPaymentStatus({ status, payment_method: method, refund_status: refund });
+  const price = formatPrice(amount);
+  const methodLabel = paymentModeLabel(method);
+  const closeDialog = useCallback(() => setDialog(null), []);
 
-  async function onSave() {
+  async function commit(next: { method: PaymentMethod; refund: RefundStatus | null }, done: string) {
     setError(null);
     notice.clear();
-    setSaving(true);
-    const result = await updateOrderPayment(orderId, value);
-    setSaving(false);
+    setPending({ from: source, ...next });
+    setBusy(true);
+    const result =
+      next.refund === 'refunded' ? await updateOrderRefund(orderId) : await updateOrderPayment(orderId, next.method);
+    setBusy(false);
     if (result.error) {
+      setPending(null);
       setError(result.error);
       return;
     }
-    notice.show('Payment saved');
+    notice.show(done);
     router.refresh();
   }
 
-  async function onRefund() {
-    setError(null);
-    notice.clear();
-    setRefunding(true);
-    const result = await updateOrderRefund(orderId);
-    setRefunding(false);
-    if (result.error) {
-      setError(result.error);
+  function openCollect() {
+    setChoice(null);
+    setDialog('collect');
+  }
+
+  function openChange() {
+    setChoice(method === 'upi' ? 'cash' : 'upi');
+    setDialog('change');
+  }
+
+  function confirmMethod() {
+    if (!choice) {
       return;
     }
-    notice.show('Marked refunded');
-    router.refresh();
+    const changing = dialog === 'change';
+    setDialog(null);
+    void commit(
+      { method: choice, refund: null },
+      changing ? `Payment method changed to ${paymentModeLabel(choice)}` : `${price} marked paid by ${paymentModeLabel(choice)}`,
+    );
   }
+
+  function confirmRefund() {
+    setDialog(null);
+    void commit({ method, refund: 'refunded' }, `Refund of ${price} recorded`);
+  }
+
+  const cancelled = status === 'cancelled';
+  const track = cancelled
+    ? state === 'not_applicable'
+      ? null
+      : { steps: ['Paid', 'Refund pending', 'Refunded'], current: state === 'refunded' ? 2 : 1, finished: state === 'refunded' }
+    : { steps: ['Awaiting payment', 'Paid'], current: state === 'paid' ? 1 : 0, finished: state === 'paid' };
+
+  const menu =
+    state === 'paid' ? (
+      <MoreMenu label={`More payment actions for order ${orderNumber}`}>
+        {(close) => (
+          <button
+            type="button"
+            role="menuitem"
+            className={menuItemClass}
+            onClick={() => {
+              close();
+              openChange();
+            }}
+          >
+            <RefreshCw size={16} aria-hidden /> Change payment method
+          </button>
+        )}
+      </MoreMenu>
+    ) : null;
+
+  const done = (text: string) => (
+    <span className="inline-flex min-h-11 flex-1 items-center gap-1.5 rounded-lg bg-emerald-50 px-4 text-sm font-semibold text-emerald-800">
+      <CheckCircle2 size={18} aria-hidden /> {text}
+    </span>
+  );
+
+  const primary =
+    state === 'pending' ? (
+      <button
+        type="button"
+        onClick={openCollect}
+        disabled={busy}
+        className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+      >
+        {busy ? 'Saving…' : `Collect ${price}`}
+      </button>
+    ) : state === 'refund_pending' ? (
+      <button
+        type="button"
+        onClick={() => setDialog('refund')}
+        disabled={busy}
+        className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 text-base font-semibold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
+      >
+        {busy ? (
+          'Saving…'
+        ) : (
+          <>
+            <Undo2 size={18} aria-hidden /> Mark {price} refunded
+          </>
+        )}
+      </button>
+    ) : state === 'paid' ? (
+      done(`Paid ${price} by ${methodLabel}`)
+    ) : state === 'refunded' ? (
+      done(`Refunded ${price} (paid by ${methodLabel})`)
+    ) : null;
 
   return (
-    <div className="space-y-3">
-      <h2 className="text-base font-semibold">Payment</h2>
-      <dl className="grid gap-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium text-stone-500">Payment status</dt>
-          <dd className="mt-1">
-            <PaymentStatusBadge status={status} paymentMethod={paymentMethod} refundStatus={refundStatus} />
-          </dd>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Payment</h2>
+        <div className="flex items-center gap-1">
+          <span className="text-base font-semibold text-stone-900">{price}</span>
+          {menu}
         </div>
-        <div>
-          <dt className="text-xs font-medium text-stone-500">Payment method</dt>
-          <dd className="mt-1 font-medium">{collected ? paymentModeLabel(paymentMethod) : '—'}</dd>
-        </div>
-      </dl>
+      </div>
 
-      {paymentState === 'not_applicable' ? (
-        <p className="text-sm text-stone-500">No payment was collected, so this stays Not Applicable.</p>
-      ) : null}
+      {track ? (
+        <StepTrack steps={track.steps} current={track.current} finished={track.finished} label="Payment progress" />
+      ) : (
+        <p className="text-sm text-stone-400" aria-label="No payment">
+          —
+        </p>
+      )}
 
-      {canCollect ? (
-        <div className="space-y-2">
-          <label className="block text-xs font-medium text-stone-500" htmlFor="payment-mode">
-            {collected ? 'Update method' : 'Collect payment'}
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <select
-              id="payment-mode"
-              value={value}
-              onChange={(event) => setValue(event.target.value as Exclude<PaymentMethod, 'pending'>)}
-              className="min-h-10 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm sm:w-auto"
-            >
-              {COLLECTABLE_PAYMENT_METHODS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving || (collected && value === paymentMethod)}
-              className={
-                collected
-                  ? 'min-h-10 w-full rounded-md border border-stone-400 px-4 text-sm font-semibold text-stone-800 disabled:opacity-50 sm:w-auto'
-                  : 'min-h-10 w-full rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto'
-              }
-            >
-              {saving ? 'Saving…' : collected ? 'Update payment' : 'Mark paid'}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {canMarkRefunded ? (
-        <button
-          type="button"
-          onClick={onRefund}
-          disabled={refunding}
-          className="min-h-10 rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {refunding ? 'Saving…' : 'Mark refunded'}
-        </button>
-      ) : null}
+      {primary ? <div className="flex">{primary}</div> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       <ActionNotice message={notice.message} />
+
+      {dialog === 'collect' || dialog === 'change' ? (
+        <ConfirmDialog
+          title={dialog === 'collect' ? `Collect ${price} for order ${orderNumber}?` : 'Change payment method'}
+          body={
+            dialog === 'collect'
+              ? 'Choose how the customer paid.'
+              : `Currently recorded as ${methodLabel}. Use this only if the wrong method was saved.`
+          }
+          confirmLabel={dialog === 'collect' ? 'Mark paid' : 'Save method'}
+          confirmDisabled={!choice || (dialog === 'change' && choice === method)}
+          onConfirm={confirmMethod}
+          onCancel={closeDialog}
+        >
+          <MethodPicker value={choice} onChange={setChoice} />
+        </ConfirmDialog>
+      ) : null}
+      {dialog === 'refund' ? (
+        <ConfirmDialog
+          title={`Refund ${price} for order ${orderNumber}?`}
+          body={`The customer paid by ${methodLabel}. Only mark this after the money has been returned.`}
+          confirmLabel="Mark refunded"
+          onConfirm={confirmRefund}
+          onCancel={closeDialog}
+        />
+      ) : null}
     </div>
   );
 }

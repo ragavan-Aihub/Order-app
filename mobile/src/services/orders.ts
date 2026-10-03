@@ -14,7 +14,7 @@ const ORDER_COLUMNS =
   'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, created_at, updated_at';
 const ORDER_LOOKUP_COLUMNS =
   'id, order_number, status, customer_address_id, pincode, delivery_address, created_at, total_amount';
-const UNDELIVERED_STATUSES = ['new', 'confirmed', 'preparing', 'out_for_delivery'] as const;
+const UNDELIVERED_STATUSES = ['new', 'confirmed', 'out_for_delivery'] as const;
 const QUERY_MS = 4000;
 const ACTION_MS = 10000;
 const PLACE_MS = 15000;

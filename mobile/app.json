@@ -15,7 +15,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 7,
+      "versionCode": 11,
       "softwareKeyboardLayoutMode": "pan",
       "usesCleartextTraffic": true,
       "permissions": ["RECORD_AUDIO"],
@@ -40,8 +40,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow Farm2Flavour to hear your order for Sam.",
-          "speechRecognitionPermission": "Allow Farm2Flavour to transcribe your order for Sam.",
+          "microphonePermission": "Allow Farm2Flavour to hear your voice order.",
+          "speechRecognitionPermission": "Allow Farm2Flavour to turn your voice order into text.",
           "androidSpeechServicePackages": [
             "com.google.android.googlequicksearchbox",
             "com.google.android.tts"

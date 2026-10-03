@@ -4,7 +4,6 @@ import { formatDateTime } from '@/utils/format';
 const TRACK: OrderStatus[] = [
   'new',
   'confirmed',
-  'preparing',
   'out_for_delivery',
   'delivered',
   'cancelled',

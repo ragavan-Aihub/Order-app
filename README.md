@@ -8,6 +8,8 @@ MVP ordering platform with two applications that share one Supabase backend:
 
 The developer owns the Supabase project, API keys, and source code. The business owner only uses the Admin Web Panel.
 
+Pending work, phase 2 items and future scope are tracked in [docs/pending-and-future-scope.md](docs/pending-and-future-scope.md).
+
 ## Setup
 
 ```bash

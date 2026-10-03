@@ -26,6 +26,13 @@ export function PaymentStatusBadge({
 }) {
   const order = { status, payment_method: paymentMethod, refund_status: refundStatus };
   const value = displayPaymentStatus(order);
+  if (value === 'not_applicable') {
+    return (
+      <span className="text-stone-400" aria-label="No payment">
+        —
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${paymentStatusBadgeClass(value)}`}>
       {paymentStatusLabel(order)}

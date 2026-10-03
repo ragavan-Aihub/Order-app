@@ -15,7 +15,7 @@ export async function sendSamTurn(
 ): Promise<SamTurnResponse> {
   const url = env.samApiUrl.trim();
   if (!url) {
-    throw new Error('Sam is not configured. Set EXPO_PUBLIC_SAM_API_URL to your admin /api/sam/turn URL.');
+    throw new Error('Voice ordering is not configured. Set EXPO_PUBLIC_SAM_API_URL to your admin /api/sam/turn URL.');
   }
 
   const supabase = getSupabaseClient();
@@ -41,7 +41,7 @@ export async function sendSamTurn(
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error || 'Sam could not process that.');
+    throw new Error(body?.error || 'Could not process that. Please try again.');
   }
 
   return (await response.json()) as SamTurnResponse;

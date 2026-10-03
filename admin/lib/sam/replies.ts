@@ -9,21 +9,21 @@ function rupee(amount: number) {
 export const replies = {
   greet(lang: SamLanguage) {
     if (lang === 'ta') {
-      return 'வணக்கம்! நான் சாம். எப்படி உதவட்டும்?';
+      return 'வணக்கம்! எப்படி உதவட்டும்?';
     }
     if (lang === 'mix') {
-      return 'Hi! Naan Sam. Enna venum sollunga.';
+      return 'Hi! Enna venum sollunga.';
     }
-    return "Hi! I'm Sam. What can I help you with?";
+    return 'Hi! What can I help you with?';
   },
   aboutSam(lang: SamLanguage) {
     if (lang === 'ta') {
-      return 'நான் சாம், Farm2Flavours உதவியாளர். பொருள் சேர்க்கவும், கேள்வி கேட்கவும் முடியும்.';
+      return 'நான் Farm2Flavours உதவியாளர். பொருள் சேர்க்கவும், கேள்வி கேட்கவும் முடியும்.';
     }
     if (lang === 'mix') {
-      return 'Naan Sam, Farm2Flavours assistant. Products add panna, questions kekka help pannuven.';
+      return 'Naan Farm2Flavours assistant. Products add panna, questions kekka help pannuven.';
     }
-    return "I'm Sam, your Farm2Flavours assistant. I can help you add products and answer catalog questions.";
+    return "I'm the Farm2Flavours assistant. I can help you add products and answer catalog questions.";
   },
   capabilities(lang: SamLanguage) {
     if (lang === 'ta') {

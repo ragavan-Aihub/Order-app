@@ -133,7 +133,7 @@ export default function HomeScreen() {
           style={({ pressed }) => [styles.samCta, pressed && styles.pressed]}
           onPress={() => router.push('/sam')}
           accessibilityRole="button"
-          accessibilityLabel="Order by Voice with Sam, AI assistant"
+          accessibilityLabel="Order by voice"
         >
           <View style={styles.samIcon}>
             <Ionicons name="mic" size={22} color={colors.primaryText} />
@@ -143,7 +143,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.samCopy}>
             <Text style={styles.samTitle}>Order by Voice</Text>
-            <Text style={styles.samSubtitle}>Just tell Sam what you need</Text>
+            <Text style={styles.samSubtitle}>Just say what you need</Text>
           </View>
           <View style={styles.samArrow}>
             <Ionicons name="arrow-forward" size={16} color={colors.primary} />

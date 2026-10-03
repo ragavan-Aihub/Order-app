@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
+import { OrderWorkflow } from '@/components/OrderWorkflow';
 import { TableScroll } from '@/components/TableScroll';
+import { normalizeStatus } from '@/types/order-workflow';
 import { deliveryTypeLabel, type CommunityListItem } from '@/types/community';
 import {
   DISPLAY_PAYMENT_STATUSES,
@@ -13,14 +15,17 @@ import {
   displayPaymentStatus,
   isPaymentCollected,
   orderChannelLabel,
+  orderStatusLabel,
   paymentModeLabel,
   type DisplayPaymentStatus,
   type Order,
   type OrderStatus,
 } from '@/types/order';
-import { formatDateTime, formatOrderNumber, formatPrice } from '@/utils/format';
+import { formatDateTime, formatOrderNumber, formatPrice, splitDeliveryNotes } from '@/utils/format';
 
 const PAGE_SIZE = 25;
+// Phase 2: quick status actions on the list. See docs/pending-and-future-scope.md.
+const LIST_QUICK_ACTIONS = false;
 
 function toDateInput(value: string) {
   const date = new Date(value);
@@ -62,12 +67,15 @@ export function OrdersBoard({
     const next: Record<OrderStatus, number> = {
       new: 0,
       confirmed: 0,
-      preparing: 0,
+      out_for_delivery: 0,
       delivered: 0,
       cancelled: 0,
     };
     for (const order of orders) {
-      next[order.status] += 1;
+      const status = normalizeStatus(order.status);
+      if (status in next) {
+        next[status] += 1;
+      }
     }
     return next;
   }, [orders]);
@@ -75,7 +83,7 @@ export function OrdersBoard({
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return orders.filter((order) => {
-      if (tab !== 'all' && order.status !== tab) {
+      if (tab !== 'all' && normalizeStatus(order.status) !== tab) {
         return false;
       }
       if (paymentFilter && displayPaymentStatus(order) !== paymentFilter) {
@@ -158,7 +166,7 @@ export function OrdersBoard({
       order.customer_name,
       order.mobile,
       String(order.total_amount),
-      ORDER_STATUSES.find((item) => item.value === order.status)?.label ?? order.status,
+      orderStatusLabel(order.status),
       DISPLAY_PAYMENT_STATUSES.find((item) => item.value === displayPaymentStatus(order))?.label ?? '',
       paymentModeLabel(order.payment_method),
       orderChannelLabel(order.channel ?? 'app'),
@@ -254,7 +262,7 @@ export function OrdersBoard({
             className={fieldClass}
           >
             <option value="">All</option>
-            {DISPLAY_PAYMENT_STATUSES.map((item) => (
+            {DISPLAY_PAYMENT_STATUSES.filter((item) => item.value !== 'not_applicable').map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
@@ -346,40 +354,63 @@ export function OrdersBoard({
         </div>
       ) : (
         <div>
-          <div className="space-y-2 md:hidden">
-            {paged.map((order) => (
-              <Link
-                key={order.id}
-                href={`/orders/${order.id}`}
-                className="block rounded-xl border border-stone-200 bg-white p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-semibold">{formatOrderNumber(order.order_number)}</p>
-                  <p className="text-sm font-medium text-emerald-800">View</p>
+          <div className="space-y-3 md:hidden">
+            {paged.map((order) => {
+              const cardClass = 'block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm';
+              const summary = (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-base font-semibold text-stone-900">
+                      Order #{formatOrderNumber(order.order_number)}
+                    </p>
+                    <p className="text-base font-semibold text-stone-900">{formatPrice(order.total_amount)}</p>
+                  </div>
+                  <p className="mt-1 text-sm font-medium text-stone-700">
+                    {order.customer_name}
+                    {typeof order.item_count === 'number'
+                      ? ` • ${order.item_count} ${order.item_count === 1 ? 'item' : 'items'}`
+                      : ''}
+                  </p>
+                  <p className="mt-0.5 truncate text-sm text-stone-500">
+                    {splitDeliveryNotes(order.delivery_address).address.split('\n')[0]}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-stone-500">
+                    {LIST_QUICK_ACTIONS ? null : <StatusBadge status={order.status} />}
+                    <PaymentStatusBadge
+                      status={order.status}
+                      paymentMethod={order.payment_method}
+                      refundStatus={order.refund_status}
+                    />
+                    <span>{formatDateTime(order.created_at)}</span>
+                    {communitiesEnabled && order.community_name ? <span>· {order.community_name}</span> : null}
+                  </div>
+                </>
+              );
+              if (!LIST_QUICK_ACTIONS) {
+                return (
+                  <Link key={order.id} href={`/orders/${order.id}`} className={cardClass}>
+                    {summary}
+                  </Link>
+                );
+              }
+              return (
+                <div key={order.id} className={cardClass}>
+                  <Link href={`/orders/${order.id}`} className="block">
+                    {summary}
+                  </Link>
+                  <div className="mt-4">
+                    <OrderWorkflow
+                      variant="card"
+                      orderId={order.id}
+                      orderNumber={`#${formatOrderNumber(order.order_number)}`}
+                      status={order.status}
+                      cancelReason={order.cancel_reason}
+                      detailsHref={`/orders/${order.id}`}
+                    />
+                  </div>
                 </div>
-                <p className="mt-1 text-sm font-medium">{order.customer_name}</p>
-                <p className="text-xs text-stone-500">{order.mobile}</p>
-                <p className="mt-1 text-sm">{formatPrice(order.total_amount)}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <StatusBadge status={order.status} />
-                  <PaymentStatusBadge
-                    status={order.status}
-                    paymentMethod={order.payment_method}
-                    refundStatus={order.refund_status}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-stone-500">
-                  {communitiesEnabled ? (
-                    <>
-                      {deliveryTypeLabel(order)}
-                      {order.community_name ? ` · ${order.community_name}` : ''} ·{' '}
-                    </>
-                  ) : null}
-                  {paymentModeLabel(order.payment_method)} · {orderChannelLabel(order.channel ?? 'app')} ·{' '}
-                  {formatDateTime(order.created_at)}
-                </p>
-              </Link>
-            ))}
+              );
+            })}
           </div>
           <div className="hidden md:block">
             <TableScroll>
@@ -400,13 +431,17 @@ export function OrdersBoard({
                       </>
                     ) : null}
                     <th className="px-3 py-2 font-medium">Placed</th>
-                    <th className="px-3 py-2 font-medium">Actions</th>
+                    {LIST_QUICK_ACTIONS ? <th className="px-3 py-2 font-medium">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {paged.map((order) => (
                     <tr key={order.id} className="border-t border-stone-200">
-                      <td className="px-3 py-2 font-semibold">{formatOrderNumber(order.order_number)}</td>
+                      <td className="px-3 py-2 font-semibold">
+                        <Link href={`/orders/${order.id}`} className="text-stone-900 hover:text-emerald-800 hover:underline">
+                          {formatOrderNumber(order.order_number)}
+                        </Link>
+                      </td>
                       <td className="px-3 py-2">
                         <p className="font-medium">{order.customer_name}</p>
                         <p className="text-xs text-stone-500">{order.mobile}</p>
@@ -431,11 +466,18 @@ export function OrdersBoard({
                         </>
                       ) : null}
                       <td className="px-3 py-2 whitespace-nowrap text-stone-600">{formatDateTime(order.created_at)}</td>
-                      <td className="px-3 py-2">
-                        <Link href={`/orders/${order.id}`} className="font-semibold text-emerald-800">
-                          View
-                        </Link>
-                      </td>
+                      {LIST_QUICK_ACTIONS ? (
+                        <td className="px-3 py-2">
+                          <OrderWorkflow
+                            variant="row"
+                            orderId={order.id}
+                            orderNumber={`#${formatOrderNumber(order.order_number)}`}
+                            status={order.status}
+                            cancelReason={order.cancel_reason}
+                            detailsHref={`/orders/${order.id}`}
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

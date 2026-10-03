@@ -66,11 +66,12 @@ import {
   utteranceKey,
 } from '@/sam/commands';
 import { NewOrderAddressPicker } from '@/sam/NewOrderAddressPicker';
+import { SamVoiceOverlay } from '@/sam/SamVoiceOverlay';
 import { sendSamTurn } from '@/sam/api';
 import { speakSam } from '@/sam/speak';
 import { getPendingNoteProductId, setPendingNoteProductId, setSamDraftItems } from '@/sam/session';
 import type { DraftViewLine } from '@/sam/types';
-import { isHeySam, useSamSpeech } from '@/sam/useSamSpeech';
+import { useSamSpeech } from '@/sam/useSamSpeech';
 import { cancelMyOrder, findOpenOrderForAddress, listMyOrderItems } from '@/services/orders';
 import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
@@ -178,7 +179,6 @@ export default function SamScreen() {
   const [typed, setTyped] = useState('');
   const [browseQuery, setBrowseQuery] = useState('');
   const [ttsHold, setTtsHold] = useState(false);
-  const [micArmed, setMicArmed] = useState(false);
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<SavedAddress | null>(null);
@@ -773,10 +773,6 @@ export default function SamScreen() {
         return;
       }
       lastUtterance.current = { key, at: now };
-      if (isHeySam(text)) {
-        setMicArmed(true);
-        return;
-      }
       pushTurn('user', text);
       if (pendingCancelId.current) {
         const pendingId = pendingCancelId.current;
@@ -942,7 +938,7 @@ export default function SamScreen() {
       } catch (turnError) {
         const raw = turnError instanceof Error ? turnError.message : 'Something went wrong.';
         const message = /cleartext|UnknownServiceException/i.test(raw)
-          ? 'Sam cannot reach the shop on this Wi-Fi yet. Keep the admin app running, or type Show products.'
+          ? 'Cannot reach the shop on this Wi-Fi yet. Keep the admin app running, or type Show products.'
           : raw;
         pushTurn('sam', message);
       } finally {
@@ -974,10 +970,22 @@ export default function SamScreen() {
     ],
   );
 
-  const { listening, denied, error, start, stop } = useSamSpeech(
-    micArmed && !busy && !ttsHold && !pickNewAddress,
-    handleUtterance,
-  );
+  const {
+    listening,
+    denied,
+    error,
+    partial,
+    volume,
+    startListening,
+    finishListening,
+    cancelListening,
+    stopAll: stop,
+  } = useSamSpeech({
+    paused: busy || ttsHold || pickNewAddress,
+    onCommand: (text) => {
+      handleUtterance(text).catch(() => undefined);
+    },
+  });
 
   useEffect(() => {
     const onShow = (event: KeyboardEvent) => {
@@ -1033,7 +1041,6 @@ export default function SamScreen() {
   useFocusEffect(
     useCallback(() => {
       setPendingNoteProductId(getPendingNoteProductId());
-      setMicArmed(true);
       refreshAddresses().catch(() => undefined);
       getAvailableProducts()
         .then(setCatalog)
@@ -1041,7 +1048,6 @@ export default function SamScreen() {
       return () => {
         Speech.stop();
         stop();
-        setMicArmed(false);
       };
     }, [refreshAddresses, stop]),
   );
@@ -1060,15 +1066,19 @@ export default function SamScreen() {
   }, [listening]);
 
   useEffect(() => {
-    if (!pickNewAddress) {
+    if (!pickNewAddress && !listening) {
       return;
     }
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setPickNewAddress(false);
+      if (listening) {
+        cancelListening();
+      } else {
+        setPickNewAddress(false);
+      }
       return true;
     });
     return () => sub.remove();
-  }, [pickNewAddress]);
+  }, [cancelListening, listening, pickNewAddress]);
 
   function onClose() {
     if (pickNewAddress) {
@@ -1078,7 +1088,6 @@ export default function SamScreen() {
     }
     Speech.stop();
     stop();
-    setMicArmed(false);
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -1088,12 +1097,15 @@ export default function SamScreen() {
 
   function toggleMic() {
     if (listening) {
-      setMicArmed(false);
-      stop();
+      cancelListening();
       return;
     }
-    setMicArmed(true);
-    start().catch(() => undefined);
+    if (busy) {
+      return;
+    }
+    Speech.stop();
+    setTtsHold(false);
+    startListening().catch(() => undefined);
   }
 
   function pickAddress(id: string) {
@@ -1167,12 +1179,10 @@ export default function SamScreen() {
           ? 'Loading your order...'
           : busyKind === 'cancel'
             ? 'Cancelling your order...'
-            : 'Sam is thinking...'
-    : listening
-      ? 'Listening...'
-      : ttsHold
-        ? 'Responding...'
-        : null;
+            : 'Thinking...'
+    : ttsHold
+      ? 'Responding...'
+      : null;
 
   if (pickNewAddress) {
     return (
@@ -1243,7 +1253,7 @@ export default function SamScreen() {
         {!conversationOn ? (
           <View style={[styles.landing, typingOpen && styles.landingCompact]}>
             {statusLabel ? <Text style={styles.status}>{statusLabel}</Text> : null}
-            <Text style={styles.hello}>Hi, I'm Sam 👋</Text>
+            <Text style={styles.hello}>Hi there 👋</Text>
             {activeTrack ? (
               <Text style={styles.support}>
                 Order #{formatOrderNumber(activeTrack.order_number)} is {formatOrderStatus(activeTrack.status)}
@@ -1614,7 +1624,7 @@ export default function SamScreen() {
                 ? 'Listening...'
                 : editingOpen
                   ? 'Search to add to this order...'
-                  : 'Search products or ask Sam...'
+                  : 'Search products or ask anything...'
             }
             placeholderTextColor={colors.textMuted}
             style={styles.composerInput}
@@ -1640,6 +1650,15 @@ export default function SamScreen() {
           </Pressable>
         </View>
       </View>
+      {listening ? (
+        <SamVoiceOverlay
+          volume={volume}
+          heard={partial}
+          bottomInset={insets.bottom}
+          onCancel={cancelListening}
+          onDone={finishListening}
+        />
+      ) : null}
     </View>
   );
 }

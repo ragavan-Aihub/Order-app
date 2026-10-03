@@ -85,16 +85,32 @@ export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Pr
   }
 
   const businessId = session.profile.business_id;
-  const { data, error } = await supabase
+  const counted = await supabase
     .from('orders')
-    .select(ORDER_COLUMNS)
+    .select(`${ORDER_COLUMNS}, order_items(count)`)
     .eq('business_id', businessId)
     .order('created_at', { ascending: false });
 
+  let rows: Order[] | null = null;
+  if (!counted.error && counted.data) {
+    rows = (counted.data as unknown as (Order & { order_items?: { count: number }[] })[]).map(
+      ({ order_items: items, ...order }) => ({ ...order, item_count: items?.[0]?.count }),
+    );
+  } else {
+    const plain = await supabase
+      .from('orders')
+      .select(ORDER_COLUMNS)
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false });
+    if (!plain.error && plain.data) {
+      rows = plain.data as Order[];
+    }
+  }
+
   const hydrate = options?.hydrateCommunity ?? (await isCommunitiesEnabled());
 
-  if (!error && data) {
-    return hydrate ? hydrateOrderCommunities(supabase, businessId, data as Order[]) : (data as Order[]);
+  if (rows) {
+    return hydrate ? hydrateOrderCommunities(supabase, businessId, rows) : rows;
   }
 
   const fallback = await supabase

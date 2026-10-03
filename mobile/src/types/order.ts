@@ -1,12 +1,11 @@
 export type OrderStatus =
   | 'new'
   | 'confirmed'
-  | 'preparing'
   | 'out_for_delivery'
   | 'delivered'
   | 'cancelled';
 
-export const OPEN_ORDER_STATUSES: OrderStatus[] = ['new', 'confirmed', 'preparing'];
+export const OPEN_ORDER_STATUSES: OrderStatus[] = ['new', 'confirmed'];
 
 export function isOpenOrderStatus(status: string) {
   return OPEN_ORDER_STATUSES.includes(status as OrderStatus);

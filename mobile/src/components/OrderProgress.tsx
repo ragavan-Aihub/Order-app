@@ -13,7 +13,6 @@ const STEPS = [
 function rank(status: string) {
   switch (status) {
     case 'confirmed':
-    case 'preparing':
       return 1;
     case 'out_for_delivery':
       return 2;

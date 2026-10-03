@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { OrderPaymentForm } from '@/components/OrderPaymentForm';
-import { OrderStatusForm } from '@/components/OrderStatusForm';
+import { OrderWorkflow } from '@/components/OrderWorkflow';
 import { StatusBadge } from '@/components/OrderBadges';
 import { TableScroll } from '@/components/TableScroll';
 import { getCustomerById } from '@/services/customers';
@@ -37,7 +37,11 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           <h1 className="text-2xl font-bold">Order {formatOrderNumber(order.order_number)}</h1>
           <StatusBadge status={order.status} size="lg" />
         </div>
-        <p className="mt-1 text-sm text-stone-600">
+        <p className="mt-1 text-sm font-medium text-stone-800">
+          {order.customer_name} · {order.order_items.length}{' '}
+          {order.order_items.length === 1 ? 'item' : 'items'} · {formatPrice(order.total_amount)}
+        </p>
+        <p className="mt-0.5 text-sm text-stone-600">
           Placed {formatDateTime(order.created_at)} · Channel {orderChannelLabel(order.channel)}
           {showCommunityType ? (
             <>
@@ -51,15 +55,19 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-stone-200 bg-white p-4">
-          <OrderStatusForm
+          <OrderWorkflow
             orderId={order.id}
+            orderNumber={`#${formatOrderNumber(order.order_number)}`}
             status={order.status}
             cancelReason={order.cancel_reason}
+            allowCorrection
           />
         </div>
         <div className="rounded-xl border border-stone-200 bg-white p-4">
           <OrderPaymentForm
             orderId={order.id}
+            orderNumber={`#${formatOrderNumber(order.order_number)}`}
+            amount={order.total_amount}
             status={order.status}
             paymentMethod={order.payment_method ?? 'pending'}
             refundStatus={order.refund_status ?? null}

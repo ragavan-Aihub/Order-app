@@ -311,7 +311,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-stone-700">Ingredients (for Sam)</span>
+          <span className="mb-1.5 block text-sm font-medium text-stone-700">Ingredients (for voice ordering)</span>
           <div className="relative">
             <textarea
               value={ingredients}

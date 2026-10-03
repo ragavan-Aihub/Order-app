@@ -10,7 +10,7 @@ export const REPORT_CHANNELS = [
 ] as const;
 
 export type ReportRangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom';
-export type ReportPaymentFilter = 'all' | 'paid' | 'pending' | 'refunded' | 'not_applicable';
+export type ReportPaymentFilter = 'all' | 'paid' | 'pending' | 'refunded';
 
 export type ReportFilters = {
   preset: ReportRangePreset;
@@ -43,7 +43,6 @@ export function parseReportFilters(params: Record<string, string | string[] | un
   const status: OrderStatus | 'all' =
     statusRaw === 'new' ||
     statusRaw === 'confirmed' ||
-    statusRaw === 'preparing' ||
     statusRaw === 'out_for_delivery' ||
     statusRaw === 'delivered' ||
     statusRaw === 'cancelled'
@@ -51,10 +50,7 @@ export function parseReportFilters(params: Record<string, string | string[] | un
       : 'all';
   const paymentRaw = first('payment');
   const payment: ReportPaymentFilter =
-    paymentRaw === 'paid' ||
-    paymentRaw === 'pending' ||
-    paymentRaw === 'refunded' ||
-    paymentRaw === 'not_applicable'
+    paymentRaw === 'paid' || paymentRaw === 'pending' || paymentRaw === 'refunded'
       ? paymentRaw
       : 'all';
   const methodRaw = first('method');

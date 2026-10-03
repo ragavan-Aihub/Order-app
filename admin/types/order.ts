@@ -1,7 +1,6 @@
 export type OrderStatus =
   | 'new'
   | 'confirmed'
-  | 'preparing'
   | 'out_for_delivery'
   | 'delivered'
   | 'cancelled';
@@ -30,6 +29,7 @@ export type Order = {
   external_id: string | null;
   community_id?: string | null;
   community_name?: string | null;
+  item_count?: number;
   created_at: string;
   updated_at: string;
 };
@@ -77,9 +77,8 @@ export function orderChannelLabel(channel: string | null | undefined) {
 }
 
 export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
-  { value: 'new', label: 'New' },
+  { value: 'new', label: 'Placed' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'preparing', label: 'Processing' },
   { value: 'out_for_delivery', label: 'Out for delivery' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
@@ -135,15 +134,14 @@ export function paymentStatusLabel(order: {
 }
 
 export function orderStatusLabel(status: string): string {
-  return ORDER_STATUSES.find((item) => item.value === status)?.label ?? status;
+  const value = status === 'preparing' ? 'confirmed' : status;
+  return ORDER_STATUSES.find((item) => item.value === value)?.label ?? status;
 }
 
 export function orderStatusBadgeClass(status: string): string {
-  switch (status) {
+  switch (status === 'preparing' ? 'confirmed' : status) {
     case 'delivered':
       return 'bg-emerald-100 text-emerald-800';
-    case 'preparing':
-      return 'bg-amber-100 text-amber-800';
     case 'out_for_delivery':
       return 'bg-indigo-100 text-indigo-800';
     case 'confirmed':
@@ -204,8 +202,7 @@ export function paymentSummary(order: {
 
 export const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   new: ['confirmed', 'cancelled'],
-  confirmed: ['preparing', 'delivered', 'cancelled'],
-  preparing: ['out_for_delivery', 'delivered', 'cancelled'],
+  confirmed: ['out_for_delivery', 'cancelled'],
   out_for_delivery: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],

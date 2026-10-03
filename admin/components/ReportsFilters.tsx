@@ -139,7 +139,6 @@ export function ReportsFilters({
           <option value="paid">Paid</option>
           <option value="pending">Pending</option>
           <option value="refunded">Refunded</option>
-          <option value="not_applicable">Not Applicable</option>
         </select>
       </label>
       <label className="text-sm text-stone-600">

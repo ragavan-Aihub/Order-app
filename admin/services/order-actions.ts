@@ -65,7 +65,7 @@ export async function updateOrderStatus(
     return { error: 'Could not update this order.' };
   }
 
-  const currentStatus = current.status as OrderStatus;
+  const currentStatus = (current.status === 'preparing' ? 'confirmed' : current.status) as OrderStatus;
   if (options?.mode !== 'correct' && !NEXT_STATUSES[currentStatus].includes(status)) {
     return { error: 'That status change is not allowed.' };
   }
