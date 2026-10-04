@@ -106,8 +106,8 @@ export async function updateOrderPayment(
   orderId: string,
   paymentMethod: PaymentMethod,
 ): Promise<{ error: string | null }> {
-  if (paymentMethod !== 'cash' && paymentMethod !== 'upi') {
-    return { error: 'Choose Cash or UPI.' };
+  if (paymentMethod !== 'cash' && paymentMethod !== 'upi' && paymentMethod !== 'pending') {
+    return { error: 'Choose Cash, UPI or Not yet.' };
   }
 
   if (!isSupabaseConfigured) {

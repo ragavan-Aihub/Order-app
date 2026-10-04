@@ -13,6 +13,7 @@ export type CustomerAddress = {
   house: string | null;
   locality: string | null;
   address: string;
+  city: string | null;
   pincode: string;
   instructions: string | null;
   is_default: boolean;
@@ -74,7 +75,7 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
       .order('created_at', { ascending: false }),
     supabase
       .from('customer_addresses')
-      .select('customer_id, user_id, address, house, locality, pincode, is_default')
+      .select('customer_id, user_id, address, house, locality, city, pincode, is_default')
       .eq('business_id', businessId),
     supabase.from('orders').select('customer_id, user_id, created_at').eq('business_id', businessId),
   ]);
@@ -92,7 +93,7 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
     const current = addressByCustomer.get(key) ?? { count: 0, defaultLine: null };
     current.count += 1;
     if (row.is_default || !current.defaultLine) {
-      current.defaultLine = [row.house, row.locality, row.address, row.pincode].filter(Boolean).join(', ');
+      current.defaultLine = [row.house, row.locality, row.address, row.city, row.pincode].filter(Boolean).join(', ');
     }
     addressByCustomer.set(key, current);
   }
@@ -156,7 +157,7 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
     supabase
       .from('customer_addresses')
       .select(
-        'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default, community_id',
+        'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, city, pincode, instructions, is_default, community_id',
       )
       .eq('customer_id', id)
       .eq('business_id', businessId)
@@ -199,7 +200,7 @@ export async function getCustomerAddresses(): Promise<CustomerAddress[]> {
   const { data } = await supabase
     .from('customer_addresses')
     .select(
-      'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default, community_id',
+      'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, city, pincode, instructions, is_default, community_id',
     )
     .eq('business_id', session.profile.business_id);
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
 import { OrderStepper } from '@/components/OrderStepper';
@@ -97,10 +97,7 @@ export function OrderWorkflow({
   variant?: Variant;
 }) {
   const router = useRouter();
-  const notice = useActionNotice();
-  const [pending, setPending] = useState<{ from: string; status: OrderStatus; reason: string | null } | null>(
-    null,
-  );
+  const { complete, refreshing } = useActionComplete();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +106,8 @@ export function OrderWorkflow({
   const [correctTo, setCorrectTo] = useState<OrderStatus>('new');
   const [payChoice, setPayChoice] = useState<PaymentChoice | null>(null);
 
-  const live = pending && pending.from === status ? pending : null;
-  const current = live ? live.status : normalizeStatus(status);
-  const reason = live ? live.reason : cancelReason ?? null;
+  const current = normalizeStatus(status);
+  const reason = cancelReason ?? null;
   const action = nextAction(current);
   const askPayment = action?.target === 'delivered' && paymentMethod !== undefined && !isPaymentCollected(paymentMethod);
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -123,17 +119,10 @@ export function OrderWorkflow({
     collect?: 'cash' | 'upi',
   ) {
     setError(null);
-    notice.clear();
-    setPending({
-      from: status,
-      status: target,
-      reason: target === 'cancelled' ? options.cancelReason ?? null : null,
-    });
     setBusy(true);
     const result = await updateOrderStatus(orderId, target, options);
     if (result.error) {
       setBusy(false);
-      setPending(null);
       setError(result.error);
       return;
     }
@@ -147,8 +136,7 @@ export function OrderWorkflow({
       }
     }
     setBusy(false);
-    notice.show(done);
-    router.refresh();
+    complete(done);
   }
 
   function openAdvance() {
@@ -246,11 +234,14 @@ export function OrderWorkflow({
   ) : null;
 
   const ActionIcon = action?.target === 'delivered' ? Check : ArrowRight;
+  const working = busy || refreshing;
+  const iconSize = variant === 'row' ? 15 : 18;
   const primary = action ? (
     <button
       type="button"
       onClick={openAdvance}
-      disabled={busy}
+      disabled={working}
+      aria-busy={working}
       className={`inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 ${
         variant === 'row'
           ? 'min-h-9 whitespace-nowrap px-3 text-sm'
@@ -259,8 +250,9 @@ export function OrderWorkflow({
             : 'min-h-12 flex-1 px-5 text-base'
       }`}
     >
-      {busy ? 'Saving…' : action.label}
-      {busy ? null : <ActionIcon size={variant === 'row' ? 15 : 18} strokeWidth={2.5} aria-hidden />}
+      {working ? <Spinner size={iconSize} /> : null}
+      {working ? 'Saving…' : action.label}
+      {working ? null : <ActionIcon size={iconSize} strokeWidth={2.5} aria-hidden />}
     </button>
   ) : current === 'delivered' ? (
     <span
@@ -268,7 +260,7 @@ export function OrderWorkflow({
         variant === 'row' ? 'text-sm' : 'min-h-11 flex-1 rounded-lg bg-emerald-50 px-4 text-sm'
       }`}
     >
-      <CheckCircle2 size={variant === 'row' ? 15 : 18} aria-hidden /> Order completed
+      <CheckCircle2 size={iconSize} aria-hidden /> Order completed
     </span>
   ) : variant === 'row' ? null : (
     <span className="flex-1" />
@@ -277,7 +269,6 @@ export function OrderWorkflow({
   const feedback = (
     <>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      <ActionNotice message={notice.message} />
     </>
   );
 
@@ -382,13 +373,13 @@ export function OrderWorkflow({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-1 flex-col gap-4">
+      <div className="flex min-h-10 items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Order status</h2>
         {menu}
       </div>
       <OrderStepper status={current} cancelReason={reason} />
-      {primary && (action || current === 'delivered') ? <div className="flex">{primary}</div> : null}
+      {primary && (action || current === 'delivered') ? <div className="mt-auto flex">{primary}</div> : null}
       {feedback}
       {dialogs}
     </div>

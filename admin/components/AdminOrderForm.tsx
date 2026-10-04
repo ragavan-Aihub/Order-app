@@ -4,6 +4,7 @@ import { AlertCircle, MapPin, Minus, Plus, Search, Trash2, UserPlus } from 'luci
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
@@ -11,7 +12,7 @@ import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMet
 import { createAdminOrder, createCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
-import { CUSTOMER_SOURCES, customerSourceLabel, normalizeMobile, type CustomerSource } from '@/types/customer';
+import { ADMIN_CUSTOMER_SOURCE, customerSourceLabel, normalizeMobile } from '@/types/customer';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
@@ -48,6 +49,7 @@ function addressLine(address: CustomerAddress) {
     address.house ?? '',
     address.address ?? '',
     address.locality ?? '',
+    address.city ?? '',
     stateFromPincode(address.pincode),
   );
 }
@@ -58,6 +60,7 @@ function emptyAddress(person?: CustomerOption | null): AddressFieldsValue {
     area: '',
     landmark: '',
     pincode: '',
+    city: '',
     state: '',
     label: 'home',
     receiverName: person?.name ?? '',
@@ -74,6 +77,7 @@ function fromBook(row?: CustomerAddress | null, person?: CustomerOption | null):
     area: row.address ?? '',
     landmark: row.locality ?? '',
     pincode: row.pincode ?? '',
+    city: row.city ?? '',
     state: stateFromPincode(row.pincode),
     label: (row.label as AddressLabel) ?? 'home',
     receiverName: row.name || person?.name || '',
@@ -88,6 +92,7 @@ export function AdminOrderForm({
   products,
 }: AdminOrderFormProps) {
   const router = useRouter();
+  const notice = useActionNotice();
   const initialPerson = initialCustomers.find((person) => person.id === selectedCustomerId);
   const initialBook = initialAddresses.filter((item) => item.customer_id === selectedCustomerId);
   const initialPreferred = initialBook.find((item) => item.is_default) ?? initialBook[0];
@@ -99,7 +104,6 @@ export function AdminOrderForm({
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [name, setName] = useState(initialPerson?.name ?? '');
   const [mobile, setMobile] = useState(initialPerson?.mobile ?? '');
-  const [source, setSource] = useState<CustomerSource>((initialPerson?.source as CustomerSource) || 'whatsapp');
   const [addressId, setAddressId] = useState(initialPreferred?.id ?? '');
   const [ship, setShip] = useState(fromBook(initialPreferred, initialPerson));
   const [productQuery, setProductQuery] = useState('');
@@ -199,7 +203,6 @@ export function AdminOrderForm({
     setIgnoredMobile('');
     setName(person.name ?? '');
     setMobile(person.mobile ?? '');
-    setSource((person.source as CustomerSource) || 'whatsapp');
     setAddressId(preferred?.id ?? '');
     setShip(fromBook(preferred, person));
     setDifferentAddress(!preferred);
@@ -243,7 +246,6 @@ export function AdminOrderForm({
     setIgnoredMobile('');
     setName('');
     setMobile('');
-    setSource('whatsapp');
     setAddressId('');
     setShip(emptyAddress());
     setDifferentAddress(false);
@@ -310,10 +312,10 @@ export function AdminOrderForm({
     const result = await createCustomer({
       name,
       mobile,
-      source,
       house: ship.house,
       address: ship.area,
       locality: ship.landmark,
+      city: ship.city,
       pincode: ship.pincode,
     });
     if (result.error || !result.id) {
@@ -331,9 +333,9 @@ export function AdminOrderForm({
       id: result.id,
       name: name.trim(),
       mobile: normalizeMobile(mobile),
-      source,
+      source: ADMIN_CUSTOMER_SOURCE,
       orderCount: 0,
-      defaultAddress: composeAddressLine(ship.house, ship.area, ship.landmark, ship.state) || null,
+      defaultAddress: composeAddressLine(ship.house, ship.area, ship.landmark, ship.city, ship.state) || null,
     };
     setPeople((current) => [created, ...current]);
     if (result.addressId) {
@@ -349,6 +351,7 @@ export function AdminOrderForm({
           house: ship.house.trim() || null,
           locality: ship.landmark.trim() || null,
           address: ship.area.trim(),
+          city: ship.city.trim() || null,
           pincode: ship.pincode.trim(),
           instructions: null,
           is_default: true,
@@ -390,17 +393,19 @@ export function AdminOrderForm({
       house: useTypedAddress ? ship.house : undefined,
       area: useTypedAddress ? ship.area : undefined,
       landmark: useTypedAddress ? ship.landmark : undefined,
+      city: useTypedAddress ? ship.city : undefined,
       pincode: useTypedAddress ? ship.pincode : undefined,
       notes,
       items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
       paymentMethod: payChoice === 'later' ? 'pending' : payChoice,
     });
-    setSubmitting(false);
     if (result.error || !result.orderId) {
+      setSubmitting(false);
       setError(result.error ?? 'Could not create the order.');
       return;
     }
     setAttempted(false);
+    notice.show('Order created');
     router.push(`/orders/${result.orderId}`);
     router.refresh();
   }
@@ -409,12 +414,12 @@ export function AdminOrderForm({
     <form onSubmit={onSubmit} autoComplete="off" className="relative">
       <BrowserAddressDecoy />
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-4">
           <section
             ref={customerSectionRef}
             className={`${cardClass} scroll-mt-4 p-5 ${showCustomerIssue ? issueBorder : 'border-stone-200'}`}
           >
-            <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className={sectionTitle}>{creatingCustomer ? 'New customer' : 'Customer & delivery'}</h2>
               {creatingCustomer ? (
                 <button
@@ -447,7 +452,7 @@ export function AdminOrderForm({
 
             {creatingCustomer ? (
               <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block">
                     <span className={labelClass}>Name</span>
                     <NoFillInput
@@ -469,20 +474,6 @@ export function AdminOrderForm({
                       name="cust-ph"
                       className={`${fieldClass} tabular-nums`}
                     />
-                  </label>
-                  <label className="block">
-                    <span className={labelClass}>Customer source</span>
-                    <select
-                      value={source}
-                      onChange={(event) => setSource(event.target.value as CustomerSource)}
-                      className={fieldClass}
-                    >
-                      {CUSTOMER_SOURCES.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
                   </label>
                 </div>
                 <div className="border-t border-stone-100 pt-4">
@@ -557,16 +548,16 @@ export function AdminOrderForm({
                       <p className="font-semibold text-stone-900">{selected.name || 'Customer'}</p>
                       <p className="text-sm tabular-nums text-stone-600">{selected.mobile}</p>
                     </div>
-                    <p className="mt-0.5 text-xs text-stone-500">
+                    <p className="mt-0.5 text-xs text-stone-400">
                       {customerSourceLabel(selected.source)} · {selected.orderCount} orders
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setChangingCustomer(true)}
-                    className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                    className="shrink-0 text-sm font-medium text-emerald-700 hover:text-emerald-800"
                   >
-                    Change
+                    Change customer
                   </button>
                 </div>
 
@@ -646,7 +637,7 @@ export function AdminOrderForm({
             ref={productsSectionRef}
             className={`${cardClass} scroll-mt-4 p-5 ${showProductsIssue ? issueBorder : 'border-stone-200'}`}
           >
-            <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className={sectionTitle}>Products</h2>
               {itemCount > 0 ? (
                 <span className="text-sm tabular-nums text-stone-500">
@@ -686,8 +677,8 @@ export function AdminOrderForm({
                     return (
                       <li key={product.id} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-stone-50">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-stone-900">{product.name}</p>
-                          <p className="text-xs tabular-nums text-stone-500">
+                          <p className="truncate text-sm font-semibold text-stone-900">{product.name}</p>
+                          <p className="text-xs tabular-nums text-stone-400">
                             {formatPrice(product.price)}
                             {product.active === false ? ' · Inactive' : !product.available ? ' · Coming soon' : ''}
                           </p>
@@ -714,14 +705,14 @@ export function AdminOrderForm({
             ) : null}
 
             {lines.length === 0 ? (
-              <p className="mt-4 text-sm text-stone-500">No items yet. Search to add products.</p>
+              <p className="mt-3 text-sm text-stone-500">No items yet. Search to add products.</p>
             ) : (
-              <ul className="mt-4 divide-y divide-stone-100 rounded-lg border border-stone-200">
+              <ul className="mt-3 divide-y divide-stone-100 rounded-lg border border-stone-200">
                 {lines.map((line) => (
-                  <li key={line.product.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <li key={line.product.id} className="flex items-center gap-3 px-3 py-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-stone-900">{line.product.name}</p>
-                      <p className="text-xs tabular-nums text-stone-500">{formatPrice(line.product.price)} each</p>
+                      <p className="truncate text-sm font-semibold text-stone-900">{line.product.name}</p>
+                      <p className="text-xs tabular-nums text-stone-400">{formatPrice(line.product.price)} each</p>
                     </div>
                     <div className="flex items-center rounded-lg border border-stone-200 bg-white">
                       <button
@@ -762,15 +753,17 @@ export function AdminOrderForm({
 
         <aside className="lg:sticky lg:top-4">
           <section className={`${cardClass} border-stone-200`}>
-            <div className="border-b border-stone-100 px-5 py-4">
+            <div className="border-b border-stone-100 px-5 py-3.5">
               <h2 className={sectionTitle}>Order summary</h2>
               <p className="mt-0.5 truncate text-sm text-stone-500">{summaryFor}</p>
             </div>
-            <div className="space-y-5 p-5">
+            <div className="space-y-4 p-5">
               <dl className="space-y-2">
                 <div className="flex items-center justify-between text-sm text-stone-600">
-                  <dt>Items</dt>
-                  <dd className="tabular-nums">{itemCount}</dd>
+                  <dt className="sr-only">Items</dt>
+                  <dd className="tabular-nums">
+                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                  </dd>
                 </div>
                 <div className="flex items-baseline justify-between border-t border-stone-100 pt-3">
                   <dt className="text-sm font-medium text-stone-900">Total</dt>
@@ -779,7 +772,7 @@ export function AdminOrderForm({
               </dl>
 
               <div>
-                <p className={labelClass}>Payment collected?</p>
+                <p className={labelClass}>Payment</p>
                 <PaymentMethodPicker value={payChoice} onChange={setPayChoice} allowLater size="segmented" />
               </div>
 
@@ -799,9 +792,11 @@ export function AdminOrderForm({
               <button
                 type="submit"
                 disabled={submitting || Boolean(duplicate)}
-                className="min-h-11 w-full rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                aria-busy={submitting}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
               >
-                {submitting ? 'Creating…' : 'Create order'}
+                {submitting ? <Spinner /> : null}
+                {submitting ? 'Creating order…' : 'Create order'}
               </button>
               {error ? <p className="text-sm text-red-700">{error}</p> : null}
             </div>

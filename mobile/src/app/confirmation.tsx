@@ -134,7 +134,7 @@ export default function OrderStatusScreen() {
       return;
     }
     Alert.alert(`Order #${formatOrderNumber(order.order_number)}`, undefined, [
-      { text: 'Modify order', onPress: () => goModifyOrder(order.id, beginEditOrder, order) },
+      { text: 'Modify order', onPress: () => goModifyOrder(order, beginEditOrder) },
       { text: 'Cancel order', style: 'destructive', onPress: () => setTimeout(confirmCancel, 200) },
       { text: 'Close', style: 'cancel' },
     ]);

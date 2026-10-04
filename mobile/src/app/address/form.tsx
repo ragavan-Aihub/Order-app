@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -26,7 +26,7 @@ import { getSignedInUser } from '@/services/supabase';
 import {
   ADDRESS_FIELD_COPY,
   ADDRESS_LABELS,
-  lookupPincodeState,
+  lookupPincode,
   stateFromPincode,
   type AddressLabel,
 } from '@/utils/address';
@@ -57,6 +57,7 @@ export default function AddressFormScreen() {
   const nextParam = firstParam(params.next);
   const nextPath =
     nextParam === 'cart' ? '/cart' : nextParam === 'sam' ? '/sam' : nextParam === 'home' ? '/home' : '/checkout';
+  const returnBack = nextParam === 'back';
   const [house, setHouse] = useState('');
   const [area, setArea] = useState('');
   const [landmark, setLandmark] = useState(firstParam(params.locality));
@@ -65,6 +66,8 @@ export default function AddressFormScreen() {
   const [altMobile, setAltMobile] = useState('');
   const [pincode, setPincode] = useState(firstParam(params.pincode));
   const [stateName, setStateName] = useState(stateFromPincode(firstParam(params.pincode)));
+  const [city, setCity] = useState('');
+  const loadedPin = useRef('');
   const [label, setLabel] = useState<AddressLabel>('home');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -102,6 +105,8 @@ export default function AddressFormScreen() {
         setName(row.name);
         setMobile(row.mobile.replace(/\D/g, '').slice(-10));
         setAltMobile(row.altMobile ?? '');
+        loadedPin.current = row.pincode;
+        setCity(row.city ?? '');
         setPincode(row.pincode);
         setStateName(stateFromPincode(row.pincode));
         setLabel(row.label === 'work' || row.label === 'other' ? row.label : 'home');
@@ -113,7 +118,11 @@ export default function AddressFormScreen() {
 
     loadAddressBook().then((list) => {
       if (list.length >= MAX_SAVED_ADDRESSES) {
-        router.replace(nextPath);
+        if (returnBack && router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace(nextPath);
+        }
       }
     });
 
@@ -137,7 +146,7 @@ export default function AddressFormScreen() {
     return () => {
       cancelled = true;
     };
-  }, [editingId, nextPath, router]);
+  }, [editingId, nextPath, returnBack, router]);
 
   const phoneDigits = useMemo(() => mobile.replace(/\D/g, '').slice(0, 10), [mobile]);
 
@@ -145,14 +154,22 @@ export default function AddressFormScreen() {
     const pin = pincode.trim();
     const local = stateFromPincode(pin);
     if (!isValidPincode(pin)) {
+      loadedPin.current = '';
       setStateName('');
       return;
     }
     setStateName(local);
+    const savedPin = pin === loadedPin.current;
     let cancelled = false;
-    lookupPincodeState(pin).then((remote) => {
-      if (!cancelled && remote) {
-        setStateName(remote);
+    lookupPincode(pin).then((remote) => {
+      if (cancelled) {
+        return;
+      }
+      if (remote.state) {
+        setStateName(remote.state);
+      }
+      if (remote.city) {
+        setCity((current) => (savedPin && current.trim() ? current : remote.city));
       }
     });
     return () => {
@@ -192,13 +209,18 @@ export default function AddressFormScreen() {
         pincode: pincode.trim(),
         house: house.trim(),
         locality: landmark.trim() || undefined,
+        city: city.trim() || undefined,
         label,
         altMobile: altMobile.trim() || undefined,
         lat: params.lat ? Number(params.lat) : undefined,
         lng: params.lng ? Number(params.lng) : undefined,
       };
       await upsertAddress(payload);
-      router.replace(nextPath);
+      if (returnBack && router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace(nextPath);
+      }
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Could not save this address.';
       if (message.toLowerCase().includes('sign in')) {
@@ -249,6 +271,13 @@ export default function AddressFormScreen() {
           keyboardType="number-pad"
           maxLength={6}
           placeholder={ADDRESS_FIELD_COPY.pincode}
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          value={city}
+          onChangeText={setCity}
+          style={styles.input}
+          placeholder={ADDRESS_FIELD_COPY.city}
           placeholderTextColor={colors.textMuted}
         />
         <TextInput

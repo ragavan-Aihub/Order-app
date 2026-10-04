@@ -7,7 +7,7 @@ import {
   ADDRESS_FIELD_COPY,
   ADDRESS_LABELS,
   isValidPincode,
-  lookupPincodeState,
+  lookupPincode,
   stateFromPincode,
   type AddressLabel,
 } from '@/types/address';
@@ -19,6 +19,7 @@ export type AddressFieldsValue = {
   area: string;
   landmark: string;
   pincode: string;
+  city: string;
   state: string;
   label: AddressLabel;
   receiverName: string;
@@ -40,6 +41,7 @@ export function AddressFields({
   const headingClass = compact ? 'text-sm font-semibold' : 'text-base font-semibold';
   const latest = useRef(value);
   latest.current = value;
+  const loadedPin = useRef(value.pincode.trim());
 
   function patch(partial: Partial<AddressFieldsValue>) {
     onChange({ ...value, ...partial });
@@ -49,6 +51,7 @@ export function AddressFields({
     const pin = value.pincode.trim();
     const local = stateFromPincode(pin);
     if (!isValidPincode(pin)) {
+      loadedPin.current = '';
       if (value.state) {
         onChange({ ...latest.current, state: '' });
       }
@@ -57,10 +60,24 @@ export function AddressFields({
     if (local && local !== value.state) {
       onChange({ ...latest.current, state: local });
     }
+    const keepCity = pin === loadedPin.current && Boolean(latest.current.city.trim());
     let cancelled = false;
-    lookupPincodeState(pin).then((remote) => {
-      if (!cancelled && remote && remote !== latest.current.state) {
-        onChange({ ...latest.current, state: remote });
+    lookupPincode(pin).then((remote) => {
+      if (cancelled) {
+        return;
+      }
+      const next = { ...latest.current };
+      let changed = false;
+      if (remote.state && remote.state !== next.state) {
+        next.state = remote.state;
+        changed = true;
+      }
+      if (!keepCity && remote.city && remote.city !== next.city) {
+        next.city = remote.city;
+        changed = true;
+      }
+      if (changed) {
+        onChange(next);
       }
     });
     return () => {
@@ -115,6 +132,16 @@ export function AddressFields({
             name="f2f_pc"
             autoComplete="one-time-code"
             placeholder={ADDRESS_FIELD_COPY.pincode}
+            className={fieldClass}
+          />
+        </label>
+        <label className="block">
+          <span className={labelClass}>{ADDRESS_FIELD_COPY.city}</span>
+          <NoFillInput
+            value={value.city}
+            onChange={(event) => patch({ city: event.target.value })}
+            name="f2f_ct"
+            placeholder={isValidPincode(value.pincode) ? ADDRESS_FIELD_COPY.city : 'Filled from pincode'}
             className={fieldClass}
           />
         </label>

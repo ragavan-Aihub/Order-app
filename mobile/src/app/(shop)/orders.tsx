@@ -14,7 +14,7 @@ import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { cancelMyOrder, getMyOrdersWithItems } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import { isOpenOrderStatus, type OrderWithItems } from '@/types/order';
+import { canModifyOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
 import { formatOrderListDate, formatOrderNumber, formatPrice, orderStatusTone } from '@/utils/format';
 
 function itemSummary(order: OrderWithItems) {
@@ -152,12 +152,19 @@ export default function MyOrdersScreen() {
                 </Pressable>
                 {open ? (
                   <View style={styles.openActions}>
-                    <Pressable
-                      onPress={() => goModifyOrder(order.id, beginEditOrder, order)}
-                      style={styles.actionBtn}
-                    >
-                      <Text style={styles.actionLabel}>Modify</Text>
-                    </Pressable>
+                    {canModifyOrder(order) ? (
+                      <Pressable
+                        onPress={() => goModifyOrder(order, beginEditOrder)}
+                        style={styles.actionBtn}
+                      >
+                        <Text style={styles.actionLabel}>Modify</Text>
+                      </Pressable>
+                    ) : (
+                      <View style={styles.limitNote}>
+                        <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
+                        <Text style={styles.limitText}>Modify limit reached</Text>
+                      </View>
+                    )}
                     <Pressable
                       onPress={() => {
                         Alert.alert('Cancel order?', `Cancel order #${formatOrderNumber(order.order_number)}?`, [
@@ -309,6 +316,17 @@ const styles = StyleSheet.create({
     color: colors.primaryText,
     fontSize: 13,
     fontWeight: '800',
+  },
+  limitNote: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  limitText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
   },
   actionBtnGhost: {
     minHeight: 36,

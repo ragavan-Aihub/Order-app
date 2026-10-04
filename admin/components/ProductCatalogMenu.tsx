@@ -1,9 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { Spinner, useActionComplete, useActionNotice } from '@/components/ActionNotice';
 import { deleteProduct, updateProductActive } from '@/services/product-actions';
 
 type CatalogValue = 'active' | 'inactive';
@@ -17,14 +16,16 @@ export function ProductCatalogMenu({
   active: boolean;
   transacted: boolean;
 }) {
-  const router = useRouter();
   const [value, setValue] = useState<CatalogValue>(active ? 'active' : 'inactive');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const notice = useActionNotice();
+  const { complete, refreshing } = useActionComplete();
+  const working = saving || (deleting && refreshing);
 
   async function onChange(next: string) {
-    if (saving) {
+    if (working) {
       return;
     }
     if (next === 'delete') {
@@ -36,14 +37,14 @@ export function ProductCatalogMenu({
       }
       setSaving(true);
       setError(null);
-      notice.clear();
       const result = await deleteProduct(productId);
       setSaving(false);
       if (result.error) {
         setError(result.error);
         return;
       }
-      router.refresh();
+      setDeleting(true);
+      complete('Product deleted');
       return;
     }
     if (next !== 'active' && next !== 'inactive') {
@@ -56,7 +57,6 @@ export function ProductCatalogMenu({
     setValue(next);
     setSaving(true);
     setError(null);
-    notice.clear();
     const result = await updateProductActive(productId, next === 'active');
     setSaving(false);
     if (result.error) {
@@ -64,7 +64,7 @@ export function ProductCatalogMenu({
       setError(result.error);
       return;
     }
-    notice.show('Saved successfully');
+    notice.show(next === 'active' ? 'Product is now active in the app' : 'Product hidden from the app');
   }
 
   return (
@@ -72,7 +72,8 @@ export function ProductCatalogMenu({
       <select
         aria-label="Catalog status"
         value={value}
-        disabled={saving}
+        disabled={working}
+        aria-busy={working}
         onChange={(event) => void onChange(event.target.value)}
         className="min-h-11 w-full min-w-[8.5rem] rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm disabled:opacity-60"
       >
@@ -80,7 +81,11 @@ export function ProductCatalogMenu({
         <option value="inactive">Inactive</option>
         {transacted ? null : <option value="delete">Delete</option>}
       </select>
-      <ActionNotice message={notice.message} />
+      {working ? (
+        <span className="inline-flex items-center gap-1.5 text-xs text-stone-600">
+          <Spinner size={12} /> {deleting ? 'Deleting…' : 'Saving…'}
+        </span>
+      ) : null}
       {error ? <p className="max-w-[16rem] text-xs text-red-700">{error}</p> : null}
     </span>
   );

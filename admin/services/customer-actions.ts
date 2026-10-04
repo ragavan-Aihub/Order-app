@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { isSupabaseConfigured } from '@/config/env';
 import type { CustomerAddress } from '@/services/customers';
 import { createServerSupabaseClient } from '@/services/supabase/server';
-import { CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
+import { ADMIN_CUSTOMER_SOURCE, CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
 import { composeAddressLine, isValidPincode, stateFromPincode } from '@/types/address';
 import { ADMIN_ORDER_CHANNEL, type PaymentMethod } from '@/types/order';
 
@@ -95,7 +95,7 @@ export async function findCustomerByMobile(mobile: string): Promise<{
     ctx.supabase
       .from('customer_addresses')
       .select(
-        'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default',
+        'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, city, pincode, instructions, is_default',
       )
       .eq('business_id', ctx.businessId)
       .eq('customer_id', person.id),
@@ -121,6 +121,7 @@ export async function findCustomerByMobile(mobile: string): Promise<{
             preferred.house ?? '',
             preferred.address ?? '',
             preferred.locality ?? '',
+            preferred.city ?? '',
             stateFromPincode(preferred.pincode),
           )
         : null,
@@ -132,12 +133,12 @@ export async function findCustomerByMobile(mobile: string): Promise<{
 export async function createCustomer(input: {
   name: string;
   mobile: string;
-  source: CustomerSource;
   notes?: string;
   address?: string;
   pincode?: string;
   house?: string;
   locality?: string;
+  city?: string;
 }): Promise<{ error: string | null; id?: string; addressId?: string }> {
   const ctx = await requireAdmin();
   if ('error' in ctx) {
@@ -146,7 +147,6 @@ export async function createCustomer(input: {
 
   const name = input.name.trim();
   const mobile = normalizeMobile(input.mobile);
-  const sourceOk = CUSTOMER_SOURCES.some((item) => item.value === input.source);
   const notes = input.notes?.trim() || null;
 
   if (name.length < 2) {
@@ -155,9 +155,6 @@ export async function createCustomer(input: {
   if (mobile.length !== 10) {
     return { error: 'Enter a 10-digit mobile number.' };
   }
-  if (!sourceOk) {
-    return { error: 'Choose how this customer was added.' };
-  }
 
   const { data, error } = await ctx.supabase
     .from('customers')
@@ -165,7 +162,7 @@ export async function createCustomer(input: {
       business_id: ctx.businessId,
       name,
       mobile,
-      source: input.source,
+      source: ADMIN_CUSTOMER_SOURCE,
       notes,
     })
     .select('id')
@@ -208,6 +205,7 @@ export async function createCustomer(input: {
         house,
         locality: landmark || null,
         address: area,
+        city: input.city?.trim() || null,
         pincode,
         is_default: true,
       })
@@ -303,7 +301,7 @@ function receiverKey(name: string, mobile: string) {
 }
 
 const ADDRESS_SELECT =
-  'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, is_default, community_id';
+  'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, city, pincode, instructions, is_default, community_id';
 
 export async function saveCustomerAddress(
   customerId: string,
@@ -313,6 +311,7 @@ export async function saveCustomerAddress(
     house: string;
     area?: string;
     landmark?: string;
+    city?: string;
     pincode: string;
     name?: string;
     mobile?: string;
@@ -384,6 +383,7 @@ export async function saveCustomerAddress(
     house,
     locality: landmark || null,
     address: area,
+    city: input.city?.trim() || null,
     pincode,
     instructions: input.instructions?.trim() || null,
     is_default: Boolean(input.isDefault),
@@ -438,6 +438,7 @@ export async function createAdminOrder(input: {
   house?: string;
   area?: string;
   landmark?: string;
+  city?: string;
   address?: string;
   pincode?: string;
   notes?: string;
@@ -461,13 +462,19 @@ export async function createAdminOrder(input: {
   }
 
   const state = stateFromPincode(input.pincode ?? '');
-  let deliveryAddress = composeAddressLine(input.house ?? '', input.area ?? input.address ?? '', input.landmark ?? '', state);
+  let deliveryAddress = composeAddressLine(
+    input.house ?? '',
+    input.area ?? input.address ?? '',
+    input.landmark ?? '',
+    input.city ?? '',
+    state,
+  );
   let pincode = input.pincode?.trim() ?? '';
   let communityId: string | undefined;
 
   const { data: books } = await ctx.supabase
     .from('customer_addresses')
-    .select('id, house, locality, address, pincode, community_id, customer_id, user_id')
+    .select('id, house, locality, address, city, pincode, community_id, customer_id, user_id')
     .eq('business_id', ctx.businessId)
     .or(
       [
@@ -489,7 +496,13 @@ export async function createAdminOrder(input: {
     if (!book) {
       return { error: 'Choose a saved address or enter one.' };
     }
-    deliveryAddress = composeAddressLine(book.house ?? '', book.address ?? '', book.locality ?? '', stateFromPincode(book.pincode));
+    deliveryAddress = composeAddressLine(
+      book.house ?? '',
+      book.address ?? '',
+      book.locality ?? '',
+      book.city ?? '',
+      stateFromPincode(book.pincode),
+    );
     pincode = book.pincode;
   }
   if (book?.community_id) {

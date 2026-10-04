@@ -11,6 +11,7 @@ export type SavedAddress = DeliveryDetails & {
   instructions?: string;
   house?: string;
   locality?: string;
+  city?: string;
   label?: AddressLabel;
   altMobile?: string;
   lat?: number;
@@ -73,7 +74,13 @@ export function formatSavedAddressLabel(label?: AddressLabel) {
 
 export function formatSavedAddressLine(item: SavedAddress) {
   return [
-    composeAddressLine(item.house ?? '', item.address, item.locality ?? '', stateFromPincode(item.pincode)),
+    composeAddressLine(
+      item.house ?? '',
+      item.address,
+      item.locality ?? '',
+      item.city ?? '',
+      stateFromPincode(item.pincode),
+    ),
     item.pincode,
   ]
     .filter(Boolean)
@@ -85,6 +92,7 @@ export function formatAddressForOrder(details: SavedAddress): string {
     details.house ?? '',
     details.address,
     details.locality ?? '',
+    details.city ?? '',
     stateFromPincode(details.pincode),
   );
   const unique = line
@@ -170,6 +178,7 @@ export async function upsertAddress(input: Omit<SavedAddress, 'id'> & { id?: str
     instructions: input.instructions?.trim() || undefined,
     house: input.house?.trim() || undefined,
     locality: input.locality?.trim() || undefined,
+    city: input.city?.trim() || undefined,
     label: input.label ?? 'home',
     altMobile: input.altMobile?.trim() || undefined,
     lat: input.lat,

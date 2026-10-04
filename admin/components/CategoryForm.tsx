@@ -4,6 +4,7 @@ import { ImagePlus, RefreshCw, Trash2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { saveCategory } from '@/services/category-actions';
 import type { ProductCategory } from '@/types/category';
 
@@ -34,6 +35,7 @@ export function CategoryForm({
   category?: Pick<ProductCategory, 'id' | 'name' | 'image_url'>;
 }) {
   const router = useRouter();
+  const notice = useActionNotice();
   const isEdit = Boolean(category?.id);
   const [name, setName] = useState(category?.name ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -132,11 +134,12 @@ export function CategoryForm({
       formData.set('image', imageFile);
     }
     const result = await saveCategory(formData);
-    setSubmitting(false);
     if (result.error) {
+      setSubmitting(false);
       setError(result.error);
       return;
     }
+    notice.show(isEdit ? 'Category saved' : 'Category created');
     router.replace('/products/categories');
     router.refresh();
   }
@@ -239,8 +242,10 @@ export function CategoryForm({
         <button
           type="submit"
           disabled={submitting}
-          className="min-h-11 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          aria-busy={submitting}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
         >
+          {submitting ? <Spinner /> : null}
           {submitting ? 'Saving…' : isEdit ? 'Save category' : 'Create category'}
         </button>
       </section>

@@ -15,12 +15,14 @@ import {
 } from 'react-native';
 
 import { useCart } from '@/cart/CartContext';
+import { useAddToCart } from '@/cart/useAddToCart';
 import { useShopCatalog } from '@/catalog/ShopCatalogContext';
 import { getHomeCategoryId, setHomeCategoryId, subscribeHomeCategory } from '@/catalog/home-filter';
 import { HomeHeader } from '@/components/HomeHeader';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
 import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
+import { env } from '@/config/env';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { refreshBusiness } from '@/services/business';
@@ -29,7 +31,15 @@ import type { Product } from '@/types/product';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { addItem, increase, decrease, items, itemCount } = useCart();
+  const { increase, decrease, items, itemCount, resumeEdit, takeResumeEdit } = useCart();
+  const addToCart = useAddToCart();
+
+  useEffect(() => {
+    if (resumeEdit) {
+      takeResumeEdit();
+      router.push('/cart');
+    }
+  }, [resumeEdit, router, takeResumeEdit]);
   const { offline } = useNetworkStatus();
   const { categoriesEnabled, categories } = useShopCatalog();
   const [products, setProducts] = useState<Product[]>([]);
@@ -128,7 +138,7 @@ export default function HomeScreen() {
           <OfflineBanner />
         </View>
       ) : null}
-      {searching ? null : (
+      {searching || !env.voiceOrdering ? null : (
         <Pressable
           style={({ pressed }) => [styles.samCta, pressed && styles.pressed]}
           onPress={() => router.push('/sam')}
@@ -150,7 +160,7 @@ export default function HomeScreen() {
           </View>
         </Pressable>
       )}
-      <View style={[styles.searchBar, searching && styles.searchBarFocused]}>
+      <View style={[styles.searchBar, (searching || !env.voiceOrdering) && styles.searchBarTop]}>
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
           <TextInput
@@ -255,7 +265,7 @@ export default function HomeScreen() {
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
                   onPress={() => router.push(`/product/${product.id}`)}
-                  onAddToCart={() => addItem(product, 1)}
+                  onAddToCart={() => addToCart(product, 1)}
                   onIncrease={() => increase(product.id)}
                   onDecrease={() => decrease(product.id)}
                 />
@@ -289,7 +299,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: colors.background,
   },
-  searchBarFocused: {
+  searchBarTop: {
     paddingTop: spacing.sm,
   },
   samCta: {

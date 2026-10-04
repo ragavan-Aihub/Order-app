@@ -2,28 +2,24 @@
 
 import { useState, type FormEvent } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { isSupabaseConfigured } from '@/config/env';
 import { createBrowserSupabaseClient } from '@/services/supabase/browser';
 import type { Business } from '@/types/business';
 
 export function BusinessInfoForm({ business }: { business: Business }) {
+  const notice = useActionNotice();
   const [name, setName] = useState(business.business_name);
   const [phone, setPhone] = useState(business.phone ?? '');
   const [email, setEmail] = useState(business.email ?? '');
   const [address, setAddress] = useState(business.address ?? '');
   const [description, setDescription] = useState(business.description ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  function markDirty() {
-    setSaved(false);
-  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setSaved(false);
 
     if (!isSupabaseConfigured) {
       setError('Connect Supabase to save business info.');
@@ -87,7 +83,7 @@ export function BusinessInfoForm({ business }: { business: Business }) {
     }
 
     setSubmitting(false);
-    setSaved(true);
+    notice.show('Business info saved');
   }
 
   const fieldClass = 'w-full rounded-lg border border-stone-300 px-3 py-2';
@@ -104,7 +100,6 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           value={name}
           onChange={(event) => {
             setName(event.target.value);
-            markDirty();
           }}
           className={fieldClass}
         />
@@ -118,7 +113,6 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           value={phone}
           onChange={(event) => {
             setPhone(event.target.value);
-            markDirty();
           }}
           className={fieldClass}
         />
@@ -130,7 +124,6 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           value={email}
           onChange={(event) => {
             setEmail(event.target.value);
-            markDirty();
           }}
           className={fieldClass}
         />
@@ -141,7 +134,6 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           value={address}
           onChange={(event) => {
             setAddress(event.target.value);
-            markDirty();
           }}
           className={fieldClass}
           rows={3}
@@ -153,19 +145,19 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           value={description}
           onChange={(event) => {
             setDescription(event.target.value);
-            markDirty();
           }}
           className={fieldClass}
           rows={4}
         />
       </label>
       {error ? <p className="text-red-700">{error}</p> : null}
-      {saved ? <p className="text-emerald-800">Business info saved.</p> : null}
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-11 w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
+        aria-busy={submitting}
+        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
+        {submitting ? <Spinner /> : null}
         {submitting ? 'Saving…' : 'Save business info'}
       </button>
     </form>

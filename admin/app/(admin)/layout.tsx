@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 
+import { ActionNoticeProvider } from '@/components/ActionNotice';
 import { AdminShell } from '@/components/AdminShell';
 import { getAdminSession } from '@/services/supabase/admin-session';
 
@@ -14,5 +15,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect('/unauthorized');
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <ActionNoticeProvider>
+      <AdminShell>{children}</AdminShell>
+    </ActionNoticeProvider>
+  );
 }

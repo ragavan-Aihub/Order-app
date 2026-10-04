@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
+import { useAddToCart } from '@/cart/useAddToCart';
 import { CART_LIMIT_QTY, MAX_ITEM_QTY } from '@/cart/limits';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -16,7 +17,8 @@ import { formatPrice } from '@/utils/format';
 
 export default function ProductDetailsScreen() {
   const insets = useSafeAreaInsets();
-  const { addItem, itemCount } = useCart();
+  const { itemCount } = useCart();
+  const addToCart = useAddToCart();
   const { id: idParam } = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const [product, setProduct] = useState<Product | null>(null);
@@ -94,7 +96,7 @@ export default function ProductDetailsScreen() {
             <PrimaryButton
               label={`Add · ${formatPrice(lineTotal)}`}
               onPress={() => {
-                addItem(product, quantity);
+                addToCart(product, quantity);
               }}
             />
           </View>

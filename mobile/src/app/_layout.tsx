@@ -84,6 +84,7 @@ export default function RootLayout() {
           <Stack.Screen name="products" options={{ headerShown: false }} />
           <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
           <Stack.Screen name="sam" options={{ headerShown: false }} />
+          <Stack.Screen name="new-order" options={{ headerShown: false }} />
           <Stack.Screen name="checkout" options={{ title: 'Saved addresses' }} />
           <Stack.Screen name="address/form" options={{ title: 'Add Address Details' }} />
           <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />

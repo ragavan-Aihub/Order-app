@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { mapAddressToCommunity, unmapAddressFromCommunity } from '@/services/community-actions';
 import type { CommunityCustomerOption, CommunityMappedAddress } from '@/types/community';
@@ -20,11 +19,12 @@ export function CommunityCustomerManager({
   mappedAddresses: CommunityMappedAddress[];
   customers: CommunityCustomerOption[];
 }) {
-  const router = useRouter();
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const notice = useActionNotice();
+  const [saving, setSaving] = useState(false);
+  const { complete, refreshing } = useActionComplete();
+  const isWorking = (id: string) => busyId === id && (saving || refreshing);
 
   const matches = useMemo(() => {
     const raw = query;
@@ -42,10 +42,10 @@ export function CommunityCustomerManager({
 
   async function mapAddress(addressId: string, confirmMove = false) {
     setError(null);
-    notice.clear();
     setBusyId(addressId);
+    setSaving(true);
     const result = await mapAddressToCommunity({ communityId, addressId, confirmMove });
-    setBusyId(null);
+    setSaving(false);
     if (result.needsConfirm) {
       const ok = window.confirm(
         `This address is mapped to ${result.currentCommunityName}. Move it to ${communityName}?`,
@@ -59,23 +59,20 @@ export function CommunityCustomerManager({
       setError(result.error);
       return;
     }
-    setQuery('');
-    notice.show('Saved successfully');
-    router.refresh();
+    complete(`Address added to ${communityName}`);
   }
 
   async function unmapAddress(addressId: string) {
     setError(null);
-    notice.clear();
     setBusyId(addressId);
+    setSaving(true);
     const result = await unmapAddressFromCommunity({ communityId, addressId });
-    setBusyId(null);
+    setSaving(false);
     if (result.error) {
       setError(result.error);
       return;
     }
-    notice.show('Saved successfully');
-    router.refresh();
+    complete(`Address removed from ${communityName}`);
   }
 
   return (
@@ -114,11 +111,17 @@ export function CommunityCustomerManager({
                       ) : (
                         <button
                           type="button"
-                          disabled={busyId === item.id}
+                          disabled={isWorking(item.id)}
+                          aria-busy={isWorking(item.id)}
                           onClick={() => mapAddress(item.id)}
-                          className="text-sm font-medium text-emerald-800 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-800 disabled:opacity-50"
                         >
-                          {item.communityName ? `Move from ${item.communityName}` : 'Map this address'}
+                          {isWorking(item.id) ? <Spinner size={14} /> : null}
+                          {isWorking(item.id)
+                            ? 'Mapping…'
+                            : item.communityName
+                              ? `Move from ${item.communityName}`
+                              : 'Map this address'}
                         </button>
                       )}
                     </li>
@@ -132,7 +135,6 @@ export function CommunityCustomerManager({
         <p className="text-sm text-stone-500">No customers with a saved address match this search.</p>
       ) : null}
       {error ? <p className="text-red-700">{error}</p> : null}
-      <ActionNotice message={notice.message} />
 
       <h3 className="pt-2 text-base font-semibold">Mapped to {communityName}</h3>
       {mappedAddresses.length === 0 ? (
@@ -154,11 +156,13 @@ export function CommunityCustomerManager({
               </div>
               <button
                 type="button"
-                disabled={busyId === item.addressId}
+                disabled={isWorking(item.addressId)}
+                aria-busy={isWorking(item.addressId)}
                 onClick={() => unmapAddress(item.addressId)}
-                className="text-sm font-medium text-stone-600 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 disabled:opacity-50"
               >
-                Unmap
+                {isWorking(item.addressId) ? <Spinner size={14} /> : null}
+                {isWorking(item.addressId) ? 'Unmapping…' : 'Unmap'}
               </button>
             </li>
           ))}

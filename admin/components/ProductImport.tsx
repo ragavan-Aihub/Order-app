@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ChangeEvent } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { importProductsFromCsv, type ProductImportIssue } from '@/services/product-actions';
 
 function buildTemplate(categoriesEnabled: boolean, categoryNames: string[]) {
@@ -28,6 +29,7 @@ export function ProductImport({
   categoryNames?: string[];
 }) {
   const router = useRouter();
+  const notice = useActionNotice();
   const template = useMemo(
     () => buildTemplate(categoriesEnabled, categoryNames),
     [categoriesEnabled, categoryNames],
@@ -91,6 +93,7 @@ export function ProductImport({
     setErrors(result.errors);
     setErrorLogCsv(result.errorLogCsv);
     if (result.created > 0) {
+      notice.show(`${result.created} product${result.created === 1 ? '' : 's'} imported`);
       router.refresh();
     }
   }
@@ -128,8 +131,10 @@ export function ProductImport({
           type="button"
           onClick={onImport}
           disabled={!file || saving}
-          className="min-h-11 rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          aria-busy={saving}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
         >
+          {saving ? <Spinner /> : null}
           {saving ? 'Importing…' : 'Import CSV'}
         </button>
       </div>

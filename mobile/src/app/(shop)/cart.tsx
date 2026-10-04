@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView, ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
-import { goModifyOrder } from '@/cart/modify-flow';
+import { alertModifyDiscarded, goModifyOrder } from '@/cart/modify-flow';
 import { submitShopOrder } from '@/cart/submit-order';
 import {
   AddressPickerSheet,
@@ -25,7 +25,9 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
+import { checkOrderEditable } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
+import type { OrderStatus } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
 
 export default function CartScreen() {
@@ -39,11 +41,36 @@ export default function CartScreen() {
   const [selected, setSelected] = useState<SavedAddress | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const discarding = useRef(false);
 
   const loadAddress = useCallback(async () => {
     await loadAddressBook();
     setSelected(getSelectedAddress());
   }, []);
+
+  const discardModify = useCallback(
+    (status: OrderStatus | null, orderNumber: number | null) => {
+      if (discarding.current) {
+        return;
+      }
+      discarding.current = true;
+      clearCart();
+      router.replace('/home');
+      alertModifyDiscarded(status, orderNumber);
+    },
+    [clearCart, router],
+  );
+
+  const discardIfClosed = useCallback(
+    async (orderId: string) => {
+      const check = await checkOrderEditable(orderId);
+      if (check.state === 'closed') {
+        discardModify(check.status, check.orderNumber);
+      }
+      return check.state;
+    },
+    [discardModify],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -52,6 +79,15 @@ export default function CartScreen() {
         router.replace('/home');
       }
     }, [items.length, loadAddress, router]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      discarding.current = false;
+      if (editingOrderId) {
+        discardIfClosed(editingOrderId).catch(() => undefined);
+      }
+    }, [discardIfClosed, editingOrderId]),
   );
 
   useEffect(() => {
@@ -81,6 +117,21 @@ export default function CartScreen() {
       ],
     );
   }
+
+  function confirmDiscardChanges() {
+    Alert.alert('Discard changes?', 'Your order stays as it was saved.', [
+      { text: 'Keep editing', style: 'cancel' },
+      {
+        text: 'Discard changes',
+        style: 'destructive',
+        onPress: () => {
+          clearCart();
+          router.replace('/home');
+        },
+      },
+    ]);
+  }
+
   const editingOpen = Boolean(openOrder && editingOrderId === openOrder.id);
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
@@ -91,7 +142,20 @@ export default function CartScreen() {
       setPickerOpen(true);
       return;
     }
-    if (!editingOpen) {
+    let updateId = editingOpen ? editingOrderId : null;
+    if (editingOrderId && !editingOpen) {
+      setSubmitting(true);
+      const state = await discardIfClosed(editingOrderId).finally(() => setSubmitting(false));
+      if (state === 'closed') {
+        return;
+      }
+      if (state === 'unknown') {
+        setError('Could not reach the store. Check your connection and try again.');
+        return;
+      }
+      updateId = editingOrderId;
+    }
+    if (!updateId) {
       const user = await getSignedInUser();
       if (!user) {
         router.push({ pathname: '/login', params: { next: 'cart' } });
@@ -102,13 +166,21 @@ export default function CartScreen() {
       }
     }
     if (editingOpen && !hasOrderChanges) {
-      setError('Change an item first to save this order.');
+      setError('Change an item first to update this order.');
       return;
     }
     setSubmitting(true);
     try {
-      const result = await submitShopOrder(items, selected, editingOpen ? editingOrderId : null);
+      const result = await submitShopOrder(items, selected, updateId);
       if (!result.ok) {
+        if (result.reason === 'locked' && updateId) {
+          const check = await checkOrderEditable(updateId);
+          discardModify(
+            check.state === 'closed' ? check.status : null,
+            check.state === 'closed' ? check.orderNumber : (openOrder?.order_number ?? null),
+          );
+          return;
+        }
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'cart' } });
           return;
@@ -133,7 +205,7 @@ export default function CartScreen() {
             {
               text: 'Modify order',
               onPress: () => {
-                setTimeout(() => goModifyOrder(result.openOrder!.id, beginEditOrder), 200);
+                setTimeout(() => goModifyOrder(result.openOrder!, beginEditOrder), 200);
               },
             },
           ]);
@@ -150,7 +222,7 @@ export default function CartScreen() {
           orderNumber: result.order.order_number != null ? String(result.order.order_number) : '',
           status: result.order.status,
           total: String(result.order.total_amount),
-          fresh: editingOpen ? 'updated' : 'placed',
+          fresh: updateId ? 'updated' : 'placed',
         },
       });
     } catch (placeError) {
@@ -194,18 +266,39 @@ export default function CartScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {offline ? <OfflineBanner /> : null}
+        {editingOpen && openOrder ? (
+          <View style={styles.editBanner}>
+            <Ionicons name="create-outline" size={18} color={colors.primaryDark} />
+            <Text style={styles.editTitle}>Editing order #{formatOrderNumber(openOrder.order_number)}</Text>
+          </View>
+        ) : null}
         <View style={styles.countRow}>
           <Text style={styles.count}>
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </Text>
-          <Pressable
-            onPress={confirmClearCart}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Clear cart"
-          >
-            <Text style={styles.clearLabel}>Clear cart</Text>
-          </Pressable>
+          {editingOpen ? (
+            hasOrderChanges ? (
+              <Pressable
+                onPress={confirmDiscardChanges}
+                style={({ pressed }) => [styles.dangerPill, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Discard changes"
+              >
+                <Ionicons name="arrow-undo-outline" size={16} color={colors.danger} />
+                <Text style={styles.dangerPillLabel}>Discard changes</Text>
+              </Pressable>
+            ) : null
+          ) : (
+            <Pressable
+              onPress={confirmClearCart}
+              style={({ pressed }) => [styles.dangerPill, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Clear cart"
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.danger} />
+              <Text style={styles.dangerPillLabel}>Clear cart</Text>
+            </Pressable>
+          )}
         </View>
         {items.map((item) => {
           const subtotal = item.product.price * item.quantity;
@@ -309,10 +402,10 @@ export default function CartScreen() {
           label={
             submitting
               ? editingOpen
-                ? 'Saving…'
+                ? 'Updating…'
                 : 'Placing order…'
               : editingOpen
-                ? 'Save changes'
+                ? 'Update order'
                 : 'Place order'
           }
           disabled={submitting || Boolean(editingOpen && !hasOrderChanges)}
@@ -410,10 +503,36 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  clearLabel: {
+  dangerPill: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: colors.surface,
+  },
+  dangerPillLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.danger,
+  },
+  editBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+  },
+  editTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
   row: {
     flexDirection: 'row',

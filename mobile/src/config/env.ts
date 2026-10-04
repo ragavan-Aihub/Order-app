@@ -7,6 +7,7 @@ export const env = {
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
   businessId: process.env.EXPO_PUBLIC_BUSINESS_ID ?? '',
   samApiUrl: (process.env.EXPO_PUBLIC_SAM_API_URL ?? extra?.samApiUrl ?? '').trim(),
+  voiceOrdering: process.env.EXPO_PUBLIC_VOICE_ORDERING?.trim().toLowerCase() === 'true',
 };
 
 export const isSupabaseConfigured =

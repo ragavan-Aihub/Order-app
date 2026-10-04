@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { useActionNotice } from '@/components/ActionNotice';
 import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { deleteCustomerAddress, saveCustomerAddress } from '@/services/customer-actions';
 import type { CustomerAddress } from '@/services/customers';
@@ -28,6 +28,7 @@ export function CustomerAddressForm({
     area: address?.address ?? '',
     landmark: address?.locality ?? '',
     pincode: address?.pincode ?? '',
+    city: address?.city ?? '',
     state: stateFromPincode(address?.pincode ?? ''),
     label: (address?.label as AddressLabel) ?? 'home',
     receiverName: address?.name || receiverName,
@@ -41,7 +42,6 @@ export function CustomerAddressForm({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    notice.clear();
     setSubmitting(true);
     const result = await saveCustomerAddress(customerId, {
       id: address?.id,
@@ -49,6 +49,7 @@ export function CustomerAddressForm({
       house: fields.house,
       area: fields.area,
       landmark: fields.landmark,
+      city: fields.city,
       pincode: fields.pincode,
       name: fields.receiverName,
       mobile: fields.receiverPhone,
@@ -62,7 +63,7 @@ export function CustomerAddressForm({
     if (onDone) {
       onDone(result.address);
     } else {
-      notice.show('Saved successfully');
+      notice.show(address ? 'Address updated' : 'Address added');
     }
     router.refresh();
   }
@@ -72,12 +73,12 @@ export function CustomerAddressForm({
       return;
     }
     setError(null);
-    notice.clear();
     const result = await deleteCustomerAddress(customerId, address.id);
     if (result.error) {
       setError(result.error);
       return;
     }
+    notice.show('Address removed');
     router.refresh();
   }
 
@@ -89,7 +90,6 @@ export function CustomerAddressForm({
         Default address
       </label>
       {error ? <p className="text-red-700">{error}</p> : null}
-      <ActionNotice message={notice.message} />
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={submitting} className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60">
           {submitting ? 'Saving…' : 'Save Address'}

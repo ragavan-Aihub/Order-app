@@ -15,6 +15,16 @@ export function isUndeliveredOrder(status: string) {
   return status !== 'delivered' && status !== 'cancelled';
 }
 
+const MAX_ORDER_UPDATES = 5;
+
+export const ORDER_LOCKED_MESSAGE = 'Modify limit reached for this order. You can still cancel it.';
+
+export function canModifyOrder(order: Pick<Order, 'status' | 'update_count'> | null | undefined) {
+  return Boolean(order && isOpenOrderStatus(order.status) && (order.update_count ?? 0) < MAX_ORDER_UPDATES);
+}
+
+export type OrderPlacedVia = 'app' | 'voice';
+
 export type PaymentMethod = 'pending' | 'cash' | 'upi';
 
 export type RefundStatus = 'pending' | 'refunded';
@@ -34,6 +44,8 @@ export type Order = {
   payment_method: PaymentMethod;
   cancel_reason: string | null;
   refund_status: RefundStatus | null;
+  placed_via?: OrderPlacedVia;
+  update_count?: number;
   created_at: string;
   updated_at: string;
 };

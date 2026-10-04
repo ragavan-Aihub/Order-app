@@ -1,23 +1,21 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { setCategoriesEnabled } from '@/services/category-actions';
 
 export function CategoriesEnablePanel({ enabled }: { enabled: boolean }) {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const notice = useActionNotice();
+  const { complete, refreshing } = useActionComplete();
+  const working = busy || refreshing;
 
   async function setEnabled(next: boolean) {
     if (!next && !window.confirm('Turn off Categories? Product category fields will hide until you enable again.')) {
       return;
     }
     setError(null);
-    notice.clear();
     setBusy(true);
     const result = await setCategoriesEnabled(next);
     setBusy(false);
@@ -25,8 +23,7 @@ export function CategoriesEnablePanel({ enabled }: { enabled: boolean }) {
       setError(result.error);
       return;
     }
-    notice.show('Saved successfully');
-    router.refresh();
+    complete(next ? 'Categories turned on' : 'Categories turned off');
   }
 
   if (!enabled) {
@@ -36,14 +33,15 @@ export function CategoriesEnablePanel({ enabled }: { enabled: boolean }) {
           Categories are optional. Enable them to group products in admin. Items can stay uncategorized.
         </p>
         {error ? <p className="text-red-700">{error}</p> : null}
-        <ActionNotice message={notice.message} />
         <button
           type="button"
-          disabled={busy}
+          disabled={working}
+          aria-busy={working}
           onClick={() => void setEnabled(true)}
-          className="min-h-11 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
         >
-          {busy ? 'Enabling…' : 'Enable Categories'}
+          {working ? <Spinner /> : null}
+          {working ? 'Enabling…' : 'Enable Categories'}
         </button>
       </div>
     );
@@ -52,14 +50,14 @@ export function CategoriesEnablePanel({ enabled }: { enabled: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       {error ? <p className="w-full text-sm text-red-700">{error}</p> : null}
-      <ActionNotice message={notice.message} />
       <button
         type="button"
-        disabled={busy}
+        disabled={working}
+        aria-busy={working}
         onClick={() => void setEnabled(false)}
         className="text-sm font-medium text-stone-600 underline-offset-2 hover:underline disabled:opacity-60"
       >
-        {busy ? 'Turning off…' : 'Turn off Categories'}
+        {working ? 'Turning off…' : 'Turn off Categories'}
       </button>
     </div>
   );

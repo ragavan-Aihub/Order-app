@@ -4,16 +4,16 @@ import { env } from '@/config/env';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
 import { getSupabaseClient } from '@/services/supabase';
 import type { Product } from '@/types/product';
-import type { Order, OrderItem, OrderWithItems } from '@/types/order';
-import { OPEN_ORDER_STATUSES } from '@/types/order';
+import type { Order, OrderItem, OrderPlacedVia, OrderStatus, OrderWithItems } from '@/types/order';
+import { OPEN_ORDER_STATUSES, isOpenOrderStatus } from '@/types/order';
 
 const OFFLINE_ORDER =
   'You are not connected to the internet. Please connect to the internet and try again';
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, placed_via, update_count, created_at, updated_at';
 const ORDER_LOOKUP_COLUMNS =
-  'id, order_number, status, customer_address_id, pincode, delivery_address, created_at, total_amount';
+  'id, order_number, status, customer_address_id, pincode, delivery_address, created_at, total_amount, placed_via, update_count';
 const UNDELIVERED_STATUSES = ['new', 'confirmed', 'out_for_delivery'] as const;
 const QUERY_MS = 4000;
 const ACTION_MS = 10000;
@@ -376,7 +376,11 @@ export async function getLastDeliveryDetails(): Promise<DeliveryDetails | null> 
   }
 }
 
-export async function placeOrder(details: DeliveryDetails, items: CartItem[]): Promise<Order> {
+export async function placeOrder(
+  details: DeliveryDetails,
+  items: CartItem[],
+  placedVia: OrderPlacedVia = 'app',
+): Promise<Order> {
   if (await getIsOffline()) {
     throw new Error(OFFLINE_ORDER);
   }
@@ -443,6 +447,7 @@ export async function placeOrder(details: DeliveryDetails, items: CartItem[]): P
     pincode: details.pincode.trim(),
     total_amount: totalAmount,
     status: 'new',
+    placed_via: placedVia,
     ...(communityId ? { community_id: communityId } : {}),
   };
   const first = {
@@ -831,6 +836,37 @@ export async function listMyOrderItems(orderId: string): Promise<OrderItem[] | n
     return (data ?? []) as OrderItem[];
   } catch {
     return null;
+  }
+}
+
+export type OrderEditCheck =
+  | { state: 'open' }
+  | { state: 'closed'; status: OrderStatus | null; orderNumber: number | null }
+  | { state: 'unknown' };
+
+export async function checkOrderEditable(id: string): Promise<OrderEditCheck> {
+  const { supabase, userId } = await sessionUserId().catch(() => ({ supabase: null, userId: null }));
+  if (!supabase || !userId) {
+    return { state: 'unknown' };
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('orders').select('id, order_number, status').eq('id', id).eq('user_id', userId).maybeSingle(),
+      QUERY_MS,
+      'Checking this order is taking too long. Try again.',
+    );
+    if (error) {
+      return { state: 'unknown' };
+    }
+    if (!data) {
+      return { state: 'closed', status: null, orderNumber: null };
+    }
+    const row = data as Pick<Order, 'status' | 'order_number'>;
+    return isOpenOrderStatus(row.status)
+      ? { state: 'open' }
+      : { state: 'closed', status: row.status, orderNumber: row.order_number ?? null };
+  } catch {
+    return { state: 'unknown' };
   }
 }
 

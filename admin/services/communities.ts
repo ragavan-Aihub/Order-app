@@ -13,11 +13,13 @@ function addressLine(row: {
   locality: string | null;
   address: string;
   pincode: string;
+  city?: string | null;
 }) {
   const line = composeAddressLine(
     row.house ?? '',
     row.address ?? '',
     row.locality ?? '',
+    row.city ?? '',
     stateFromPincode(row.pincode),
   );
   return [line, row.pincode].filter(Boolean).join(', ');
@@ -100,7 +102,7 @@ export async function getCommunityById(id: string): Promise<
     supabase
       .from('customer_addresses')
       .select(
-        'id, customer_id, user_id, name, mobile, house, locality, address, pincode, community_id, is_default',
+        'id, customer_id, user_id, name, mobile, house, locality, address, city, pincode, community_id, is_default',
       )
       .eq('business_id', businessId)
       .order('is_default', { ascending: false }),

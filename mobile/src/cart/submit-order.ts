@@ -7,13 +7,13 @@ import {
   replaceOpenOrderItems,
 } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import type { Order } from '@/types/order';
+import type { Order, OrderPlacedVia } from '@/types/order';
 
 export type SubmitOrderResult =
   | { ok: true; order: Order }
   | {
       ok: false;
-      reason: 'empty' | 'address' | 'auth' | 'unavailable' | 'network' | 'error' | 'open_order';
+      reason: 'empty' | 'address' | 'auth' | 'unavailable' | 'network' | 'error' | 'open_order' | 'locked';
       message: string;
       openOrder?: Order;
     };
@@ -22,6 +22,7 @@ export async function submitShopOrder(
   items: CartItem[],
   selected: SavedAddress | null,
   editingOrderId?: string | null,
+  placedVia: OrderPlacedVia = 'app',
 ): Promise<SubmitOrderResult> {
   if (items.length === 0) {
     return { ok: false, reason: 'empty', message: 'Your cart is empty.' };
@@ -57,10 +58,13 @@ export async function submitShopOrder(
       return { ok: false, reason: 'auth', message: 'Sign in to place your order.' };
     }
 
-    const order = await placeOrder(details, items);
+    const order = await placeOrder(details, items, placedVia);
     return { ok: true, order };
   } catch (placeError) {
     const message = placeError instanceof Error ? placeError.message : 'Could not place the order.';
+    if (editingOrderId && /cannot be changed/i.test(message)) {
+      return { ok: false, reason: 'locked', message };
+    }
     if (message === 'OPEN_ORDER' || /duplicate key|one_open_per_address/i.test(message)) {
       const open = await findOpenOrderForAddress({
         addressId: selected.id,

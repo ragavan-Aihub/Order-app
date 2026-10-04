@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,6 +38,7 @@ import { loadOrderItemsForEdit } from '@/cart/modify-order';
 import { submitShopOrder } from '@/cart/submit-order';
 import { OrderProgress } from '@/components/OrderProgress';
 import { SamOrderLine, SamProductRow } from '@/components/SamProductRow';
+import { env } from '@/config/env';
 import { colors, radius, spacing } from '@/config/theme';
 import {
   browseListMode,
@@ -76,7 +77,13 @@ import { cancelMyOrder, findOpenOrderForAddress, listMyOrderItems } from '@/serv
 import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import type { Product } from '@/types/product';
-import { isOpenOrderStatus, isUndeliveredOrder, type Order } from '@/types/order';
+import {
+  ORDER_LOCKED_MESSAGE,
+  canModifyOrder,
+  isOpenOrderStatus,
+  isUndeliveredOrder,
+  type Order,
+} from '@/types/order';
 import { formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
 import {
   canModifyExistingOrder,
@@ -154,6 +161,13 @@ function cartFromDraft(lines: DraftViewLine[], catalog: Product[]): CartItem[] {
 }
 
 export default function SamScreen() {
+  if (!env.voiceOrdering) {
+    return <Redirect href="/home" />;
+  }
+  return <SamChat />;
+}
+
+function SamChat() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const {
@@ -489,7 +503,14 @@ export default function SamScreen() {
   );
 
   const startModify = useCallback(
-    async (orderId: string) => {
+    async (orderId: string, order?: Order | null) => {
+      const target = order ?? (openOrder?.id === orderId ? openOrder : null);
+      if (target && !canModifyOrder(target)) {
+        const msg = ORDER_LOCKED_MESSAGE;
+        pushTurn('sam', msg);
+        speakReply(msg, 'en');
+        return;
+      }
       const already = editingOrderId === orderId && items.length > 0;
       const loaded = await loadExistingCart(orderId);
       if (!loaded) {
@@ -687,7 +708,7 @@ export default function SamScreen() {
     setBusyKind(editingOrderId ? 'save' : 'place');
     try {
       Speech.stop();
-      const result = await submitShopOrder(items, selected, editingOrderId);
+      const result = await submitShopOrder(items, selected, editingOrderId, 'voice');
       if (!result.ok) {
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'sam' } });
@@ -828,7 +849,7 @@ export default function SamScreen() {
         };
         const open = await findOpenOrderForAddress(details);
         if (canModifyExistingOrder(open) && open) {
-          await startModify(open.id);
+          await startModify(open.id, open);
           allowShop = true;
           if (isModifyOrder(text) && !looksLikeAddOrder(text)) {
             return;
@@ -1164,7 +1185,7 @@ export default function SamScreen() {
   const orderChips = activeTrack
     ? OPEN_ORDER_CHIPS.filter((chip) => {
         if (chip.id === 'modify') {
-          return isOpenOrderStatus(activeTrack.status) && !editingOpen;
+          return canModifyOrder(activeTrack) && !editingOpen;
         }
         return chip.id !== 'cancel' || isOpenOrderStatus(activeTrack.status);
       })
@@ -1209,7 +1230,7 @@ export default function SamScreen() {
           }}
           onModify={(order) => {
             setPickNewAddress(false);
-            startModify(order.id).catch(() => undefined);
+            startModify(order.id, order).catch(() => undefined);
           }}
           onViewOrder={(order) => router.push({ pathname: '/confirmation', params: { id: order.id } })}
           onAdd={() => router.push({ pathname: '/address/form', params: { next: 'sam' } })}

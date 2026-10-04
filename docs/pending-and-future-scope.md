@@ -9,30 +9,27 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 3 Oct 2026.
+Last updated: 4 Oct 2026.
 
 ## Must do before go-live
 
 ### Run the database migrations
 
 - **Status:** Pending
-- **Why:** The apps already expect these changes. Until they are applied, modifying an open order uses an older fallback function, order lookups are slower, and old orders can still be in the removed Preparing status.
+- **Why:** The apps already expect these changes. Until they are applied, modifying an open order uses an older fallback function, order lookups are slower, old orders can still be in the removed Preparing status, and saved addresses fail to load or save because the City column is missing.
 - **How:** Run each file in the Supabase SQL editor, in this order:
   1. `supabase/migrations/20261002120000_replace_order_address.sql`
   2. `supabase/migrations/20261003000000_orders_lookup_indexes.sql`
   3. `supabase/migrations/20261003120000_remove_preparing_status.sql`
-
-### Give voice ordering a permanent server address
-
-- **Status:** Pending
-- **Why:** The customer app sends voice and chat requests to the admin server on the developer's Mac over Wi-Fi (`http://192.168.1.11:3000/api/sam/turn`). Voice ordering only works when the phone is on the same Wi-Fi, the admin server is running, and the Mac keeps that address.
-- **How:** Deploy the admin app publicly (for example on Vercel). Set `EXPO_PUBLIC_SAM_API_URL` to the public `/api/sam/turn` URL in the EAS `preview` environment and in `mobile/.env`, then rebuild the APK.
-- **Files:** `mobile/.env`, EAS environment variables, `mobile/src/config/env.ts`
+  4. `supabase/migrations/20261004000000_address_city.sql` (run this one first if you only run one today: the admin and the next app build read the new City column)
+  5. `supabase/migrations/20261004010000_fix_address_community_trigger.sql` (fixes "function max(uuid) does not exist" when a customer adds an address in the app)
+  6. `supabase/migrations/20261004020000_order_placed_via_update_limit.sql` (records cart or voice orders and limits each order to 5 customer updates; the app reads these columns)
+  7. `supabase/migrations/20261004030000_order_update_limit_message.sql` (the limit error says "Modify limit reached" without showing customers the number of updates)
 
 ### Build a new APK with the latest customer app changes
 
 - **Status:** Pending
-- **Why:** The last preview APK (version code 10) does not have tap-to-talk voice ordering, the removal of the "Sam" name (including the Android microphone prompt text), or the Preparing status cleanup in the customer app.
+- **Why:** The last preview APK (version code 10) still shows the "Order by Voice" card, which only works on the developer's Wi-Fi. It also lacks the City field, the new-order screen, Modify opening the cart, the modify limit, and the Preparing status cleanup. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset so voice stays hidden.
 - **How:** Bump `android.versionCode` in `mobile/app.json`, then run `npx eas-cli build -p android --profile preview` from `mobile/`.
 
 ### Commit the current work
@@ -41,6 +38,18 @@ Last updated: 3 Oct 2026.
 - **Why:** The voice fix and listening orb, the admin order workflow, the Preparing removal, the list quick-actions switch and this document are not committed yet.
 
 ## Phase 2
+
+### Voice ordering (hidden for now)
+
+- **Status:** Phase 2
+- **Why:** Voice ordering only works on the developer's Wi-Fi: the app sends voice requests to the admin server on the Mac (`http://192.168.1.11:3000/api/sam/turn`). It also has no AI today (`OLLAMA_URL` is not set), so it runs on rules and fixed replies. It is hidden from customers until it can be hosted and improved. All the code is kept.
+- **What is hidden:** the "Order by Voice" card on Home. Anything else that opens the voice screen (after login, after adding an address, old links) goes to Home instead.
+- **To turn it back on:**
+  1. Host the voice server publicly. The agreed direction is a Supabase Edge Function (free plan allows commercial use), moving `admin/lib/sam/` there.
+  2. Set `EXPO_PUBLIC_SAM_API_URL` to the public address, and `EXPO_PUBLIC_VOICE_ORDERING=true`, in `mobile/.env` and the EAS `preview` environment.
+  3. Rebuild the APK.
+- **Later improvements discussed:** personal greeting and "your usual" order, tappable suggestions when it doesn't understand, animated listening screen and product cards, product tips from your own descriptions, order updates in chat, then a natural cloud voice and a hosted AI model on free tiers first. Measure voice use with the `placed_via` column on orders.
+- **Files:** `mobile/src/config/env.ts`, `mobile/src/app/(shop)/home.tsx`, `mobile/src/app/sam.tsx`, `mobile/src/sam/`, `admin/lib/sam/`, `admin/app/api/sam/turn/route.ts`
 
 ### Quick status actions on the orders list
 

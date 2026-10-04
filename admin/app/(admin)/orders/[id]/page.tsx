@@ -54,7 +54,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-stone-200 bg-white p-4">
+        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4">
           <OrderWorkflow
             orderId={order.id}
             orderNumber={`#${formatOrderNumber(order.order_number)}`}
@@ -64,7 +64,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
             allowCorrection
           />
         </div>
-        <div className="rounded-xl border border-stone-200 bg-white p-4">
+        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4">
           <OrderPaymentForm
             orderId={order.id}
             orderNumber={`#${formatOrderNumber(order.order_number)}`}

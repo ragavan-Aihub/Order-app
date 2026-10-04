@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { saveProduct } from '@/services/product-actions';
 import { ProductDeleteButton } from '@/components/ProductDeleteButton';
 
@@ -60,6 +61,7 @@ function safePreviewSrc(url: string): string {
 
 export function ProductForm({ product, categoriesEnabled = false, categories = [] }: ProductFormProps) {
   const router = useRouter();
+  const notice = useActionNotice();
   const isEdit = Boolean(product);
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
@@ -184,6 +186,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
       return;
     }
 
+    notice.show(isEdit ? 'Product saved' : 'Product added');
     router.replace('/products');
     router.refresh();
   }
@@ -382,10 +385,13 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
           <button
             type="submit"
             disabled={submitting}
+            aria-busy={submitting}
             className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-emerald-700 px-4 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
           >
             {submitting ? (
-              'Saving…'
+              <>
+                <Spinner /> Saving…
+              </>
             ) : isEdit ? (
               'Save changes'
             ) : (

@@ -70,19 +70,30 @@ export async function saveCart(items: StoredCartItem[]) {
 
 const EDIT_KEY = 'farm2flavour.cart.edit.v1';
 
-export async function loadEditingOrderId(): Promise<string | null> {
+export type StoredEditState = { orderId: string; fingerprint: string | null };
+
+export async function loadEditingOrderId(): Promise<StoredEditState | null> {
   try {
     const raw = await AsyncStorage.getItem(EDIT_KEY);
-    return raw || null;
+    if (!raw) {
+      return null;
+    }
+    if (!raw.startsWith('{')) {
+      return { orderId: raw, fingerprint: null };
+    }
+    const parsed = JSON.parse(raw) as Partial<StoredEditState>;
+    return typeof parsed.orderId === 'string' && parsed.orderId
+      ? { orderId: parsed.orderId, fingerprint: typeof parsed.fingerprint === 'string' ? parsed.fingerprint : null }
+      : null;
   } catch {
     return null;
   }
 }
 
-export async function saveEditingOrderId(orderId: string | null) {
+export async function saveEditingOrderId(orderId: string | null, fingerprint: string | null = null) {
   try {
     if (orderId) {
-      await AsyncStorage.setItem(EDIT_KEY, orderId);
+      await AsyncStorage.setItem(EDIT_KEY, JSON.stringify({ orderId, fingerprint }));
     } else {
       await AsyncStorage.removeItem(EDIT_KEY);
     }

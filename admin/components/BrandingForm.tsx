@@ -2,18 +2,19 @@
 
 import { useRef, useState, type FormEvent } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { isSupabaseConfigured } from '@/config/env';
 import { uploadBusinessBanner, uploadBusinessLogo } from '@/services/storage';
 import { createBrowserSupabaseClient } from '@/services/supabase/browser';
 import type { Business } from '@/types/business';
 
 export function BrandingForm({ business }: { business: Business }) {
+  const notice = useActionNotice();
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState(business.logo_url ?? '');
   const [bannerPreview, setBannerPreview] = useState(business.banner_url ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<'logo' | 'banner' | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -21,7 +22,6 @@ export function BrandingForm({ business }: { business: Business }) {
 
   function onLogoSelected(file: File | null) {
     setLogoFile(file);
-    setSaved(false);
     if (file) {
       setLogoPreview(URL.createObjectURL(file));
     }
@@ -29,7 +29,6 @@ export function BrandingForm({ business }: { business: Business }) {
 
   function onBannerSelected(file: File | null) {
     setBannerFile(file);
-    setSaved(false);
     if (file) {
       setBannerPreview(URL.createObjectURL(file));
     }
@@ -38,7 +37,6 @@ export function BrandingForm({ business }: { business: Business }) {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setSaved(false);
 
     if (!isSupabaseConfigured) {
       setError('Connect Supabase to save branding.');
@@ -111,7 +109,7 @@ export function BrandingForm({ business }: { business: Business }) {
     }
 
     setSubmitting(false);
-    setSaved(true);
+    notice.show('Branding saved');
     setLogoFile(null);
     setBannerFile(null);
   }
@@ -181,12 +179,13 @@ export function BrandingForm({ business }: { business: Business }) {
       </section>
 
       {error ? <p className="text-red-700">{error}</p> : null}
-      {saved ? <p className="text-emerald-800">Branding saved.</p> : null}
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-11 w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
+        aria-busy={submitting}
+        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto"
       >
+        {submitting ? <Spinner /> : null}
         {submitting ? 'Saving…' : 'Save branding'}
       </button>
     </form>

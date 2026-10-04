@@ -2,8 +2,10 @@
 
 import { useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 
+// Chrome ignores autocomplete="off" for saved addresses; an unrecognised token suppresses its suggestions.
+const NO_AUTOFILL = 'f2f-no-autofill';
+
 const FILL = {
-  autoComplete: 'off',
   autoCorrect: 'off',
   autoCapitalize: 'none',
   spellCheck: false,
@@ -23,6 +25,7 @@ export function NoFillInput({
     <input
       {...FILL}
       {...props}
+      autoComplete={NO_AUTOFILL}
       readOnly={locked}
       onMouseDown={(event) => {
         setLocked(false);
@@ -51,6 +54,7 @@ export function NoFillTextarea({
     <textarea
       {...FILL}
       {...props}
+      autoComplete={NO_AUTOFILL}
       readOnly={locked}
       onMouseDown={(event) => {
         setLocked(false);

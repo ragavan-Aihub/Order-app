@@ -3,11 +3,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { AddressFields, type AddressFieldsValue } from '@/components/AddressFields';
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput, NoFillTextarea } from '@/components/NoBrowserFill';
 import { createCustomer, findCustomerByMobile, updateCustomer } from '@/services/customer-actions';
-import { ALL_CUSTOMER_SOURCES, CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
+import { ALL_CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
 
 type CustomerFormProps = {
   customer?: {
@@ -21,6 +22,7 @@ type CustomerFormProps = {
 
 export function CustomerForm({ customer }: CustomerFormProps) {
   const router = useRouter();
+  const notice = useActionNotice();
   const [name, setName] = useState(customer?.name ?? '');
   const [mobile, setMobile] = useState(customer?.mobile ?? '');
   const [source, setSource] = useState<CustomerSource>((customer?.source as CustomerSource) ?? 'whatsapp');
@@ -30,6 +32,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     area: '',
     landmark: '',
     pincode: '',
+    city: '',
     state: '',
     label: 'home',
     receiverName: '',
@@ -44,7 +47,6 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     orderCount: number;
   } | null>(null);
   const [ignoredMobile, setIgnoredMobile] = useState('');
-  const sources = customer ? ALL_CUSTOMER_SOURCES : CUSTOMER_SOURCES;
   const creating = !customer;
 
   useEffect(() => {
@@ -87,16 +89,16 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       : await createCustomer({
           name,
           mobile,
-          source,
           notes,
           house: addressFields.house,
           address: addressFields.area,
           locality: addressFields.landmark,
+          city: addressFields.city,
           pincode: addressFields.pincode,
         });
 
-    setSubmitting(false);
     if (result.error) {
+      setSubmitting(false);
       if (creating && result.error.toLowerCase().includes('already exists')) {
         const match = await findCustomerByMobile(mobile);
         if (match.customer) {
@@ -113,9 +115,12 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       return;
     }
 
+    notice.show(creating ? `Customer ${name.trim()} added` : 'Customer details saved');
     const id = 'id' in result && result.id ? result.id : customer?.id;
     if (id) {
       router.push(`/customers/${id}`);
+    } else {
+      setSubmitting(false);
     }
     router.refresh();
   }
@@ -149,23 +154,25 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           className="min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2"
         />
       </label>
-      <label className="block">
-        <span className="mb-1 block text-sm text-stone-500">Source</span>
-        <select
-          value={source}
-          onChange={(event) => setSource(event.target.value as CustomerSource)}
-          autoComplete="off"
-          name="cust_src"
-          className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
-        >
-          {sources.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-        <span className="mt-1 block text-sm text-stone-500">How they reached you (WhatsApp, walk-in, phone, app).</span>
-      </label>
+      {customer ? (
+        <label className="block">
+          <span className="mb-1 block text-sm text-stone-500">Source</span>
+          <select
+            value={source}
+            onChange={(event) => setSource(event.target.value as CustomerSource)}
+            autoComplete="off"
+            name="cust_src"
+            className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
+          >
+            {ALL_CUSTOMER_SOURCES.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-sm text-stone-500">How they reached you (WhatsApp, walk-in, phone, app).</span>
+        </label>
+      ) : null}
       <label className="block">
         <span className="mb-1 block text-sm text-stone-500">Notes (optional)</span>
         <NoFillTextarea
@@ -186,8 +193,10 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       <button
         type="submit"
         disabled={submitting || Boolean(duplicate)}
-        className="min-h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
+        aria-busy={submitting}
+        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
       >
+        {submitting ? <Spinner /> : null}
         {submitting ? 'Saving…' : customer ? 'Save customer' : 'Add customer'}
       </button>
       {duplicate ? (

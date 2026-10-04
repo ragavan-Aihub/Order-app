@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { useCart } from '@/cart/CartContext';
+import { useAddToCart } from '@/cart/useAddToCart';
 import { EmptyState } from '@/components/EmptyState';
 import { HomeHeader } from '@/components/HomeHeader';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -27,7 +28,8 @@ import type { Product } from '@/types/product';
 
 export default function BuyAgainScreen() {
   const router = useRouter();
-  const { addItem, increase, decrease, items, itemCount } = useCart();
+  const { increase, decrease, items, itemCount } = useCart();
+  const addToCart = useAddToCart();
   const { offline } = useNetworkStatus();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
@@ -176,7 +178,7 @@ export default function BuyAgainScreen() {
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
                   onPress={() => router.push(`/product/${product.id}`)}
-                  onAddToCart={() => addItem(product, 1)}
+                  onAddToCart={() => addToCart(product, 1)}
                   onIncrease={() => increase(product.id)}
                   onDecrease={() => decrease(product.id)}
                 />

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { TableScroll } from '@/components/TableScroll';
 import { setCategoryActive } from '@/services/category-actions';
 import type { ProductCategoryListItem } from '@/types/category';
@@ -40,17 +40,15 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
   async function toggleActive(item: ProductCategoryListItem) {
     const next = !isActive(item);
     setError(null);
-    notice.clear();
     setBusyId(item.id);
-    setActiveById((current) => ({ ...current, [item.id]: next }));
     const result = await setCategoryActive({ id: item.id, active: next });
     setBusyId(null);
     if (result.error) {
-      setActiveById((current) => ({ ...current, [item.id]: item.active }));
       setError(result.error);
       return;
     }
-    notice.show('Saved successfully');
+    setActiveById((current) => ({ ...current, [item.id]: next }));
+    notice.show(next ? `${item.name} is now active` : `${item.name} is now inactive`);
   }
 
   return (
@@ -73,7 +71,6 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
         </select>
       </div>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      <ActionNotice message={notice.message} />
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No categories match this search.</div>
       ) : (
@@ -130,8 +127,20 @@ export function CategoriesBoard({ categories }: { categories: ProductCategoryLis
                             }`}
                           />
                         </span>
-                        <span className={`w-[4.75rem] text-left text-sm font-medium ${active ? 'text-emerald-800' : 'text-stone-500'}`}>
-                          {active ? 'Active' : 'Inactive'}
+                        <span
+                          className={`inline-flex w-[4.75rem] items-center gap-1.5 text-left text-sm font-medium ${
+                            busyId === item.id ? 'text-stone-600' : active ? 'text-emerald-800' : 'text-stone-500'
+                          }`}
+                        >
+                          {busyId === item.id ? (
+                            <>
+                              <Spinner size={14} /> Saving…
+                            </>
+                          ) : active ? (
+                            'Active'
+                          ) : (
+                            'Inactive'
+                          )}
                         </span>
                       </button>
                     </td>

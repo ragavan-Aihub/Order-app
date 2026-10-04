@@ -10,7 +10,7 @@ import { OrderProgress } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { colors, radius, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
-import { isOpenOrderStatus, type OrderWithItems } from '@/types/order';
+import { ORDER_LOCKED_MESSAGE, canModifyOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
 import { displayPaymentStatus, formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice, orderStatusTone } from '@/utils/format';
 
 export default function OrderDetailScreen() {
@@ -162,12 +162,19 @@ export default function OrderDetailScreen() {
 
       {isOpenOrderStatus(order.status) ? (
         <View style={styles.actions}>
-          <Pressable
-            onPress={() => goModifyOrder(order.id, beginEditOrder, order)}
-            style={styles.modifyBtn}
-          >
-            <Text style={styles.modifyLabel}>Modify order</Text>
-          </Pressable>
+          {canModifyOrder(order) ? (
+            <Pressable
+              onPress={() => goModifyOrder(order, beginEditOrder)}
+              style={styles.modifyBtn}
+            >
+              <Text style={styles.modifyLabel}>Modify order</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.limitNote}>
+              <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
+              <Text style={styles.limitText}>{ORDER_LOCKED_MESSAGE}</Text>
+            </View>
+          )}
         </View>
       ) : null}
 
@@ -411,6 +418,22 @@ const styles = StyleSheet.create({
     color: colors.primaryText,
     fontSize: 16,
     fontWeight: '800',
+  },
+  limitNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  limitText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
   },
   more: {
     width: 40,

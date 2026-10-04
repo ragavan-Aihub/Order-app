@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { useActionNotice } from '@/components/ActionNotice';
 import { CustomerAddressForm } from '@/components/CustomerAddressForm';
 import { deleteCustomerAddress, saveCustomerAddress } from '@/services/customer-actions';
 import type { CustomerAddress } from '@/services/customers';
@@ -46,6 +46,7 @@ function AddressCard({
       house: address.house ?? '',
       area: address.address,
       landmark: address.locality ?? '',
+      city: address.city ?? '',
       pincode: address.pincode,
       name: address.name || receiverName,
       mobile: phone,
@@ -75,7 +76,7 @@ function AddressCard({
       setError(result.error);
       return;
     }
-    onRemoved(address.id, 'Address removed.');
+    onRemoved(address.id, 'Address removed');
     router.refresh();
   }
 
@@ -90,7 +91,7 @@ function AddressCard({
           onDone={(saved) => {
             setEditing(false);
             if (saved) {
-              onChanged(saved, 'Address saved.');
+              onChanged(saved, 'Address updated');
             }
           }}
         />
@@ -111,7 +112,9 @@ function AddressCard({
       {address.address ? <p className="text-sm text-stone-800">{address.address}</p> : null}
       {address.locality ? <p className="text-sm text-stone-800">{address.locality}</p> : null}
       <p className="text-sm text-stone-800">
-        {state ? `${state.toUpperCase()} ${address.pincode}` : address.pincode}
+        {[address.city, state ? `${state.toUpperCase()} ${address.pincode}` : address.pincode]
+          .filter(Boolean)
+          .join(', ')}
       </p>
       <p className="text-sm text-stone-800">India</p>
       {phone ? <p className="mt-1 text-sm text-stone-800">Phone number: {phone}</p> : null}
@@ -130,7 +133,7 @@ function AddressCard({
           <button
             type="button"
             disabled={busy}
-            onClick={() => void persist({ instructions: note.trim() || null }, 'Delivery instructions saved.')}
+            onClick={() => void persist({ instructions: note.trim() || null }, 'Delivery instructions saved')}
             className="text-sm font-medium text-emerald-800"
           >
             Save instructions
@@ -152,7 +155,7 @@ function AddressCard({
         <button
           type="button"
           disabled={busy || address.is_default}
-          onClick={() => void persist({ isDefault: true }, 'Default address updated.')}
+          onClick={() => void persist({ isDefault: true }, 'Default address updated')}
           className={pill}
         >
           Set as Default
@@ -195,7 +198,6 @@ export function CustomerAddressBook({
 
   return (
     <section className="max-w-xl space-y-3">
-      <ActionNotice message={notice.message} />
       {items.length === 0 && !adding ? (
         <p className="text-stone-600">No saved address yet.</p>
       ) : (
@@ -222,7 +224,7 @@ export function CustomerAddressBook({
             receiverPhone={receiverPhone}
             onDone={(saved) => {
               if (saved) {
-                applySaved(saved, 'Address saved.');
+                applySaved(saved, 'Address added');
                 return;
               }
               setAdding(false);

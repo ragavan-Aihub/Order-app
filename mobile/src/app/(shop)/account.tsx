@@ -67,10 +67,11 @@ export default function AccountScreen() {
           )}
         </View>
         <View style={styles.heroText}>
+          {signedIn && name ? <Text style={styles.greeting}>Hello,</Text> : null}
           <Text style={styles.hello} numberOfLines={1}>
-            {signedIn && name ? `Hello, ${name}` : 'Hello'}
+            {signedIn && name ? name : 'Hello'}
           </Text>
-          <Text style={styles.heroMeta} numberOfLines={1}>
+          <Text style={styles.heroMeta} numberOfLines={signedIn ? 1 : 2}>
             {signedIn ? formatMobile(mobile) || 'Signed in' : 'Sign in to see orders and save your profile.'}
           </Text>
         </View>
@@ -85,7 +86,7 @@ export default function AccountScreen() {
             : router.push({ pathname: '/login', params: { next: 'checkout' } })
         }
         accessibilityRole="button"
-        accessibilityLabel="Manage delivery address"
+        accessibilityLabel={delivery ? 'Change delivery address' : 'Add delivery address'}
       >
         <View style={styles.iconTile}>
           <Ionicons name="location" size={20} color={colors.primary} />
@@ -116,7 +117,7 @@ export default function AccountScreen() {
             </>
           )}
         </View>
-        <Text style={styles.manage}>Manage</Text>
+        <Text style={styles.manage}>{delivery ? 'Change' : 'Add'}</Text>
       </Pressable>
 
       <Text style={styles.sectionLabel}>Orders</Text>
@@ -134,21 +135,6 @@ export default function AccountScreen() {
           <View style={styles.rowCopy}>
             <Text style={styles.rowLabel}>My orders</Text>
             <Text style={styles.subtle}>Track, view items, or cancel</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </Pressable>
-        <View style={styles.divider} />
-        <Pressable
-          onPress={() => router.push('/buy-again')}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <View style={styles.iconTile}>
-            <Ionicons name="repeat-outline" size={20} color={colors.primary} />
-          </View>
-          <View style={styles.rowCopy}>
-            <Text style={styles.rowLabel}>Buy again</Text>
-            <Text style={styles.subtle}>Reorder your favourites</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </Pressable>
@@ -200,38 +186,42 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLabel: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.primaryText,
   },
   heroText: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+  },
+  greeting: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.75)',
   },
   hello: {
     fontSize: 22,
+    lineHeight: 28,
     fontWeight: '800',
     letterSpacing: -0.3,
     color: colors.primaryText,
   },
   heroMeta: {
+    marginTop: 2,
     fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.78)',
   },
   sectionLabel: {
     marginTop: spacing.sm,
     marginLeft: 4,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     color: colors.textMuted,
@@ -257,7 +247,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
   },
   defaultPill: {
@@ -283,9 +273,9 @@ const styles = StyleSheet.create({
   },
   manage: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.primary,
-    paddingTop: 2,
+    paddingTop: 1,
   },
   iconTile: {
     width: 40,
@@ -319,26 +309,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginLeft: spacing.md + 40 + spacing.sm,
-  },
   signOutButton: {
     marginTop: spacing.lg,
-    minHeight: 50,
+    minHeight: 48,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: '#FECACA',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
   },
   signOut: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.danger,
   },
   pressed: {

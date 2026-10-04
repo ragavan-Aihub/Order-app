@@ -14,6 +14,7 @@ export type AddressRow = {
   house: string | null;
   locality: string | null;
   address: string;
+  city: string | null;
   pincode: string;
   instructions: string | null;
   lat: number | null;
@@ -31,6 +32,7 @@ export function rowToSavedAddress(row: AddressRow): SavedAddress {
     instructions: row.instructions || undefined,
     house: row.house || undefined,
     locality: row.locality || undefined,
+    city: row.city || undefined,
     label: row.label === 'work' || row.label === 'other' ? row.label : 'home',
     altMobile: row.alt_mobile || undefined,
     lat: row.lat ?? undefined,
@@ -55,7 +57,7 @@ export async function fetchRemoteAddresses(): Promise<{ list: SavedAddress[]; de
   const { data, error } = await supabase
     .from('customer_addresses')
     .select(
-      'id, user_id, business_id, label, name, mobile, alt_mobile, house, locality, address, pincode, instructions, lat, lng, is_default',
+      'id, user_id, business_id, label, name, mobile, alt_mobile, house, locality, address, city, pincode, instructions, lat, lng, is_default',
     )
     .eq('user_id', user.id)
     .order('created_at', { ascending: true });
@@ -105,6 +107,7 @@ export async function replaceRemoteAddresses(
       house: item.house ?? null,
       locality: item.locality ?? null,
       address: item.address,
+      city: item.city ?? null,
       pincode: item.pincode,
       instructions: item.instructions ?? null,
       lat: item.lat ?? null,

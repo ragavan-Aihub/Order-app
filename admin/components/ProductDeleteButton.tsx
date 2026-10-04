@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { deleteProduct } from '@/services/product-actions';
 
 export function ProductDeleteButton({
@@ -16,6 +17,7 @@ export function ProductDeleteButton({
   afterDelete?: 'list' | 'stay';
 }) {
   const router = useRouter();
+  const notice = useActionNotice();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,13 +31,16 @@ export function ProductDeleteButton({
     setBusy(true);
     setError(null);
     const result = await deleteProduct(productId);
-    setBusy(false);
     if (result.error) {
+      setBusy(false);
       setError(result.error);
       return;
     }
+    notice.show('Product deleted');
     if (afterDelete === 'list') {
       router.push('/products');
+    } else {
+      setBusy(false);
     }
     router.refresh();
   }
@@ -62,11 +67,12 @@ export function ProductDeleteButton({
         type="button"
         onClick={() => void onDelete()}
         disabled={busy}
+        aria-busy={busy}
         title="Delete product"
-        aria-label="Delete product"
+        aria-label={busy ? 'Deleting product' : 'Delete product'}
         className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-red-700 hover:bg-red-50 disabled:opacity-50"
       >
-        <Trash2 className="h-5 w-5" aria-hidden />
+        {busy ? <Spinner size={20} /> : <Trash2 className="h-5 w-5" aria-hidden />}
       </button>
       {error ? <p className="mt-1 max-w-[10rem] text-right text-xs text-red-700">{error}</p> : null}
     </span>

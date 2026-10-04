@@ -11,6 +11,7 @@ export const ADDRESS_FIELD_COPY = {
   area: 'Area / Street / Village',
   landmark: 'Landmark (Optional)',
   pincode: 'Pincode',
+  city: 'City',
   state: 'State',
   label: 'Add address label',
   receiver: 'Add receiver details',
@@ -117,26 +118,29 @@ export function stateFromPincode(pincode: string) {
   return PIN_THREE_STATE[pin.slice(0, 3)] ?? PIN_TWO_STATE[pin.slice(0, 2)] ?? '';
 }
 
-export async function lookupPincodeState(pincode: string) {
-  const fallback = stateFromPincode(pincode);
-  if (!fallback && !isValidPincode(pincode)) {
-    return '';
+export async function lookupPincode(pincode: string): Promise<{ state: string; city: string }> {
+  const fallback = { state: stateFromPincode(pincode), city: '' };
+  if (!isValidPincode(pincode)) {
+    return fallback;
   }
   try {
     const response = await fetch(`https://api.postalpincode.in/pincode/${pincode.trim()}`);
     const payload = (await response.json()) as Array<{
       Status?: string;
-      PostOffice?: Array<{ State?: string }>;
+      PostOffice?: Array<{ State?: string; District?: string }>;
     }>;
-    const state = payload?.[0]?.PostOffice?.[0]?.State?.trim();
-    return state || fallback;
+    const office = payload?.[0]?.PostOffice?.[0];
+    return {
+      state: office?.State?.trim() || fallback.state,
+      city: office?.District?.trim() || '',
+    };
   } catch {
     return fallback;
   }
 }
 
-export function composeAddressLine(house: string, area: string, landmark: string, state = '') {
-  return [house, area, landmark, state]
+export function composeAddressLine(house: string, area: string, landmark: string, city = '', state = '') {
+  return [house, area, landmark, city, state]
     .map((part) => part.trim())
     .filter(Boolean)
     .filter((part, index, all) => all.findIndex((item) => item.toLowerCase() === part.toLowerCase()) === index)

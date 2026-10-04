@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { PARTNER_CHANNELS } from '@/lib/partner-constants';
 import { createApiKey, revokeApiKey, type ApiKeyRow } from '@/services/api-key-actions';
 
@@ -13,6 +14,8 @@ export function ApiKeysForm({ keys, origin }: { keys: ApiKeyRow[]; origin: strin
   const [error, setError] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const notice = useActionNotice();
 
   async function onCreate() {
     setError(null);
@@ -26,16 +29,20 @@ export function ApiKeysForm({ keys, origin }: { keys: ApiKeyRow[]; origin: strin
     }
     setName('');
     setSecret(result.secret ?? null);
+    notice.show('API key created. Copy it now; it will not be shown again.');
     router.refresh();
   }
 
   async function onRevoke(id: string) {
     setError(null);
+    setRevokingId(id);
     const result = await revokeApiKey(id);
+    setRevokingId(null);
     if (result.error) {
       setError(result.error);
       return;
     }
+    notice.show('API key revoked');
     router.refresh();
   }
 
@@ -74,8 +81,10 @@ export function ApiKeysForm({ keys, origin }: { keys: ApiKeyRow[]; origin: strin
           type="button"
           onClick={onCreate}
           disabled={saving}
-          className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+          aria-busy={saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
+          {saving ? <Spinner /> : null}
           {saving ? 'Creating…' : 'Create key'}
         </button>
         {secret ? (
@@ -130,9 +139,16 @@ export function ApiKeysForm({ keys, origin }: { keys: ApiKeyRow[]; origin: strin
                       <button
                         type="button"
                         onClick={() => onRevoke(key.id)}
-                        className="font-medium text-red-700"
+                        disabled={revokingId === key.id}
+                        className="inline-flex items-center gap-1.5 font-medium text-red-700 disabled:opacity-60"
                       >
-                        Revoke
+                        {revokingId === key.id ? (
+                          <>
+                            <Spinner size={14} /> Revoking…
+                          </>
+                        ) : (
+                          'Revoke'
+                        )}
                       </button>
                     )}
                   </td>

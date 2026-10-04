@@ -1,14 +1,13 @@
 'use client';
 
 import { CheckCircle2, RefreshCw, Undo2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
-import { ActionNotice, useActionNotice } from '@/components/ActionNotice';
+import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
 import { StepTrack } from '@/components/OrderStepper';
-import { PaymentMethodPicker } from '@/components/PaymentMethodPicker';
+import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
 import { updateOrderPayment, updateOrderRefund } from '@/services/order-actions';
 import {
   displayPaymentStatus,
@@ -19,7 +18,6 @@ import {
 } from '@/types/order';
 import { formatPrice } from '@/utils/format';
 
-type Collectable = Exclude<PaymentMethod, 'pending'>;
 type Dialog = 'collect' | 'change' | 'refund' | null;
 
 export function OrderPaymentForm({
@@ -37,40 +35,31 @@ export function OrderPaymentForm({
   paymentMethod: PaymentMethod;
   refundStatus: RefundStatus | null;
 }) {
-  const router = useRouter();
-  const notice = useActionNotice();
-  const source = `${status}|${paymentMethod}|${refundStatus ?? ''}`;
-  const [pending, setPending] = useState<{ from: string; method: PaymentMethod; refund: RefundStatus | null } | null>(
-    null,
-  );
+  const { complete, refreshing } = useActionComplete();
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [choice, setChoice] = useState<Collectable | null>(null);
+  const [choice, setChoice] = useState<PaymentChoice | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const live = pending && pending.from === source ? pending : null;
-  const method = live ? live.method : paymentMethod;
-  const refund = live ? live.refund : refundStatus;
+  const method = paymentMethod;
+  const refund = refundStatus;
   const state = displayPaymentStatus({ status, payment_method: method, refund_status: refund });
   const price = formatPrice(amount);
   const methodLabel = paymentModeLabel(method);
   const closeDialog = useCallback(() => setDialog(null), []);
+  const working = busy || refreshing;
 
   async function commit(next: { method: PaymentMethod; refund: RefundStatus | null }, done: string) {
     setError(null);
-    notice.clear();
-    setPending({ from: source, ...next });
     setBusy(true);
     const result =
       next.refund === 'refunded' ? await updateOrderRefund(orderId) : await updateOrderPayment(orderId, next.method);
     setBusy(false);
     if (result.error) {
-      setPending(null);
       setError(result.error);
       return;
     }
-    notice.show(done);
-    router.refresh();
+    complete(done);
   }
 
   function openCollect() {
@@ -89,6 +78,10 @@ export function OrderPaymentForm({
     }
     const changing = dialog === 'change';
     setDialog(null);
+    if (choice === 'later') {
+      void commit({ method: 'pending', refund: null }, `${price} marked as not yet paid`);
+      return;
+    }
     void commit(
       { method: choice, refund: null },
       changing ? `Payment method changed to ${paymentModeLabel(choice)}` : `${price} marked paid by ${paymentModeLabel(choice)}`,
@@ -141,20 +134,25 @@ export function OrderPaymentForm({
       <button
         type="button"
         onClick={openCollect}
-        disabled={busy}
+        disabled={working}
+        aria-busy={working}
         className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
       >
-        {busy ? 'Saving…' : `Collect ${price}`}
+        {working ? <Spinner size={18} /> : null}
+        {working ? 'Saving…' : `Collect ${price}`}
       </button>
     ) : state === 'refund_pending' ? (
       <button
         type="button"
         onClick={() => setDialog('refund')}
-        disabled={busy}
+        disabled={working}
+        aria-busy={working}
         className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 text-base font-semibold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60"
       >
-        {busy ? (
-          'Saving…'
+        {working ? (
+          <>
+            <Spinner size={18} /> Saving…
+          </>
         ) : (
           <>
             <Undo2 size={18} aria-hidden /> Mark {price} refunded
@@ -168,8 +166,8 @@ export function OrderPaymentForm({
     ) : null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-1 flex-col gap-4">
+      <div className="flex min-h-10 items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Payment</h2>
         <div className="flex items-center gap-1">
           <span className="text-base font-semibold text-stone-900">{price}</span>
@@ -190,9 +188,8 @@ export function OrderPaymentForm({
           Delivered but not paid yet. {price} is outstanding.
         </p>
       ) : null}
-      {primary ? <div className="flex">{primary}</div> : null}
+      {primary ? <div className="mt-auto flex">{primary}</div> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      <ActionNotice message={notice.message} />
 
       {dialog === 'collect' || dialog === 'change' ? (
         <ConfirmDialog
@@ -200,14 +197,14 @@ export function OrderPaymentForm({
           body={
             dialog === 'collect'
               ? 'Choose how the customer paid.'
-              : `Currently recorded as ${methodLabel}. Use this only if the wrong method was saved.`
+              : `Currently recorded as ${methodLabel}. Use this only if the payment was saved by mistake.`
           }
           confirmLabel={dialog === 'collect' ? 'Mark paid' : 'Save method'}
           confirmDisabled={!choice || (dialog === 'change' && choice === method)}
           onConfirm={confirmMethod}
           onCancel={closeDialog}
         >
-          <PaymentMethodPicker value={choice} onChange={setChoice} />
+          <PaymentMethodPicker value={choice} onChange={setChoice} allowLater={dialog === 'change'} />
         </ConfirmDialog>
       ) : null}
       {dialog === 'refund' ? (

@@ -33,8 +33,20 @@ module.exports = ({ config }) => {
   if (samApiUrl) {
     process.env.EXPO_PUBLIC_SAM_API_URL = samApiUrl;
   }
+  const voiceOrdering =
+    (process.env.EXPO_PUBLIC_VOICE_ORDERING || fileEnv.EXPO_PUBLIC_VOICE_ORDERING || '').trim().toLowerCase() ===
+    'true';
+  const android = { ...config.android };
+  let plugins = config.plugins ?? [];
+  if (!voiceOrdering) {
+    android.permissions = (android.permissions ?? []).filter((permission) => !/RECORD_AUDIO$/.test(permission));
+    android.blockedPermissions = [...(android.blockedPermissions ?? []), 'android.permission.RECORD_AUDIO'];
+    plugins = plugins.filter((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-speech-recognition');
+  }
   return {
     ...config,
+    android,
+    plugins,
     extra: {
       ...config.extra,
       samApiUrl,
