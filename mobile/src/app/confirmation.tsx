@@ -13,15 +13,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { splitDeliveryAddress } from '@/cart/address-book';
+import { formatSavedAddressLabel, getAddressBook, splitDeliveryAddress } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress } from '@/components/OrderProgress';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
-import { isOpenOrderStatus, type OrderWithItems } from '@/types/order';
+import { canCancelOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
 import { formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
+
+const BAND_SUCCESS = '#E3F3EC';
+const BAND_CANCELLED = '#FDECEC';
 
 function first(value?: string | string[]) {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -86,6 +89,7 @@ export default function OrderStatusScreen() {
   const total = order?.total_amount ?? (first(params.total) ? Number(first(params.total)) : null);
   const cancelled = status === 'cancelled';
   const canChange = Boolean(order && isOpenOrderStatus(order.status));
+  const bandColor = cancelled ? BAND_CANCELLED : BAND_SUCCESS;
 
   const headline = cancelled
     ? 'Order cancelled'
@@ -94,8 +98,14 @@ export default function OrderStatusScreen() {
       : fresh === 'updated'
         ? 'Order updated successfully'
         : fresh === 'placed' && status === 'new'
-          ? 'Order placed successfully'
+          ? 'Thank you! Your order is placed.'
           : formatOrderStatus(status);
+
+  const savedAddress = order?.customer_address_id
+    ? getAddressBook().find((item) => item.id === order.customer_address_id)
+    : undefined;
+  const placeName = savedAddress ? formatSavedAddressLabel(savedAddress.label) : null;
+  const streetLine = order ? shortAddress(order.delivery_address) : null;
 
   function confirmCancel() {
     if (!order) {
@@ -135,7 +145,9 @@ export default function OrderStatusScreen() {
     }
     Alert.alert(`Order #${formatOrderNumber(order.order_number)}`, undefined, [
       { text: 'Modify order', onPress: () => goModifyOrder(order, beginEditOrder) },
-      { text: 'Cancel order', style: 'destructive', onPress: () => setTimeout(confirmCancel, 200) },
+      ...(canCancelOrder(order.status)
+        ? [{ text: 'Cancel order', style: 'destructive' as const, onPress: () => setTimeout(confirmCancel, 200) }]
+        : []),
       { text: 'Close', style: 'cancel' },
     ]);
   }
@@ -145,6 +157,8 @@ export default function OrderStatusScreen() {
       <Stack.Screen
         options={{
           title: 'Order status',
+          headerStyle: { backgroundColor: bandColor },
+          headerShadowVisible: false,
           headerRight: canChange
             ? () => (
                 <Pressable
@@ -166,11 +180,12 @@ export default function OrderStatusScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
         }
       >
+        <View style={[styles.band, { backgroundColor: bandColor }]} pointerEvents="none" />
         <View style={styles.hero}>
           <View style={[styles.heroIcon, cancelled && styles.heroIconCancelled]}>
             <Ionicons
               name={cancelled ? 'close' : 'checkmark'}
-              size={34}
+              size={28}
               color={colors.primaryText}
             />
           </View>
@@ -180,11 +195,12 @@ export default function OrderStatusScreen() {
           <Text style={[styles.headline, cancelled && styles.headlineCancelled]}>{headline}</Text>
           <View style={styles.heroDivider} />
           <View style={styles.totalRow}>
-            <View>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.payNote}>Pay on delivery · Cash or UPI</Text>
-            </View>
+            <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{total != null ? formatPrice(total) : '—'}</Text>
+          </View>
+          <View style={styles.payRow}>
+            <Ionicons name="cash-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.payNote}>Pay on delivery · Cash or UPI</Text>
           </View>
         </View>
 
@@ -193,10 +209,17 @@ export default function OrderStatusScreen() {
             <View style={styles.deliverIcon}>
               <Ionicons name="location" size={18} color={colors.primary} />
             </View>
-            <Text style={styles.deliverText} numberOfLines={1}>
-              <Text style={styles.deliverKicker}>Delivering to • </Text>
-              {order ? shortAddress(order.delivery_address) : '…'}
-            </Text>
+            <View style={styles.deliverCopy}>
+              <Text style={styles.deliverText} numberOfLines={1}>
+                <Text style={styles.deliverKicker}>Delivering to · </Text>
+                {placeName ?? streetLine ?? '…'}
+              </Text>
+              {placeName && streetLine && !showAddress ? (
+                <Text style={styles.deliverPreview} numberOfLines={1}>
+                  {streetLine}
+                </Text>
+              ) : null}
+            </View>
             {order ? (
               <Pressable
                 onPress={() => setShowAddress((open) => !open)}
@@ -226,7 +249,7 @@ export default function OrderStatusScreen() {
           {loading && !order ? (
             <ActivityIndicator color={colors.primary} style={styles.loader} />
           ) : (
-            <OrderProgress status={status} />
+            <OrderProgress status={status} events={order?.status_events} placedAt={order?.created_at} />
           )}
           {cancelling ? (
             <View style={styles.cancellingRow}>
@@ -284,38 +307,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  band: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 170,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
   hero: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
+    paddingTop: 20,
     paddingBottom: spacing.md,
     alignItems: 'center',
     ...shadow.sm,
   },
   heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: 10,
+    borderWidth: 5,
+    borderColor: '#DCFCE7',
   },
   heroIconCancelled: {
     backgroundColor: colors.danger,
+    borderColor: '#FEE2E2',
   },
   orderNumber: {
-    fontSize: 22,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '800',
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
     color: colors.text,
   },
   headline: {
-    marginTop: 4,
-    fontSize: 15,
-    fontWeight: '700',
+    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.success,
+    textAlign: 'center',
   },
   headlineCancelled: {
     color: colors.danger,
@@ -324,35 +361,44 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
-    marginVertical: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: 12,
   },
   totalRow: {
     alignSelf: 'stretch',
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     justifyContent: 'space-between',
   },
   totalLabel: {
     fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  payNote: {
-    marginTop: 2,
-    fontSize: 12,
+    fontWeight: '600',
     color: colors.textMuted,
   },
   totalValue: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '800',
+    letterSpacing: -0.4,
     color: colors.text,
+  },
+  payRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  payNote: {
+    fontSize: 12.5,
+    color: colors.textMuted,
   },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.sm,
-    ...shadow.sm,
   },
   deliverRow: {
     flexDirection: 'row',
@@ -367,15 +413,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  deliverText: {
+  deliverCopy: {
     flex: 1,
     minWidth: 0,
+    gap: 1,
+  },
+  deliverText: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.text,
   },
   deliverKicker: {
     fontWeight: '500',
+    color: colors.textMuted,
+  },
+  deliverPreview: {
+    fontSize: 13,
     color: colors.textMuted,
   },
   link: {
@@ -397,7 +450,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.text,
   },
@@ -422,7 +475,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     minHeight: 52,
-    ...shadow.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   detailsLabel: {
     flex: 1,

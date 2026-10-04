@@ -20,9 +20,16 @@ export function ProductsBoard({
 }) {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return products.filter((product) => {
+    const rows = products.filter((product) => {
+      if (statusFilter === 'active' && product.active === false) {
+        return false;
+      }
+      if (statusFilter === 'inactive' && product.active !== false) {
+        return false;
+      }
       if (categoriesEnabled && categoryFilter === '__none__' && product.category_id) {
         return false;
       }
@@ -37,7 +44,8 @@ export function ProductsBoard({
         .toLowerCase()
         .includes(needle);
     });
-  }, [categoryFilter, categoriesEnabled, products, query]);
+    return rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [categoryFilter, categoriesEnabled, products, query, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -63,13 +71,23 @@ export function ProductsBoard({
             ))}
           </select>
         ) : null}
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')}
+          aria-label="Filter by status"
+          className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 py-2"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
       <p className="text-sm text-stone-600">
         Inactive hides the product from the app. Coming soon still shows it, blurred, with no Add. Products used in
         orders cannot be deleted — set Inactive instead.
       </p>
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No products match this search.</div>
+        <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">No products match these filters.</div>
       ) : (
         <div>
           <div className="space-y-3 md:hidden">

@@ -4,7 +4,14 @@ import { env } from '@/config/env';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
 import { getSupabaseClient } from '@/services/supabase';
 import type { Product } from '@/types/product';
-import type { Order, OrderItem, OrderPlacedVia, OrderStatus, OrderWithItems } from '@/types/order';
+import type {
+  Order,
+  OrderItem,
+  OrderPlacedVia,
+  OrderStatus,
+  OrderStatusEvent,
+  OrderWithItems,
+} from '@/types/order';
 import { OPEN_ORDER_STATUSES, isOpenOrderStatus } from '@/types/order';
 
 const OFFLINE_ORDER =
@@ -887,15 +894,19 @@ export async function getMyOrderById(id: string): Promise<OrderWithItems | null>
 
     const orderQuery = supabase
       .from('orders')
-      .select(
-        'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, created_at, updated_at',
-      )
+      .select(ORDER_COLUMNS)
       .eq('id', id)
       .eq('user_id', user.id)
       .maybeSingle();
+    const eventsQuery = supabase
+      .from('order_status_events')
+      .select('status, created_at')
+      .eq('order_id', id)
+      .order('created_at', { ascending: true })
+      .then(({ data, error: eventsError }) => (eventsError ? [] : ((data ?? []) as OrderStatusEvent[])));
 
-    const [{ data: order, error }, lines] = await withTimeout(
-      Promise.all([orderQuery, listMyOrderItems(id)]),
+    const [{ data: order, error }, lines, statusEvents] = await withTimeout(
+      Promise.all([orderQuery, listMyOrderItems(id), eventsQuery]),
       QUERY_MS,
       'Loading this order is taking too long. Try again.',
     );
@@ -927,6 +938,7 @@ export async function getMyOrderById(id: string): Promise<OrderWithItems | null>
     return {
       ...(order as Order),
       order_items: lines ?? [],
+      status_events: statusEvents,
     };
   } catch {
     return null;

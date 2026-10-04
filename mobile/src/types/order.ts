@@ -17,7 +17,15 @@ export function isUndeliveredOrder(status: string) {
 
 const MAX_ORDER_UPDATES = 5;
 
-export const ORDER_LOCKED_MESSAGE = 'Modify limit reached for this order. You can still cancel it.';
+export function canCancelOrder(status: string) {
+  return status === 'new';
+}
+
+export function orderLockedMessage(status: string) {
+  return canCancelOrder(status)
+    ? 'Modify limit reached for this order. You can still cancel it.'
+    : 'Modify limit reached for this order.';
+}
 
 export function canModifyOrder(order: Pick<Order, 'status' | 'update_count'> | null | undefined) {
   return Boolean(order && isOpenOrderStatus(order.status) && (order.update_count ?? 0) < MAX_ORDER_UPDATES);
@@ -61,6 +69,12 @@ export type OrderItem = {
   created_at: string;
 };
 
+export type OrderStatusEvent = {
+  status: string;
+  created_at: string;
+};
+
 export type OrderWithItems = Order & {
   order_items: OrderItem[];
+  status_events?: OrderStatusEvent[];
 };

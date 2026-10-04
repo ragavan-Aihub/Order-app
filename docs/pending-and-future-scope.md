@@ -25,6 +25,8 @@ Last updated: 4 Oct 2026.
   5. `supabase/migrations/20261004010000_fix_address_community_trigger.sql` (fixes "function max(uuid) does not exist" when a customer adds an address in the app)
   6. `supabase/migrations/20261004020000_order_placed_via_update_limit.sql` (records cart or voice orders and limits each order to 5 customer updates; the app reads these columns)
   7. `supabase/migrations/20261004030000_order_update_limit_message.sql` (the limit error says "Modify limit reached" without showing customers the number of updates)
+  8. `supabase/migrations/20261004040000_order_status_events_customer_read.sql` (lets customers read the status history of their own orders, so the app can show the date and time of each step; until it runs, the app shows only the placed time)
+  9. `supabase/migrations/20261005000000_customer_cancel_rules.sql` (customers can cancel only while an order is Placed, at most 3 cancellations in 24 hours; the reason is always set on the server. The admin panel is not affected. Until it runs, the app hides Cancel for confirmed orders but the server still allows it)
 
 ### Build a new APK with the latest customer app changes
 
@@ -51,6 +53,13 @@ Last updated: 4 Oct 2026.
 - **Later improvements discussed:** personal greeting and "your usual" order, tappable suggestions when it doesn't understand, animated listening screen and product cards, product tips from your own descriptions, order updates in chat, then a natural cloud voice and a hosted AI model on free tiers first. Measure voice use with the `placed_via` column on orders.
 - **Files:** `mobile/src/config/env.ts`, `mobile/src/app/(shop)/home.tsx`, `mobile/src/app/sam.tsx`, `mobile/src/sam/`, `admin/lib/sam/`, `admin/app/api/sam/turn/route.ts`
 
+### Product detail page (hidden for now)
+
+- **Status:** Phase 2
+- **Why:** For this phase, tapping a product on Home or Buy again does nothing; the card shows the image, name, price and the Add button or quantity stepper. The detail page needs better content (description, sizes, related items) before it is worth opening.
+- **To turn it back on:** pass `onPress={() => router.push(`/product/${product.id}`)}` to `ProductCard` in Home and Buy again. The screen itself is kept.
+- **Files:** `mobile/src/app/product/[id].tsx`, `mobile/src/components/ProductCard.tsx`, `mobile/src/app/(shop)/home.tsx`, `mobile/src/app/(shop)/buy-again.tsx`
+
 ### Quick status actions on the orders list
 
 - **Status:** Phase 2 (built, switched off)
@@ -72,12 +81,6 @@ Last updated: 4 Oct 2026.
 - **Question:** On the customer "Start another order" screen, should an address whose order is out for delivery keep the "Deliver a new order here" link? Today it does, because the database only blocks a second order while the first is Placed or Confirmed.
 - **Files:** `mobile/src/sam/NewOrderAddressPicker.tsx`
 
-### Mark a payment as unpaid (decision needed)
-
-- **Status:** Phase 2 (decision needed, changes business rules)
-- **What:** a More menu item on the payment card to undo a payment saved by mistake. The server currently refuses to set payment back to pending (`updateOrderPayment` in `admin/services/order-actions.ts`).
-- **Files:** `admin/components/OrderPaymentForm.tsx`, `admin/services/order-actions.ts`
-
 ### Next-step actions on the dashboard
 
 - **Status:** Phase 2
@@ -92,6 +95,8 @@ Last updated: 4 Oct 2026.
 - **Unused component.** `admin/components/OrderTimeline.tsx` is no longer used after the order workflow redesign.
 - **Old SQL that mentions Preparing.** Older functions and indexes in `supabase/migrations/` still list `'preparing'`. This is harmless once the removal migration has run, because no order can have that status.
 - **Boilerplate admin README.** `admin/README.md` is still the default create-next-app text.
+- **Shop name fixed in code.** The app name, package, logos and voice replies still name the current shop (see "Setting up for a new business" in `docs/technical-guide.md`). Move them to environment variables or the `businesses` table before offering the product to another business.
+- **Customer order prices come from the app.** Placing an order and `customer_replace_order_items` store the prices the app sends. Move both to a database function that reads prices from `products`.
 - **Mobile eslint packages.** `mobile/package.json` gained `eslint` and `eslint-config-expo` as dev dependencies. Keep them to enable `npx expo lint`, or remove them.
 
 ## Future scope ideas
@@ -101,23 +106,10 @@ Last updated: 4 Oct 2026.
 - **Wake word:** a "Hey …" wake word was tried and removed. Android speech recognition has to listen all the time for it, which costs battery and data, sends everything said near the phone for transcription, and only works on Android 13 or newer. If it comes back, use an on-device wake-word engine (for example Picovoice Porcupine) instead.
 - **Status notifications:** tell customers by push notification or WhatsApp when their order status changes.
 
-## Documentation (after code freeze)
+## Documentation
 
-Once the code is frozen, write two sets of documents under `docs/`.
-
-### Technical guide (`docs/technical/`)
-
-- Architecture: customer app, admin app and Supabase, with a diagram
-- Setup and environment variables
-- Database schema, migrations and access rules
-- Order lifecycle and status rules
-- Voice and chat ordering pipeline (code still lives under `sam/`)
-- Partner API v1
-- Building the APK with EAS and deploying the admin app
-- Troubleshooting
-
-### Non-technical guide (`docs/user-guide/`)
-
-- Business owner guide to the admin panel: orders, the status workflow, payments and refunds, products, customers, reports
-- Customer app guide: ordering, voice ordering, modifying and cancelling orders, addresses
-- FAQ
+- **Business Guide:** `docs/business-guide.md`. Customer app and admin panel features, business rules, Partner API, Phase 2, dropped items, future ideas, FAQ.
+- **Technical Guide:** `docs/technical-guide.md`. Architecture, setup, new business setup, database and migrations, app internals, order lifecycle, Partner API, voice, build and deploy, troubleshooting, tech debt.
+- **PDF:** run `npm run docs:pdf` from the repo root. Output goes to `docs/pdf/Business-Guide.pdf` and `docs/pdf/Technical-Guide.pdf`. Styling is in `docs/pdf-style.css`.
+- **No brand name:** both guides are written for any business using this product. Keep them that way.
+- **Keep them current:** when a feature, rule or migration changes, update the matching guide in the same change.

@@ -78,10 +78,10 @@ import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import type { Product } from '@/types/product';
 import {
-  ORDER_LOCKED_MESSAGE,
+  canCancelOrder,
   canModifyOrder,
-  isOpenOrderStatus,
   isUndeliveredOrder,
+  orderLockedMessage,
   type Order,
 } from '@/types/order';
 import { formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
@@ -506,7 +506,7 @@ function SamChat() {
     async (orderId: string, order?: Order | null) => {
       const target = order ?? (openOrder?.id === orderId ? openOrder : null);
       if (target && !canModifyOrder(target)) {
-        const msg = ORDER_LOCKED_MESSAGE;
+        const msg = orderLockedMessage(target.status);
         pushTurn('sam', msg);
         speakReply(msg, 'en');
         return;
@@ -1187,7 +1187,7 @@ function SamChat() {
         if (chip.id === 'modify') {
           return canModifyOrder(activeTrack) && !editingOpen;
         }
-        return chip.id !== 'cancel' || isOpenOrderStatus(activeTrack.status);
+        return chip.id !== 'cancel' || canCancelOrder(activeTrack.status);
       })
     : ASK_CHIPS;
 

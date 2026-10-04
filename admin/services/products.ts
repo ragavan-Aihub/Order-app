@@ -76,7 +76,7 @@ export async function getAllProducts(): Promise<Product[]> {
     .from('products')
     .select(PRODUCT_COLUMNS)
     .eq('business_id', businessId)
-    .order('created_at', { ascending: false });
+    .order('name', { ascending: true });
 
   if (!error && data) {
     const named = await attachCategoryNames(supabase, businessId, (data as Product[]).map((row) => ({
@@ -90,7 +90,7 @@ export async function getAllProducts(): Promise<Product[]> {
     .from('products')
     .select(PRODUCT_COLUMNS_FALLBACK)
     .eq('business_id', businessId)
-    .order('created_at', { ascending: false });
+    .order('name', { ascending: true });
 
   if (fallback.error || !fallback.data) {
     return [];

@@ -66,7 +66,7 @@ function ShopTabs() {
         options={{
           title: 'Account',
           href: null,
-          headerShown: true,
+          headerShown: false,
         }}
       />
       <Tabs.Screen

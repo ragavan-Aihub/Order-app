@@ -18,6 +18,7 @@ import {
   orderStatusLabel,
   paymentModeLabel,
   type OrderStatus,
+  type OrderStatusEvent,
 } from '@/types/order';
 import { canCancel, nextAction, normalizeStatus } from '@/types/order-workflow';
 
@@ -86,6 +87,8 @@ export function OrderWorkflow({
   detailsHref,
   allowCorrection = false,
   variant = 'panel',
+  statusEvents,
+  placedAt,
 }: {
   orderId: string;
   orderNumber: string;
@@ -95,6 +98,8 @@ export function OrderWorkflow({
   detailsHref?: string;
   allowCorrection?: boolean;
   variant?: Variant;
+  statusEvents?: OrderStatusEvent[];
+  placedAt?: string | null;
 }) {
   const router = useRouter();
   const { complete, refreshing } = useActionComplete();
@@ -361,7 +366,7 @@ export function OrderWorkflow({
   if (variant === 'card') {
     return (
       <div className="space-y-3">
-        <OrderStepper status={current} cancelReason={reason} size="sm" />
+        <OrderStepper status={current} cancelReason={reason} size="sm" events={statusEvents} placedAt={placedAt} />
         <div className="flex items-center gap-2">
           {primary}
           {menu}
@@ -378,7 +383,7 @@ export function OrderWorkflow({
         <h2 className="text-base font-semibold">Order status</h2>
         {menu}
       </div>
-      <OrderStepper status={current} cancelReason={reason} />
+      <OrderStepper status={current} cancelReason={reason} events={statusEvents} placedAt={placedAt} />
       {primary && (action || current === 'delivered') ? <div className="mt-auto flex">{primary}</div> : null}
       {feedback}
       {dialogs}

@@ -16,6 +16,7 @@ import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
 import { EmptyState } from '@/components/EmptyState';
 import { HomeHeader } from '@/components/HomeHeader';
+import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
 import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
@@ -122,6 +123,7 @@ export default function BuyAgainScreen() {
   return (
     <View style={styles.screen}>
       <HomeHeader />
+      <ModifyOrderBar variant="shop" style={styles.modifyBar} />
       <View style={styles.searchBar}>
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
@@ -175,9 +177,9 @@ export default function BuyAgainScreen() {
             {visibleProducts.map((product) => (
               <View key={product.id} style={styles.gridItem}>
                 <ProductCard
+                  compact
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
-                  onPress={() => router.push(`/product/${product.id}`)}
                   onAddToCart={() => addToCart(product, 1)}
                   onIncrease={() => increase(product.id)}
                   onDecrease={() => decrease(product.id)}
@@ -193,6 +195,10 @@ export default function BuyAgainScreen() {
 }
 
 const styles = StyleSheet.create({
+  modifyBar: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,
@@ -244,10 +250,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -6,
+    marginHorizontal: -4,
   },
   gridItem: {
-    width: '50%',
-    padding: 6,
+    width: '33.3333%',
+    padding: 4,
   },
 });

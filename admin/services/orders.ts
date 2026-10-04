@@ -1,7 +1,7 @@
 import { isCommunitiesEnabled } from '@/services/business';
 import { getAdminSession } from '@/services/supabase/admin-session';
 import { createServerSupabaseClient } from '@/services/supabase/server';
-import type { Order, OrderItem, OrderWithItems } from '@/types/order';
+import type { Order, OrderItem, OrderStatusEvent, OrderWithItems } from '@/types/order';
 
 const ORDER_COLUMNS =
   'id, order_number, business_id, user_id, customer_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, community_id, community_name, created_at, updated_at';
@@ -71,6 +71,18 @@ export async function hydrateOrderCommunities(
     }
   }
   return orders.map((order) => applyMappedCommunity(order, mapped, names, authByCustomer, customerByAuth));
+}
+
+async function loadStatusEvents(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  orderId: string,
+): Promise<OrderStatusEvent[]> {
+  const { data, error } = await supabase
+    .from('order_status_events')
+    .select('id, order_id, status, note, created_at')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true });
+  return error ? [] : ((data ?? []) as OrderStatusEvent[]);
 }
 
 export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Promise<Order[]> {
@@ -189,20 +201,23 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
     return {
       ...hydrated,
       order_items: (fallbackItems ?? []) as OrderItem[],
-      status_events: [],
+      status_events: await loadStatusEvents(supabase, id),
     };
   }
 
-  const { data: items } = await supabase
-    .from('order_items')
-    .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
-    .eq('order_id', id)
-    .order('created_at', { ascending: true });
+  const [{ data: items }, statusEvents] = await Promise.all([
+    supabase
+      .from('order_items')
+      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+      .eq('order_id', id)
+      .order('created_at', { ascending: true }),
+    loadStatusEvents(supabase, id),
+  ]);
 
   const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [order as Order]);
   return {
     ...hydrated,
     order_items: (items ?? []) as OrderItem[],
-    status_events: [],
+    status_events: statusEvents,
   };
 }

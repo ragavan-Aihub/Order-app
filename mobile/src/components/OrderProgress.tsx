@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '@/config/theme';
+import { colors, spacing } from '@/config/theme';
+import type { OrderStatusEvent } from '@/types/order';
+import { formatStepTime } from '@/utils/format';
 
 const STEPS = [
   { status: 'new', label: 'Placed' },
@@ -23,21 +25,50 @@ function rank(status: string) {
   }
 }
 
-export function OrderProgress({ status }: { status: string }) {
+export function latestStatusTime(events: OrderStatusEvent[] | undefined, status: string): string | null {
+  let latest: string | null = null;
+  for (const event of events ?? []) {
+    if (event.status === status && (!latest || event.created_at > latest)) {
+      latest = event.created_at;
+    }
+  }
+  return latest;
+}
+
+export function OrderProgress({
+  status,
+  events,
+  placedAt,
+}: {
+  status: string;
+  events?: OrderStatusEvent[];
+  placedAt?: string | null;
+}) {
   if (status === 'cancelled') {
+    const cancelledAt = latestStatusTime(events, 'cancelled');
     return (
       <View style={styles.cancelledBox}>
         <Text style={styles.cancelledLabel}>Cancelled</Text>
+        {cancelledAt ? <Text style={styles.time}>{formatStepTime(cancelledAt)}</Text> : null}
       </View>
     );
   }
   const current = rank(status);
+  const stepTime = (index: number) => {
+    if (index > current) {
+      return null;
+    }
+    const step = STEPS[index].status;
+    const at = index === 0 ? placedAt || latestStatusTime(events, step) : latestStatusTime(events, step);
+    return at ? formatStepTime(at) || null : null;
+  };
   return (
     <View style={styles.list} accessibilityRole="progressbar">
       {STEPS.map((step, index) => {
         const done = index < current;
         const here = index === current;
         const last = index === STEPS.length - 1;
+        const time = stepTime(index);
         return (
           <View key={step.status} style={styles.row}>
             <View style={styles.rail}>
@@ -55,17 +86,24 @@ export function OrderProgress({ status }: { status: string }) {
               {last ? null : <View style={[styles.line, index < current && styles.lineOn]} />}
             </View>
             <View style={styles.copy}>
-              <Text
-                style={[
-                  styles.label,
-                  done && styles.labelDone,
-                  here && styles.labelCurrent,
-                  !done && !here && styles.labelUpcoming,
-                ]}
-              >
-                {step.label}
-              </Text>
-              {here ? <Text style={styles.now}>Current</Text> : null}
+              <View style={styles.labelRow}>
+                <Text
+                  style={[
+                    styles.label,
+                    done && styles.labelDone,
+                    here && styles.labelCurrent,
+                    !done && !here && styles.labelUpcoming,
+                  ]}
+                >
+                  {step.label}
+                </Text>
+                {here ? (
+                  <View style={styles.nowPill}>
+                    <Text style={styles.now}>Current</Text>
+                  </View>
+                ) : null}
+              </View>
+              {time ? <Text style={styles.time}>{time}</Text> : null}
             </View>
           </View>
         );
@@ -105,6 +143,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderWidth: 2.5,
     borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
   },
   currentCore: {
     width: 8,
@@ -113,6 +156,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   dotUpcoming: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginTop: 3,
     backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: colors.border,
@@ -134,6 +181,11 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     justifyContent: 'flex-start',
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   label: {
     fontSize: 14,
     fontWeight: '700',
@@ -141,21 +193,34 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   labelDone: {
-    color: colors.primaryDark,
+    color: colors.text,
+    fontWeight: '600',
   },
   labelCurrent: {
-    color: colors.primary,
+    fontSize: 15,
+    color: colors.primaryDark,
     fontWeight: '800',
   },
   labelUpcoming: {
-    color: colors.textMuted,
-    fontWeight: '600',
+    color: '#A1A1AA',
+    fontWeight: '500',
+  },
+  nowPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: colors.primarySoft,
   },
   now: {
-    marginTop: 1,
     fontSize: 11,
-    color: colors.primary,
+    color: colors.primaryDark,
     fontWeight: '800',
+  },
+  time: {
+    marginTop: 1,
+    fontSize: 12,
+    color: colors.textMuted,
+    fontVariant: ['tabular-nums'],
   },
   cancelledBox: {
     paddingVertical: 8,

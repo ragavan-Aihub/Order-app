@@ -3,11 +3,11 @@ import { Alert } from 'react-native';
 
 import type { CartItem } from '@/cart/CartContext';
 import { loadOrderItemsForEdit } from '@/cart/modify-order';
-import { openOrderCartMessage } from '@/cart/open-cart-guard';
+import { openOrderCartMessage, selectAddressForOrder } from '@/cart/open-cart-guard';
 import {
-  ORDER_LOCKED_MESSAGE,
   canModifyOrder,
   isOpenOrderStatus,
+  orderLockedMessage,
   type Order,
   type OrderStatus,
   type OrderWithItems,
@@ -32,8 +32,8 @@ export function unlockModify() {
   modifyLock = false;
 }
 
-export function alertUpdateLimit() {
-  Alert.alert('Modify limit reached', ORDER_LOCKED_MESSAGE);
+export function alertUpdateLimit(status: string) {
+  Alert.alert('Modify limit reached', orderLockedMessage(status));
 }
 
 export function alertModifyDiscarded(status: OrderStatus | null, orderNumber: number | null) {
@@ -55,11 +55,11 @@ export function alertModifyDiscarded(status: OrderStatus | null, orderNumber: nu
 
 export function goModifyOrder(
   order: Order | OrderWithItems,
-  beginEditOrder: (orderId: string, items: CartItem[]) => void,
+  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
 ) {
   if (!canModifyOrder(order)) {
     if (isOpenOrderStatus(order.status)) {
-      alertUpdateLimit();
+      alertUpdateLimit(order.status);
     } else {
       Alert.alert('Cannot modify', 'This order can no longer be changed.');
     }
@@ -70,12 +70,13 @@ export function goModifyOrder(
   }
   const fallback = 'order_items' in order ? order : undefined;
   void loadOrderItemsForEdit(order.id, fallback)
-    .then((next) => {
+    .then(async (next) => {
       if (next === null) {
         throw new Error('Could not load that order.');
       }
-      beginEditOrder(order.id, next);
-      router.navigate('/cart');
+      await selectAddressForOrder(order).catch(() => undefined);
+      beginEditOrder(order.id, next, order);
+      router.navigate({ pathname: '/cart', params: { focus: 'add' } });
     })
     .catch((error) => {
       Alert.alert('Could not load', error instanceof Error ? error.message : 'Could not load that order.');
@@ -85,7 +86,7 @@ export function goModifyOrder(
 
 export function promptOpenOrderModify(
   order: Order,
-  beginEditOrder: (orderId: string, items: CartItem[]) => void,
+  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
 ) {
   Alert.alert('Open order', openOrderCartMessage(order), [
     { text: 'Not now', style: 'cancel' },

@@ -19,6 +19,7 @@ import { useAddToCart } from '@/cart/useAddToCart';
 import { useShopCatalog } from '@/catalog/ShopCatalogContext';
 import { getHomeCategoryId, setHomeCategoryId, subscribeHomeCategory } from '@/catalog/home-filter';
 import { HomeHeader } from '@/components/HomeHeader';
+import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
 import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
@@ -28,6 +29,10 @@ import { useNetworkStatus } from '@/network/NetworkProvider';
 import { refreshBusiness } from '@/services/business';
 import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
 import type { Product } from '@/types/product';
+
+function matchesSearch(product: Product, term: string) {
+  return product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term);
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -51,6 +56,24 @@ export default function HomeScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const painted = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
+  const chipsRef = useRef<ScrollView>(null);
+
+  const onSearchChange = (text: string) => {
+    setQuery(text);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    const term = text.trim().toLowerCase();
+    if (!term || !categoriesEnabled || !categoryId) {
+      return;
+    }
+    const inCategory = products.some(
+      (product) => product.category_id === categoryId && matchesSearch(product, term),
+    );
+    if (!inCategory && products.some((product) => matchesSearch(product, term))) {
+      setHomeCategoryId('');
+      setCategoryId('');
+      chipsRef.current?.scrollTo({ x: 0, animated: true });
+    }
+  };
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -107,9 +130,7 @@ export default function HomeScreen() {
       if (!term) {
         return true;
       }
-      return (
-        product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term)
-      );
+      return matchesSearch(product, term);
     })
       .sort((a, b) => Number(a.available === false) - Number(b.available === false));
   }, [categoriesEnabled, categoryId, products, query]);
@@ -133,6 +154,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <HomeHeader />
+      <ModifyOrderBar variant="shop" style={styles.modifyBar} />
       {offline ? (
         <View style={styles.offlineWrap}>
           <OfflineBanner />
@@ -165,10 +187,7 @@ export default function HomeScreen() {
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
           <TextInput
             value={query}
-            onChangeText={(text) => {
-              setQuery(text);
-              scrollRef.current?.scrollTo({ y: 0, animated: false });
-            }}
+            onChangeText={onSearchChange}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             onSubmitEditing={() => Keyboard.dismiss()}
@@ -211,6 +230,7 @@ export default function HomeScreen() {
       >
         {categoriesEnabled && categories.length > 0 ? (
           <ScrollView
+            ref={chipsRef}
             horizontal
             nestedScrollEnabled
             showsHorizontalScrollIndicator={false}
@@ -264,7 +284,6 @@ export default function HomeScreen() {
                   compact
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
-                  onPress={() => router.push(`/product/${product.id}`)}
                   onAddToCart={() => addToCart(product, 1)}
                   onIncrease={() => increase(product.id)}
                   onDecrease={() => decrease(product.id)}
@@ -280,6 +299,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  modifyBar: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,

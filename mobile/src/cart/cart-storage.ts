@@ -70,7 +70,7 @@ export async function saveCart(items: StoredCartItem[]) {
 
 const EDIT_KEY = 'farm2flavour.cart.edit.v1';
 
-export type StoredEditState = { orderId: string; fingerprint: string | null };
+export type StoredEditState = { orderId: string; fingerprint: string | null; items: StoredCartItem[] | null };
 
 export async function loadEditingOrderId(): Promise<StoredEditState | null> {
   try {
@@ -79,21 +79,29 @@ export async function loadEditingOrderId(): Promise<StoredEditState | null> {
       return null;
     }
     if (!raw.startsWith('{')) {
-      return { orderId: raw, fingerprint: null };
+      return { orderId: raw, fingerprint: null, items: null };
     }
     const parsed = JSON.parse(raw) as Partial<StoredEditState>;
     return typeof parsed.orderId === 'string' && parsed.orderId
-      ? { orderId: parsed.orderId, fingerprint: typeof parsed.fingerprint === 'string' ? parsed.fingerprint : null }
+      ? {
+          orderId: parsed.orderId,
+          fingerprint: typeof parsed.fingerprint === 'string' ? parsed.fingerprint : null,
+          items: Array.isArray(parsed.items) ? parseItems(JSON.stringify(parsed.items)) : null,
+        }
       : null;
   } catch {
     return null;
   }
 }
 
-export async function saveEditingOrderId(orderId: string | null, fingerprint: string | null = null) {
+export async function saveEditingOrderId(
+  orderId: string | null,
+  fingerprint: string | null = null,
+  items: StoredCartItem[] | null = null,
+) {
   try {
     if (orderId) {
-      await AsyncStorage.setItem(EDIT_KEY, JSON.stringify({ orderId, fingerprint }));
+      await AsyncStorage.setItem(EDIT_KEY, JSON.stringify({ orderId, fingerprint, items }));
     } else {
       await AsyncStorage.removeItem(EDIT_KEY);
     }

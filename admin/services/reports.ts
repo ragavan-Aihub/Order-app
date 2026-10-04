@@ -38,6 +38,8 @@ export type DashboardData = {
   deliveredToday: number;
   outstandingAmount: number;
   outstandingCount: number;
+  /** Orders still Placed (not yet confirmed), across all days. */
+  placedCount: number;
   recent: Order[];
   insight: string;
 };
@@ -169,6 +171,7 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
     recentResult,
     eventResult,
     fallbackDelivered,
+    placedResult,
   ] = await Promise.all([
     fetchMatchingOrders(supabase, businessId, today, {
       status: 'all',
@@ -207,9 +210,15 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
       .eq('status', 'delivered')
       .gte('updated_at', today.startIso)
       .lte('updated_at', today.endIso),
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .eq('status', 'new'),
   ]);
 
-  const failed = yesterdayResult.error || outstandingResult.error || recentResult.error;
+  const failed =
+    yesterdayResult.error || outstandingResult.error || recentResult.error || placedResult.error;
   if (todayFetch.error) {
     return { ok: false, message: todayFetch.error };
   }
@@ -260,6 +269,7 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
       deliveredToday,
       outstandingAmount,
       outstandingCount: outstanding.length,
+      placedCount: placedResult.count ?? 0,
       recent,
       insight: dashboardInsight({
         outstandingCount: outstanding.length,

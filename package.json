@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "admin": "npm run dev --prefix admin",
-    "mobile": "npm start --prefix mobile"
+    "mobile": "npm start --prefix mobile",
+    "docs:pdf": "npx --yes md-to-pdf docs/business-guide.md docs/technical-guide.md --stylesheet docs/pdf-style.css"
   }
 }

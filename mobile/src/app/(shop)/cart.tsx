@@ -1,8 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ScrollView as NativeScrollView,
+} from 'react-native';
 import { GestureHandlerRootView, ScrollView, Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,7 +20,7 @@ import {
   subscribeAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
-import { useCart } from '@/cart/CartContext';
+import { useCart, type CartItem } from '@/cart/CartContext';
 import { alertModifyDiscarded, goModifyOrder } from '@/cart/modify-flow';
 import { submitShopOrder } from '@/cart/submit-order';
 import {
@@ -20,10 +28,11 @@ import {
   savedAddressLabel,
   savedAddressLine,
 } from '@/components/AddressPickerSheet';
+import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { colors, radius, shadow, spacing } from '@/config/theme';
+import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { checkOrderEditable } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
@@ -33,8 +42,22 @@ import { formatOrderNumber, formatPrice } from '@/utils/format';
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { items, itemCount, totalAmount, increase, decrease, remove, clearCart, editingOrderId, beginEditOrder, hasOrderChanges, openOrder } =
-    useCart();
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const {
+    items,
+    itemCount,
+    totalAmount,
+    increase,
+    decrease,
+    remove,
+    clearCart,
+    editingOrderId,
+    beginEditOrder,
+    hasOrderChanges,
+    openOrder,
+    rowChange,
+    openOrderReady,
+  } = useCart();
   const { offline, requireConnection } = useNetworkStatus();
   const bottomPad = Math.max(insets.bottom, spacing.sm) + spacing.md;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -42,6 +65,32 @@ export default function CartScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const discarding = useRef(false);
+  const leaving = useRef(false);
+  const swipeables = useRef(new Map<string, Swipeable>());
+  const scrollRef = useRef<NativeScrollView>(null);
+  const viewportHeight = useRef(0);
+  const addMoreY = useRef<number | null>(null);
+  const pendingAddFocus = useRef(false);
+
+  const scrollToAddMore = useCallback(() => {
+    const y = addMoreY.current;
+    if (!pendingAddFocus.current || y === null) {
+      return;
+    }
+    pendingAddFocus.current = false;
+    const target = Math.max(0, y - viewportHeight.current / 2);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: target, animated: true }));
+  }, []);
+
+  useEffect(() => {
+    if (focus !== 'add') {
+      return;
+    }
+    pendingAddFocus.current = true;
+    router.setParams({ focus: undefined });
+    // Not cleared when `focus` resets: the row needs a moment to lay out after the cart opens.
+    setTimeout(scrollToAddMore, 350);
+  }, [focus, router, scrollToAddMore]);
 
   const loadAddress = useCallback(async () => {
     await loadAddressBook();
@@ -75,10 +124,29 @@ export default function CartScreen() {
   useFocusEffect(
     useCallback(() => {
       loadAddress().catch(() => undefined);
-      if (items.length === 0) {
+      if (items.length === 0 && !leaving.current) {
         router.replace('/home');
       }
     }, [items.length, loadAddress, router]),
+  );
+
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        leaving.current = false;
+      },
+      [],
+    ),
+  );
+
+  const blockedByOpenOrder = Boolean(openOrder && !editingOrderId && items.length > 0);
+  useFocusEffect(
+    useCallback(() => {
+      if (blockedByOpenOrder && openOrderReady && !leaving.current) {
+        leaving.current = true;
+        router.replace({ pathname: '/new-order', params: { next: 'cart' } });
+      }
+    }, [blockedByOpenOrder, openOrderReady, router]),
   );
 
   useFocusEffect(
@@ -100,6 +168,16 @@ export default function CartScreen() {
     return <View style={styles.screen} />;
   }
 
+  if (blockedByOpenOrder) {
+    return (
+      <View style={[styles.screen, styles.blocked]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  const editingOpen = Boolean(openOrder && editingOrderId === openOrder.id);
+
   function confirmClearCart() {
     Alert.alert(
       'Clear cart?',
@@ -118,21 +196,35 @@ export default function CartScreen() {
     );
   }
 
-  function confirmDiscardChanges() {
-    Alert.alert('Discard changes?', 'Your order stays as it was saved.', [
-      { text: 'Keep editing', style: 'cancel' },
-      {
-        text: 'Discard changes',
-        style: 'destructive',
-        onPress: () => {
-          clearCart();
-          router.replace('/home');
-        },
-      },
+  function exitModify() {
+    leaving.current = true;
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/orders');
+    }
+    clearCart();
+  }
+
+  function confirmRemove(item: CartItem) {
+    if (!editingOpen) {
+      remove(item.product.id);
+      return;
+    }
+    Alert.alert(`Remove ${item.product.name}?`, 'It will be taken off this order when you tap Update order.', [
+      { text: 'Keep', style: 'cancel', onPress: () => swipeables.current.get(item.product.id)?.close() },
+      { text: 'Remove', style: 'destructive', onPress: () => remove(item.product.id) },
     ]);
   }
 
-  const editingOpen = Boolean(openOrder && editingOrderId === openOrder.id);
+  function onDecrease(item: CartItem) {
+    if (item.quantity <= 1) {
+      confirmRemove(item);
+      return;
+    }
+    decrease(item.product.id);
+  }
+
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
 
@@ -214,7 +306,7 @@ export default function CartScreen() {
         setError(result.message);
         return;
       }
-      clearCart();
+      leaving.current = true;
       router.replace({
         pathname: '/confirmation',
         params: {
@@ -225,6 +317,7 @@ export default function CartScreen() {
           fresh: updateId ? 'updated' : 'placed',
         },
       });
+      clearCart();
     } catch (placeError) {
       setError(placeError instanceof Error ? placeError.message : 'Could not place the order.');
     } finally {
@@ -264,53 +357,56 @@ export default function CartScreen() {
           </View>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {editingOpen ? (
+        <View style={styles.modifyBarWrap}>
+          <ModifyOrderBar variant="cart" onExit={exitModify} />
+        </View>
+      ) : null}
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        onLayout={(event) => {
+          viewportHeight.current = event.nativeEvent.layout.height;
+        }}
+      >
         {offline ? <OfflineBanner /> : null}
-        {editingOpen && openOrder ? (
-          <View style={styles.editBanner}>
-            <Ionicons name="create-outline" size={18} color={colors.primaryDark} />
-            <Text style={styles.editTitle}>Editing order #{formatOrderNumber(openOrder.order_number)}</Text>
-          </View>
-        ) : null}
-        <View style={styles.countRow}>
-          <Text style={styles.count}>
-            {itemCount} {itemCount === 1 ? 'item' : 'items'}
-          </Text>
-          {editingOpen ? (
-            hasOrderChanges ? (
-              <Pressable
-                onPress={confirmDiscardChanges}
-                style={({ pressed }) => [styles.dangerPill, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Discard changes"
-              >
-                <Ionicons name="arrow-undo-outline" size={16} color={colors.danger} />
-                <Text style={styles.dangerPillLabel}>Discard changes</Text>
-              </Pressable>
-            ) : null
-          ) : (
+        {editingOpen ? null : (
+          <View style={styles.countRow}>
+            <Text style={styles.count}>
+              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            </Text>
             <Pressable
               onPress={confirmClearCart}
-              style={({ pressed }) => [styles.dangerPill, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.clearButton, pressed && styles.clearPressed]}
               accessibilityRole="button"
               accessibilityLabel="Clear cart"
+              hitSlop={6}
             >
-              <Ionicons name="trash-outline" size={16} color={colors.danger} />
-              <Text style={styles.dangerPillLabel}>Clear cart</Text>
+              <Ionicons name="trash-outline" size={15} color={colors.textMuted} />
+              <Text style={styles.clearLabel}>Clear cart</Text>
             </Pressable>
-          )}
-        </View>
+          </View>
+        )}
         {items.map((item) => {
           const subtotal = item.product.price * item.quantity;
+          const change = rowChange(item.product.id);
           return (
             <Swipeable
               key={item.product.id}
+              ref={(swipeable) => {
+                if (swipeable) {
+                  swipeables.current.set(item.product.id, swipeable);
+                } else {
+                  swipeables.current.delete(item.product.id);
+                }
+              }}
               overshootRight={false}
               rightThreshold={40}
-              onSwipeableRightOpen={() => remove(item.product.id)}
+              onSwipeableRightOpen={() => confirmRemove(item)}
               renderRightActions={() => (
                 <Pressable
-                  onPress={() => remove(item.product.id)}
+                  onPress={() => confirmRemove(item)}
                   style={styles.deleteAction}
                   accessibilityRole="button"
                   accessibilityLabel={`Delete ${item.product.name}`}
@@ -320,7 +416,7 @@ export default function CartScreen() {
               )}
             >
               <View
-                style={styles.row}
+                style={[styles.row, change?.kind === 'new' && styles.rowNew]}
                 accessibilityHint="Swipe left to delete"
               >
                 <Image
@@ -340,9 +436,18 @@ export default function CartScreen() {
                     <QuantityStepper
                       compact
                       value={item.quantity}
-                      onDecrease={() => decrease(item.product.id)}
+                      onDecrease={() => onDecrease(item)}
                       onIncrease={() => increase(item.product.id)}
                     />
+                    {change?.kind === 'new' ? (
+                      <View style={[styles.tag, styles.tagNew]}>
+                        <Text style={[styles.tagLabel, styles.tagNewLabel]}>New</Text>
+                      </View>
+                    ) : change?.kind === 'changed' ? (
+                      <View style={[styles.tag, styles.tagChanged]}>
+                        <Text style={[styles.tagLabel, styles.tagChangedLabel]}>Was {change.from}</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               </View>
@@ -352,13 +457,22 @@ export default function CartScreen() {
         <Pressable
           style={({ pressed }) => [styles.addMore, pressed && styles.pressed]}
           onPress={() => router.push('/home')}
+          ref={(node) => {
+            if (!node) {
+              addMoreY.current = null;
+            }
+          }}
+          onLayout={(event) => {
+            addMoreY.current = event.nativeEvent.layout.y;
+            scrollToAddMore();
+          }}
           accessibilityRole="button"
         >
           <View style={styles.addMoreLeft}>
-            <Ionicons name="add-circle" size={20} color={colors.primary} />
+            <Ionicons name="add-circle" size={22} color={colors.primary} />
             <Text style={styles.addMoreLabel}>Add more items</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </Pressable>
 
         <View style={styles.bill}>
@@ -382,14 +496,11 @@ export default function CartScreen() {
         </View>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: bottomPad }]}>
-        <View style={styles.totalRow}>
-          <View>
-            <Text style={styles.totalLabel}>To pay</Text>
-            <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
-          </View>
-          <Text style={styles.totalMeta}>
-            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+        <View>
+          <Text style={styles.totalLabel}>
+            Total · {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </Text>
+          <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {openOrder && !editingOpen ? (
@@ -427,6 +538,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  blocked: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -497,54 +612,71 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   count: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    color: colors.text,
   },
-  dangerPill: {
+  clearButton: {
     minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
+    gap: 5,
+    paddingHorizontal: 10,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    backgroundColor: colors.surface,
   },
-  dangerPillLabel: {
+  clearPressed: {
+    backgroundColor: colors.border,
+  },
+  clearLabel: {
     fontSize: 13,
-    fontWeight: '800',
-    color: colors.danger,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
-  editBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
+  modifyBarWrap: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
-  },
-  editTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.primaryDark,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.background,
   },
   row: {
     flexDirection: 'row',
     gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.sm,
-    ...shadow.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  rowNew: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  tag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  tagLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  tagNew: {
+    backgroundColor: '#DCFCE7',
+  },
+  tagNewLabel: {
+    color: colors.success,
+  },
+  tagChanged: {
+    backgroundColor: '#FEF3C7',
+  },
+  tagChangedLabel: {
+    color: '#92400E',
   },
   thumb: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     borderRadius: 12,
     backgroundColor: colors.background,
   },
@@ -552,7 +684,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     justifyContent: 'space-between',
-    gap: 4,
+    gap: 2,
   },
   rowTop: {
     flexDirection: 'row',
@@ -573,6 +705,9 @@ const styles = StyleSheet.create({
   rowBottom: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    marginTop: 4,
   },
   subtotal: {
     fontSize: 16,
@@ -593,11 +728,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surface,
+    backgroundColor: '#F0FDFA',
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
     paddingHorizontal: spacing.md,
     minHeight: 52,
-    ...shadow.sm,
   },
   addMoreLeft: {
     flexDirection: 'row',
@@ -607,15 +743,16 @@ const styles = StyleSheet.create({
   addMoreLabel: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.primary,
+    color: colors.primaryDark,
   },
   bill: {
     marginTop: spacing.xs,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.xs,
-    ...shadow.sm,
   },
   billHeading: {
     fontSize: 15,
@@ -643,13 +780,13 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   billTotalLabel: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.text,
   },
   billTotalValue: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.text,
   },
   payNote: {
@@ -680,29 +817,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     elevation: 8,
   },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
   totalLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  total: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -0.3,
-  },
-  totalMeta: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.textMuted,
-    paddingBottom: 4,
+  },
+  total: {
+    marginTop: 1,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: -0.4,
   },
   error: {
     fontSize: 14,

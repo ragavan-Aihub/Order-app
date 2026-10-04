@@ -62,6 +62,8 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
             cancelReason={order.cancel_reason}
             paymentMethod={order.payment_method ?? 'pending'}
             allowCorrection
+            statusEvents={order.status_events}
+            placedAt={order.created_at}
           />
         </div>
         <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4">

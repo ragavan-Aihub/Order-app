@@ -1,7 +1,9 @@
 import {
   formatAddressForOrder,
+  getAddressBook,
   getSelectedAddress,
   loadAddressBook,
+  selectAddress,
   type SavedAddress,
 } from '@/cart/address-book';
 import {
@@ -31,6 +33,22 @@ export async function findOpenOrderForSelectedAddress(reload = true): Promise<Or
     address: formatAddressForOrder(selected),
     pincode: selected.pincode,
   });
+}
+
+export async function selectAddressForOrder(order: Order) {
+  const list = await loadAddressBook().catch(() => getAddressBook());
+  const match =
+    list.find((address) => order.customer_address_id && address.id === order.customer_address_id) ??
+    list.find((address) =>
+      matchOrderToAddress(
+        [order],
+        { address: formatAddressForOrder(address), pincode: address.pincode },
+        false,
+      ),
+    );
+  if (match && getSelectedAddress()?.id !== match.id) {
+    await selectAddress(match.id);
+  }
 }
 
 export async function findOpenOrderBlockingNewCart(editingOrderId?: string | null): Promise<Order | null> {

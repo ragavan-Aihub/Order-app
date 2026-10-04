@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   formatSavedAddressLabel,
@@ -23,6 +24,7 @@ function formatMobile(value: string | null) {
 
 export default function AccountScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [signedIn, setSignedIn] = useState(false);
   const [name, setName] = useState<string | null>(null);
   const [mobile, setMobile] = useState<string | null>(null);
@@ -57,8 +59,12 @@ export default function AccountScreen() {
   const addressLine = delivery ? formatSavedAddressLine(delivery) : '';
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.hero}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+    >
+      <View style={styles.profile}>
+        <View style={styles.profileGlow} pointerEvents="none" />
         <View style={styles.avatar}>
           {initial ? (
             <Text style={styles.avatarLabel}>{initial}</Text>
@@ -66,20 +72,28 @@ export default function AccountScreen() {
             <Ionicons name="person" size={26} color={colors.primaryText} />
           )}
         </View>
-        <View style={styles.heroText}>
-          {signedIn && name ? <Text style={styles.greeting}>Hello,</Text> : null}
-          <Text style={styles.hello} numberOfLines={1}>
-            {signedIn && name ? name : 'Hello'}
+        <View style={styles.profileText}>
+          <Text style={styles.name} numberOfLines={1}>
+            {signedIn ? name || 'Welcome' : 'Welcome'}
           </Text>
-          <Text style={styles.heroMeta} numberOfLines={signedIn ? 1 : 2}>
-            {signedIn ? formatMobile(mobile) || 'Signed in' : 'Sign in to see orders and save your profile.'}
-          </Text>
+          {signedIn ? (
+            <View style={styles.phoneRow}>
+              <Ionicons name="call-outline" size={13} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.phone} numberOfLines={1}>
+                {formatMobile(mobile) || 'Signed in'}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.phone} numberOfLines={2}>
+              Sign in to see orders and save your profile.
+            </Text>
+          )}
         </View>
       </View>
 
       <Text style={styles.sectionLabel}>Delivery</Text>
       <Pressable
-        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.delivery, pressed && styles.pressed]}
         onPress={() =>
           signedIn
             ? router.push('/checkout')
@@ -88,57 +102,29 @@ export default function AccountScreen() {
         accessibilityRole="button"
         accessibilityLabel={delivery ? 'Change delivery address' : 'Add delivery address'}
       >
-        <View style={styles.iconTile}>
-          <Ionicons name="location" size={20} color={colors.primary} />
-        </View>
-        <View style={styles.cardBody}>
+        <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.pin} />
+        <View style={styles.deliveryBody}>
           {delivery ? (
             <>
-              <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>{formatSavedAddressLabel(delivery.label)}</Text>
-                <View style={styles.defaultPill}>
-                  <Text style={styles.defaultPillLabel}>Default</Text>
-                </View>
-              </View>
-              <Text style={styles.body} numberOfLines={2}>
+              <Text style={styles.deliveryTitle} numberOfLines={1}>
+                {formatSavedAddressLabel(delivery.label)}
+                <Text style={styles.deliveryDefault}> · Default</Text>
+              </Text>
+              <Text style={styles.address} numberOfLines={2}>
                 {addressLine}
               </Text>
-              {delivery.name ? (
-                <Text style={styles.subtle} numberOfLines={1}>
-                  {delivery.name}
-                  {delivery.mobile ? ` · ${delivery.mobile}` : ''}
-                </Text>
-              ) : null}
             </>
           ) : (
             <>
-              <Text style={styles.cardTitle}>Delivery address</Text>
-              <Text style={styles.subtle}>No address yet. Add one at checkout.</Text>
+              <Text style={styles.deliveryTitle}>No address yet</Text>
+              <Text style={styles.address}>Add one at checkout.</Text>
             </>
           )}
         </View>
-        <Text style={styles.manage}>{delivery ? 'Change' : 'Add'}</Text>
+        <Text style={styles.change}>{delivery ? 'Change' : 'Add'}</Text>
       </Pressable>
 
-      <Text style={styles.sectionLabel}>Orders</Text>
-      <View style={styles.group}>
-        <Pressable
-          onPress={() =>
-            signedIn ? router.push('/orders') : router.push({ pathname: '/login', params: { next: 'orders' } })
-          }
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <View style={styles.iconTile}>
-            <Ionicons name="receipt-outline" size={20} color={colors.primary} />
-          </View>
-          <View style={styles.rowCopy}>
-            <Text style={styles.rowLabel}>My orders</Text>
-            <Text style={styles.subtle}>Track, view items, or cancel</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </Pressable>
-      </View>
+      <View style={styles.spacer} />
 
       {signedIn ? (
         <Pressable
@@ -146,10 +132,11 @@ export default function AccountScreen() {
             await signOut();
             await load();
           }}
-          style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.signOutButton, pressed && styles.signOutPressed]}
           accessibilityRole="button"
+          hitSlop={8}
         >
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+          <Ionicons name="log-out-outline" size={17} color={colors.textMuted} />
           <Text style={styles.signOut}>Sign out</Text>
         </Pressable>
       ) : (
@@ -168,25 +155,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
-    gap: spacing.sm,
+    flexGrow: 1,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
   },
-  hero: {
+  profile: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
     borderRadius: radius.lg,
     backgroundColor: colors.primary,
-    marginBottom: spacing.xs,
+    overflow: 'hidden',
     ...shadow.md,
+  },
+  profileGlow: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   avatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -195,30 +194,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primaryText,
   },
-  heroText: {
+  profileText: {
     flex: 1,
     minWidth: 0,
+    gap: 4,
   },
-  greeting: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.75)',
-  },
-  hello: {
-    fontSize: 22,
-    lineHeight: 28,
+  name: {
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
     color: colors.primaryText,
   },
-  heroMeta: {
-    marginTop: 2,
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  phone: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.78)',
+    letterSpacing: 0.2,
+    color: 'rgba(255,255,255,0.85)',
   },
   sectionLabel: {
-    marginTop: spacing.sm,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
     marginLeft: 4,
     fontSize: 12,
     fontWeight: '700',
@@ -226,107 +227,68 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.textMuted,
   },
-  card: {
+  delivery: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.md,
-    ...shadow.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
   },
-  cardBody: {
+  pin: {
+    marginTop: 1,
+  },
+  deliveryBody: {
     flex: 1,
     minWidth: 0,
     gap: 3,
   },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  cardTitle: {
-    fontSize: 16,
+  deliveryTitle: {
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
   },
-  defaultPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
-  },
-  defaultPillLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
-  body: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.text,
-  },
-  subtle: {
+  deliveryDefault: {
     fontSize: 13,
-    lineHeight: 18,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  address: {
+    fontSize: 13.5,
+    lineHeight: 19,
     color: colors.textMuted,
   },
-  manage: {
+  change: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.primary,
     paddingTop: 1,
   },
-  iconTile: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  group: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    ...shadow.sm,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 64,
-  },
-  rowCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 1,
-  },
-  rowLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  signOutButton: {
-    marginTop: spacing.lg,
-    minHeight: 48,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: 'transparent',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-  },
-  signOut: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.danger,
-  },
   pressed: {
     opacity: 0.85,
+  },
+  spacer: {
+    flex: 1,
+    minHeight: spacing.xl,
+  },
+  signOutButton: {
+    alignSelf: 'center',
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radius.pill,
+  },
+  signOutPressed: {
+    backgroundColor: colors.border,
+  },
+  signOut: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
 });

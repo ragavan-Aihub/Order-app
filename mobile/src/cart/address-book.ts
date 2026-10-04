@@ -1,5 +1,10 @@
 import { clearDeliveryDraft } from '@/cart/delivery-draft';
-import { fetchRemoteAddresses, replaceRemoteAddresses, syncCustomerFromAddress } from '@/services/addresses';
+import {
+  fetchRemoteAddresses,
+  replaceRemoteAddresses,
+  setRemoteDefaultAddress,
+  syncCustomerFromAddress,
+} from '@/services/addresses';
 import type { DeliveryDetails } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import { ADDRESS_LABELS, composeAddressLine, stateFromPincode, type AddressLabel } from '@/utils/address';
@@ -23,6 +28,7 @@ export const MAX_SAVED_ADDRESSES = 3;
 
 let book: SavedAddress[] | null = null;
 let selectedId: string | null = null;
+let pendingSelectedId: string | null = null;
 let emittedFingerprint: string | null = null;
 let inflightLoad: Promise<SavedAddress[]> | null = null;
 const listeners = new Set<() => void>();
@@ -118,13 +124,15 @@ export function getSelectedAddress(): SavedAddress | null {
 
 function applyRemote(list: SavedAddress[], defaultId: string | null) {
   book = list;
-  selectedId = (defaultId && list.some((item) => item.id === defaultId) ? defaultId : list[0]?.id) ?? null;
+  const preferred = pendingSelectedId && list.some((item) => item.id === pendingSelectedId) ? pendingSelectedId : defaultId;
+  selectedId = (preferred && list.some((item) => item.id === preferred) ? preferred : list[0]?.id) ?? null;
   emitAddressBook();
 }
 
 function clearMemory() {
   book = [];
   selectedId = null;
+  pendingSelectedId = null;
   emitAddressBook();
 }
 
@@ -133,6 +141,7 @@ export function resetAddressBookCache() {
 }
 
 async function persist() {
+  pendingSelectedId = null;
   const synced = await replaceRemoteAddresses(book ?? [], selectedId);
   applyRemote(synced.list, synced.selectedId);
 }
@@ -227,15 +236,25 @@ export async function selectAddress(id: string) {
   if (!user) {
     return;
   }
-  await loadAddressBook();
+  if (!book?.some((item) => item.id === id)) {
+    await loadAddressBook();
+  }
   if (!(book ?? []).some((item) => item.id === id)) {
     return;
   }
   selectedId = id;
-  try {
-    await persist();
-  } catch (error) {
-    await loadAddressBook();
-    throw error;
-  }
+  pendingSelectedId = id;
+  emitAddressBook();
+  setRemoteDefaultAddress(id)
+    .catch(() => {
+      if (pendingSelectedId === id) {
+        pendingSelectedId = null;
+        loadAddressBook().catch(() => undefined);
+      }
+    })
+    .finally(() => {
+      if (pendingSelectedId === id) {
+        pendingSelectedId = null;
+      }
+    });
 }

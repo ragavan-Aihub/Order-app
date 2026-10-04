@@ -47,12 +47,15 @@ export function OrdersBoard({
   orders,
   communities = [],
   communitiesEnabled = false,
+  initialStatus,
 }: {
   orders: Order[];
   communities?: CommunityListItem[];
   communitiesEnabled?: boolean;
+  /** Opens on this status tab, for example from a dashboard link. */
+  initialStatus?: OrderStatus;
 }) {
-  const [tab, setTab] = useState<'all' | OrderStatus>('all');
+  const [tab, setTab] = useState<'all' | OrderStatus>(initialStatus ?? 'all');
   const [query, setQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<DisplayPaymentStatus | ''>('');
   const [methodFilter, setMethodFilter] = useState('');

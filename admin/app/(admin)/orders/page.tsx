@@ -4,10 +4,22 @@ import { OrdersBoard } from '@/components/OrdersBoard';
 import { isCommunitiesEnabled } from '@/services/business';
 import { getCommunities } from '@/services/communities';
 import { getAllOrders } from '@/services/orders';
+import { ORDER_STATUSES, type OrderStatus } from '@/types/order';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrdersPage() {
+function parseInitialStatus(value: string | string[] | undefined): OrderStatus | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return ORDER_STATUSES.find((item) => item.value === raw)?.value;
+}
+
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const initialStatus = parseInitialStatus(params.status);
   const enabled = await isCommunitiesEnabled();
   const [orders, communities] = await Promise.all([
     getAllOrders({ hydrateCommunity: enabled }),
@@ -25,7 +37,13 @@ export default async function OrdersPage() {
           Create order
         </Link>
       </div>
-      <OrdersBoard orders={orders} communities={communities} communitiesEnabled={enabled} />
+      <OrdersBoard
+        key={initialStatus ?? 'all'}
+        orders={orders}
+        communities={communities}
+        communitiesEnabled={enabled}
+        initialStatus={initialStatus}
+      />
     </div>
   );
 }

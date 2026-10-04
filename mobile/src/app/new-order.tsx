@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import { findOpenOrderForAddress } from '@/services/orders';
 export default function NewOrderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const { addItem, beginEditOrder } = useCart();
   const [rows, setRows] = useState<AddressNewOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,11 @@ export default function NewOrderScreen() {
       if (pending) {
         addItem(pending.product, pending.quantity);
       }
-      leave();
+      if (next === 'cart') {
+        router.replace('/cart');
+      } else {
+        leave();
+      }
     } catch (error) {
       Alert.alert('Could not switch address', error instanceof Error ? error.message : 'Please try again.');
     } finally {

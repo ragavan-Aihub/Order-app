@@ -14,7 +14,7 @@ import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { cancelMyOrder, getMyOrdersWithItems } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import { canModifyOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
+import { canCancelOrder, canModifyOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
 import { formatOrderListDate, formatOrderNumber, formatPrice, orderStatusTone } from '@/utils/format';
 
 function itemSummary(order: OrderWithItems) {
@@ -165,28 +165,36 @@ export default function MyOrdersScreen() {
                         <Text style={styles.limitText}>Modify limit reached</Text>
                       </View>
                     )}
-                    <Pressable
-                      onPress={() => {
-                        Alert.alert('Cancel order?', `Cancel order #${formatOrderNumber(order.order_number)}?`, [
-                          { text: 'Keep', style: 'cancel' },
-                          {
-                            text: 'Cancel order',
-                            style: 'destructive',
-                            onPress: () => {
-                              cancelMyOrder(order.id)
-                                .then(() => {
-                                  forgetOpenOrder(order.id);
-                                  return load(true);
-                                })
-                                .catch(() => undefined);
+                    {canCancelOrder(order.status) ? (
+                      <Pressable
+                        onPress={() => {
+                          Alert.alert('Cancel order?', `Cancel order #${formatOrderNumber(order.order_number)}?`, [
+                            { text: 'Keep', style: 'cancel' },
+                            {
+                              text: 'Cancel order',
+                              style: 'destructive',
+                              onPress: () => {
+                                cancelMyOrder(order.id)
+                                  .then(() => {
+                                    forgetOpenOrder(order.id);
+                                    return load(true);
+                                  })
+                                  .catch((error) => {
+                                    Alert.alert(
+                                      'Could not cancel',
+                                      error instanceof Error ? error.message : 'Try again in a moment.',
+                                    );
+                                    return load(true);
+                                  });
+                              },
                             },
-                          },
-                        ]);
-                      }}
-                      style={styles.actionBtnGhost}
-                    >
-                      <Text style={styles.actionGhost}>Cancel</Text>
-                    </Pressable>
+                          ]);
+                        }}
+                        style={styles.actionBtnGhost}
+                      >
+                        <Text style={styles.actionGhost}>Cancel</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
               </View>

@@ -74,6 +74,28 @@ export async function fetchRemoteAddresses(): Promise<{ list: SavedAddress[]; de
   };
 }
 
+export async function setRemoteDefaultAddress(id: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Could not switch address.');
+  }
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) {
+    throw new Error('Sign in to switch address.');
+  }
+  const { error } = await supabase
+    .from('customer_addresses')
+    .update({ is_default: true })
+    .eq('id', id)
+    .eq('user_id', user.id);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function replaceRemoteAddresses(
   list: SavedAddress[],
   selectedId: string | null,

@@ -6,12 +6,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
-import { OrderProgress } from '@/components/OrderProgress';
+import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { colors, radius, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
-import { ORDER_LOCKED_MESSAGE, canModifyOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
-import { displayPaymentStatus, formatDateTime, formatOrderNumber, formatOrderStatus, formatPrice, orderStatusTone } from '@/utils/format';
+import {
+  canCancelOrder,
+  canModifyOrder,
+  isOpenOrderStatus,
+  orderLockedMessage,
+  type OrderWithItems,
+} from '@/types/order';
+import {
+  displayPaymentStatus,
+  formatDateTime,
+  formatOrderNumber,
+  formatOrderStatus,
+  formatPrice,
+  formatStepTime,
+  orderStatusTone,
+} from '@/utils/format';
 
 export default function OrderDetailScreen() {
   const router = useRouter();
@@ -70,6 +84,7 @@ export default function OrderDetailScreen() {
   }
 
   const statusTone = orderStatusTone(order.status);
+  const cancelledAt = order.status === 'cancelled' ? latestStatusTime(order.status_events, 'cancelled') : null;
   const current = order;
 
   function confirmCancel() {
@@ -107,7 +122,7 @@ export default function OrderDetailScreen() {
     <>
     <Stack.Screen
       options={{
-        headerRight: isOpenOrderStatus(order.status)
+        headerRight: canCancelOrder(order.status)
           ? () => (
               <Pressable
                 onPress={openMore}
@@ -172,7 +187,7 @@ export default function OrderDetailScreen() {
           ) : (
             <View style={styles.limitNote}>
               <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.limitText}>{ORDER_LOCKED_MESSAGE}</Text>
+              <Text style={styles.limitText}>{orderLockedMessage(order.status)}</Text>
             </View>
           )}
         </View>
@@ -185,6 +200,7 @@ export default function OrderDetailScreen() {
             <Text style={styles.heading}>Cancelled</Text>
           </View>
           <Text style={styles.body}>{order.cancel_reason || 'This order was cancelled.'}</Text>
+          {cancelledAt ? <Text style={styles.cancelledAt}>Cancelled on {formatStepTime(cancelledAt)}</Text> : null}
           <View style={styles.payRow}>
             <PaymentBadge
               method={order.payment_method ?? 'pending'}
@@ -199,7 +215,7 @@ export default function OrderDetailScreen() {
             <Ionicons name="navigate-outline" size={18} color={colors.primaryDark} />
             <Text style={styles.heading}>Progress</Text>
           </View>
-          <OrderProgress status={order.status} />
+          <OrderProgress status={order.status} events={order.status_events} placedAt={order.created_at} />
         </View>
       )}
 
@@ -348,6 +364,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: colors.text,
+  },
+  cancelledAt: {
+    marginTop: 4,
+    fontSize: 13,
+    color: colors.textMuted,
   },
   detailRow: {
     flexDirection: 'row',

@@ -97,6 +97,7 @@ export default async function ReportsPage({
       </div>
 
       <ReportsFilters
+        key={JSON.stringify(filters)}
         filters={filters}
         rangeStart={data.range.startYmd}
         rangeEnd={data.range.endYmd}

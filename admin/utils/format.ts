@@ -20,6 +20,19 @@ export function formatDateTime(value: string): string {
   }).format(date);
 }
 
+export function formatStepTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
 const ORDER_NOTES_MARKER = '\n\nOrder notes: ';
 
 export function splitDeliveryNotes(deliveryAddress: string) {

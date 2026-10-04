@@ -1,11 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
+import { Spinner } from '@/components/ActionNotice';
 import type { CommunityListItem } from '@/types/community';
 import { ORDER_STATUSES, PAYMENT_METHODS } from '@/types/order';
-import { REPORT_CHANNELS, type ReportFilters, type ReportRangePreset } from '@/types/report';
+import { REPORT_CHANNELS, parseReportFilters, type ReportFilters, type ReportRangePreset } from '@/types/report';
 
 const fieldClass = 'min-h-10 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
 
@@ -62,30 +63,47 @@ export function ReportsFilters({
   communitiesEnabled: boolean;
 }) {
   const router = useRouter();
+  const [view, setView] = useState(filters);
+  const [applying, startTransition] = useTransition();
+
+  function navigate(href: string) {
+    startTransition(() => {
+      router.push(href);
+    });
+  }
 
   function go(patch: Partial<ReportFilters>) {
-    router.push(hrefFrom({ ...filters, page: 1, focusOutstanding: false, ...patch }));
+    const next = { ...view, page: 1, focusOutstanding: false, ...patch };
+    setView(next);
+    navigate(hrefFrom(next));
   }
 
   return (
     <form
+      aria-busy={applying}
       className="grid gap-3 rounded-xl border border-stone-200 bg-white p-4 md:grid-cols-2 lg:grid-cols-4"
       onSubmit={(event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         go({
           query: String(form.get('q') ?? '').trim(),
-          fromYmd: String(form.get('from') ?? filters.fromYmd),
-          toYmd: String(form.get('to') ?? filters.toYmd),
-          preset: filters.preset === 'custom' ? 'custom' : filters.preset,
+          fromYmd: String(form.get('from') ?? view.fromYmd),
+          toYmd: String(form.get('to') ?? view.toYmd),
         });
       }}
     >
       <fieldset className="lg:col-span-4">
-        <legend className="mb-2 text-sm font-medium text-stone-600">Date range</legend>
+        <legend className="mb-2 flex w-full items-center justify-between gap-3 text-sm font-medium text-stone-600">
+          <span>Date range</span>
+          {applying ? (
+            <span className="inline-flex items-center gap-1.5 text-emerald-700" role="status">
+              <Spinner size={14} /> Applying filter…
+            </span>
+          ) : null}
+        </legend>
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((item) => {
-            const on = filters.preset === item.value;
+            const on = view.preset === item.value;
             return (
               <button
                 key={item.value}
@@ -101,7 +119,7 @@ export function ReportsFilters({
           })}
         </div>
       </fieldset>
-      {filters.preset === 'custom' ? (
+      {view.preset === 'custom' ? (
         <>
           <label className="text-sm text-stone-600">
             From
@@ -117,7 +135,7 @@ export function ReportsFilters({
         Order status
         <select
           className={`${fieldClass} mt-1 w-full`}
-          value={filters.status}
+          value={view.status}
           onChange={(event) => go({ status: event.target.value as ReportFilters['status'] })}
         >
           <option value="all">All</option>
@@ -132,7 +150,7 @@ export function ReportsFilters({
         Payment status
         <select
           className={`${fieldClass} mt-1 w-full`}
-          value={filters.payment}
+          value={view.payment}
           onChange={(event) => go({ payment: event.target.value as ReportFilters['payment'] })}
         >
           <option value="all">All</option>
@@ -146,7 +164,7 @@ export function ReportsFilters({
         Payment method
         <select
           className={`${fieldClass} mt-1 w-full`}
-          value={filters.method}
+          value={view.method}
           onChange={(event) => go({ method: event.target.value as ReportFilters['method'] })}
         >
           <option value="all">All</option>
@@ -161,7 +179,7 @@ export function ReportsFilters({
         Channel
         <select
           className={`${fieldClass} mt-1 w-full`}
-          value={filters.channel}
+          value={view.channel}
           onChange={(event) => go({ channel: event.target.value })}
         >
           <option value="">All</option>
@@ -177,7 +195,7 @@ export function ReportsFilters({
           Community
           <select
             className={`${fieldClass} mt-1 w-full`}
-            value={filters.communityId}
+            value={view.communityId}
             onChange={(event) => go({ communityId: event.target.value })}
           >
             <option value="">All communities</option>
@@ -207,7 +225,10 @@ export function ReportsFilters({
         </button>
         <button
           type="button"
-          onClick={() => router.push('/reports')}
+          onClick={() => {
+            setView(parseReportFilters({}));
+            navigate('/reports');
+          }}
           className="inline-flex min-h-10 items-center rounded-md border border-stone-300 px-4 text-sm font-medium text-stone-700"
         >
           Reset filters

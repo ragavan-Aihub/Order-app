@@ -18,6 +18,8 @@ export type CartItem = {
   quantity: number;
 };
 
+export type RowChange = { kind: 'new' } | { kind: 'changed'; from: number } | null;
+
 type CartContextValue = {
   items: CartItem[];
   itemCount: number;
@@ -25,13 +27,14 @@ type CartContextValue = {
   editingOrderId: string | null;
   openOrder: Order | null;
   openOrderBlock: Order | null;
+  openOrderReady: boolean;
   addItem: (product: Product, quantity?: number) => boolean;
   increase: (productId: string) => void;
   decrease: (productId: string) => void;
   remove: (productId: string) => void;
   replaceItems: (next: CartItem[]) => void;
   clearCart: () => void;
-  beginEditOrder: (orderId: string, next: CartItem[]) => void;
+  beginEditOrder: (orderId: string, next: CartItem[], order?: Order) => void;
   markOrderSaved: (next: CartItem[]) => void;
   clearEditOrder: () => void;
   forgetOpenOrder: (orderId: string) => void;
@@ -39,6 +42,9 @@ type CartContextValue = {
   resumeEdit: boolean;
   takeResumeEdit: () => void;
   hasOrderChanges: boolean;
+  canRevertEdit: boolean;
+  revertEditChanges: () => boolean;
+  rowChange: (productId: string) => RowChange;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -70,33 +76,37 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [openOrder, setOpenOrder] = useState<Order | null>(null);
   const [ready, setReady] = useState(false);
   const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
+  const [originalItems, setOriginalItems] = useState<CartItem[] | null>(null);
   const [openOrderReady, setOpenOrderReady] = useState(false);
   const [openOrderCheck, setOpenOrderCheck] = useState(0);
   const [resumeEdit, setResumeEdit] = useState(false);
   const takeResumeEdit = useCallback(() => setResumeEdit(false), []);
   const refreshOpenOrder = useCallback(() => setOpenOrderCheck((count) => count + 1), []);
 
-  const beginEditOrder = useCallback((orderId: string, next: CartItem[]) => {
+  const beginEditOrder = useCallback((orderId: string, next: CartItem[], order?: Order) => {
     const clamped = clampCart(next);
     setOpenOrderReady(false);
-    const fingerprint = cartFingerprint(clamped);
+    if (order?.id === orderId) {
+      setOpenOrder(order);
+    }
     setEditingOrderId(orderId);
     setItems(clamped);
-    setSavedFingerprint(fingerprint);
-    saveEditingOrderId(orderId, fingerprint).catch(() => undefined);
+    setSavedFingerprint(cartFingerprint(clamped));
+    setOriginalItems(clamped);
   }, []);
 
   const clearCart = useCallback(() => {
     setEditingOrderId(null);
     setItems([]);
     setSavedFingerprint(null);
-    saveEditingOrderId(null).catch(() => undefined);
+    setOriginalItems(null);
   }, []);
 
   const markOrderSaved = useCallback((next: CartItem[]) => {
     const clamped = clampCart(next);
     setItems(clamped);
     setSavedFingerprint(cartFingerprint(clamped));
+    setOriginalItems(clamped);
   }, []);
 
   useEffect(() => {
@@ -110,12 +120,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setItems(restored);
           setEditingOrderId(edit.orderId);
           setSavedFingerprint(edit.fingerprint);
+          setOriginalItems(edit.items ? clampCart(edit.items) : null);
           setResumeEdit(true);
           return;
         }
         if (edit) {
           setItems([]);
-          saveEditingOrderId(null).catch(() => undefined);
+          Promise.all([saveCart([]), saveEditingOrderId(null)]).catch(() => undefined);
           return;
         }
         setItems(restored);
@@ -123,6 +134,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       .catch(() => setItems([]))
       .finally(() => setReady(true));
   }, []);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    saveEditingOrderId(editingOrderId, savedFingerprint, editingOrderId ? originalItems : null).catch(
+      () => undefined,
+    );
+  }, [editingOrderId, originalItems, ready, savedFingerprint]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +179,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         });
     };
     refresh(openOrderCheck === 0 || !getSelectedAddress());
-    const unsubscribe = subscribeAddressBook(() => refresh(false));
+    const unsubscribe = subscribeAddressBook(() => {
+      setOpenOrderReady(false);
+      refresh(false);
+    });
     return () => {
       cancelled = true;
       unsubscribe();
@@ -175,7 +198,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     setEditingOrderId(null);
     setSavedFingerprint(null);
-    saveEditingOrderId(null).catch(() => undefined);
+    setOriginalItems(null);
     setItems([]);
   }, [editingOrderId, openOrder, openOrderReady]);
 
@@ -190,6 +213,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const editing = Boolean(openOrder && editingOrderId === openOrder.id);
+    const originalQty = new Map((originalItems ?? []).map((item) => [item.product.id, item.quantity]));
 
     return {
       items,
@@ -198,12 +222,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
       editingOrderId,
       openOrder,
       openOrderBlock: editing ? null : openOrder,
+      openOrderReady,
       hasOrderChanges: Boolean(
         editing &&
           savedFingerprint !== null &&
           items.length > 0 &&
           cartFingerprint(items) !== savedFingerprint,
       ),
+      canRevertEdit: Boolean(editing && originalItems?.length),
+      revertEditChanges() {
+        if (!editing || !originalItems?.length) {
+          return false;
+        }
+        setItems(originalItems);
+        return true;
+      },
+      rowChange(productId) {
+        if (!editing || !originalItems) {
+          return null;
+        }
+        const before = originalQty.get(productId);
+        if (before === undefined) {
+          return { kind: 'new' };
+        }
+        const now = items.find((item) => item.product.id === productId)?.quantity;
+        return now !== undefined && now !== before ? { kind: 'changed', from: before } : null;
+      },
       addItem(product, quantity = 1) {
         if (product.available === false) {
           return false;
@@ -280,7 +324,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clearEditOrder() {
         setEditingOrderId(null);
         setSavedFingerprint(null);
-        saveEditingOrderId(null).catch(() => undefined);
+        setOriginalItems(null);
       },
       forgetOpenOrder(orderId: string) {
         setOpenOrder((current) => (current?.id === orderId ? null : current));
@@ -288,7 +332,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItems((current) => (editingOrderId === orderId ? [] : current));
         if (editingOrderId === orderId) {
           setSavedFingerprint(null);
-          saveEditingOrderId(null).catch(() => undefined);
+          setOriginalItems(null);
         }
       },
     };
@@ -299,6 +343,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     items,
     markOrderSaved,
     openOrder,
+    openOrderReady,
+    originalItems,
     refreshOpenOrder,
     resumeEdit,
     savedFingerprint,

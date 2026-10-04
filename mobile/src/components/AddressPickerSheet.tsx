@@ -65,10 +65,10 @@ export function AddressPickerSheet({
     });
   }, [reload, visible]);
 
-  async function onSelect(id: string) {
+  function onSelect(id: string) {
     setSelectedId(id);
-    await selectAddress(id);
     onClose();
+    selectAddress(id).catch(() => undefined);
   }
 
   async function onAddNew() {

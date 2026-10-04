@@ -52,6 +52,24 @@ export function formatDateTime(value: string): string {
   }
 }
 
+export function formatStepTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
+  } catch {
+    return date.toLocaleString('en-IN');
+  }
+}
+
 const STATUS_LABELS: Record<string, string> = {
   new: 'Placed',
   confirmed: 'Confirmed',

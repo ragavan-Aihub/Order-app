@@ -9,7 +9,7 @@ import { AddressFields, type AddressFieldsValue } from '@/components/AddressFiel
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
-import { createAdminOrder, createCustomer, findCustomerByMobile } from '@/services/customer-actions';
+import { createAdminOrder, createCustomer, deleteCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
 import { ADMIN_CUSTOMER_SOURCE, customerSourceLabel, normalizeMobile } from '@/types/customer';
@@ -102,6 +102,8 @@ export function AdminOrderForm({
   const [customerId, setCustomerId] = useState(selectedCustomerId ?? '');
   const [customerQuery, setCustomerQuery] = useState('');
   const [creatingCustomer, setCreatingCustomer] = useState(false);
+  // A new customer is only a draft in this form. It is written to the database when the order is created.
+  const [draftSaved, setDraftSaved] = useState(false);
   const [name, setName] = useState(initialPerson?.name ?? '');
   const [mobile, setMobile] = useState(initialPerson?.mobile ?? '');
   const [addressId, setAddressId] = useState(initialPreferred?.id ?? '');
@@ -198,6 +200,7 @@ export function AdminOrderForm({
     const preferred = nextBook.find((item) => item.is_default) ?? nextBook[0];
     setCustomerId(person.id);
     setCreatingCustomer(false);
+    setDraftSaved(false);
     setCustomerQuery('');
     setDuplicate(null);
     setIgnoredMobile('');
@@ -241,6 +244,7 @@ export function AdminOrderForm({
   function startNewCustomer() {
     setCustomerId('');
     setCreatingCustomer(true);
+    setDraftSaved(false);
     setCustomerQuery('');
     setDuplicate(null);
     setIgnoredMobile('');
@@ -304,7 +308,9 @@ export function AdminOrderForm({
     });
   }
 
-  async function ensureCustomer(): Promise<{ id: string; addressId?: string } | { error: string }> {
+  async function ensureCustomer(): Promise<
+    { id: string; addressId?: string; created?: boolean } | { error: string }
+  > {
     if (customerId && !creatingCustomer) {
       return { id: customerId, addressId: activeAddressId || undefined };
     }
@@ -318,6 +324,11 @@ export function AdminOrderForm({
       city: ship.city,
       pincode: ship.pincode,
     });
+    if (result.error && result.id) {
+      // The customer row was created but the address was not: do not keep a half-saved customer.
+      await deleteCustomer(result.id);
+      return { error: 'Could not save the customer address. Please try again.' };
+    }
     if (result.error || !result.id) {
       if (result.error?.toLowerCase().includes('already exists')) {
         const match = await findCustomerByMobile(mobile);
@@ -361,7 +372,19 @@ export function AdminOrderForm({
     }
     setCustomerId(result.id);
     setCreatingCustomer(false);
-    return { id: result.id, addressId: result.addressId };
+    return { id: result.id, addressId: result.addressId, created: true };
+  }
+
+  // The order could not be created, so a customer made only for this order is removed again.
+  async function rollbackNewCustomer(id: string) {
+    const removed = await deleteCustomer(id);
+    if (removed.error) {
+      return;
+    }
+    setPeople((current) => current.filter((person) => person.id !== id));
+    setBooks((current) => current.filter((item) => item.customer_id !== id));
+    setCustomerId('');
+    setCreatingCustomer(true);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -387,19 +410,27 @@ export function AdminOrderForm({
     }
 
     const useTypedAddress = creatingCustomer || differentAddress || !customer.addressId;
-    const result = await createAdminOrder({
-      customerId: customer.id,
-      addressId: useTypedAddress ? undefined : customer.addressId,
-      house: useTypedAddress ? ship.house : undefined,
-      area: useTypedAddress ? ship.area : undefined,
-      landmark: useTypedAddress ? ship.landmark : undefined,
-      city: useTypedAddress ? ship.city : undefined,
-      pincode: useTypedAddress ? ship.pincode : undefined,
-      notes,
-      items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
-      paymentMethod: payChoice === 'later' ? 'pending' : payChoice,
-    });
+    let result: Awaited<ReturnType<typeof createAdminOrder>>;
+    try {
+      result = await createAdminOrder({
+        customerId: customer.id,
+        addressId: useTypedAddress ? undefined : customer.addressId,
+        house: useTypedAddress ? ship.house : undefined,
+        area: useTypedAddress ? ship.area : undefined,
+        landmark: useTypedAddress ? ship.landmark : undefined,
+        city: useTypedAddress ? ship.city : undefined,
+        pincode: useTypedAddress ? ship.pincode : undefined,
+        notes,
+        items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
+        paymentMethod: payChoice === 'later' ? 'pending' : payChoice,
+      });
+    } catch {
+      result = { error: 'Could not reach the server. Please try again.' };
+    }
     if (result.error || !result.orderId) {
+      if (customer.created) {
+        await rollbackNewCustomer(customer.id);
+      }
       setSubmitting(false);
       setError(result.error ?? 'Could not create the order.');
       return;
@@ -420,12 +451,15 @@ export function AdminOrderForm({
             className={`${cardClass} scroll-mt-4 p-5 ${showCustomerIssue ? issueBorder : 'border-stone-200'}`}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className={sectionTitle}>{creatingCustomer ? 'New customer' : 'Customer & delivery'}</h2>
+              <h2 className={sectionTitle}>
+                {creatingCustomer && !draftSaved ? 'New customer' : 'Customer & delivery'}
+              </h2>
               {creatingCustomer ? (
                 <button
                   type="button"
                   onClick={() => {
                     setCreatingCustomer(false);
+                    setDraftSaved(false);
                     setDuplicate(null);
                     setIgnoredMobile('');
                     setName('');
@@ -434,7 +468,7 @@ export function AdminOrderForm({
                   }}
                   className="text-sm font-medium text-stone-500 hover:text-stone-800"
                 >
-                  Cancel
+                  {draftSaved ? 'Discard' : 'Cancel'}
                 </button>
               ) : (
                 <button
@@ -450,7 +484,39 @@ export function AdminOrderForm({
               )}
             </div>
 
-            {creatingCustomer ? (
+            {creatingCustomer && draftSaved ? (
+              <div className="rounded-lg border border-stone-200 bg-stone-50/60 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
+                    {(name.trim() || 'C').charAt(0).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <p className="font-semibold text-stone-900">{name.trim()}</p>
+                      <p className="text-sm tabular-nums text-stone-600">{normalizeMobile(mobile)}</p>
+                    </div>
+                    <p className="mt-0.5 text-xs text-stone-400">
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-800">New</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDraftSaved(false)}
+                    className="shrink-0 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                  >
+                    Change
+                  </button>
+                </div>
+                <div className="mt-3 border-t border-stone-200/70 pt-3">
+                  <div className="flex items-start gap-2 text-sm text-stone-700">
+                    <MapPin size={16} className="mt-0.5 shrink-0 text-stone-400" aria-hidden />
+                    <span className="min-w-0">
+                      {composeAddressLine(ship.house, ship.area, ship.landmark, ship.city, stateFromPincode(ship.pincode))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : creatingCustomer ? (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block">
@@ -478,6 +544,16 @@ export function AdminOrderForm({
                 </div>
                 <div className="border-t border-stone-100 pt-4">
                   <AddressFields compact value={ship} onChange={setShip} showReceiver={false} />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDraftSaved(true)}
+                    disabled={!(nameOk && phoneOk && structuredOk) || Boolean(duplicate)}
+                    className="inline-flex min-h-10 items-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                  >
+                    Deliver to this address
+                  </button>
                 </div>
               </div>
             ) : showCustomerSearch ? (
