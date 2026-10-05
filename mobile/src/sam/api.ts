@@ -17,6 +17,9 @@ export async function sendSamTurn(
   if (!url) {
     throw new Error('Voice ordering is not configured. Set EXPO_PUBLIC_SAM_API_URL to your admin /api/sam/turn URL.');
   }
+  if (!__DEV__ && !url.toLowerCase().startsWith('https://')) {
+    throw new Error('Voice ordering needs a secure (https) server address.');
+  }
 
   const supabase = getSupabaseClient();
   const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;

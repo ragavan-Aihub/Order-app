@@ -558,11 +558,21 @@ export async function placeOrder(
     }
   }
 
+  try {
+    const { data: priced } = await withTimeout(
+      supabase.from('orders').select('total_amount').eq('id', placed.id).maybeSingle(),
+      QUERY_MS,
+      PLACE_TIMEOUT,
+    );
+    if (priced?.total_amount != null) {
+      placed.total_amount = Number(priced.total_amount);
+    }
+  } catch {
+    // The server prices the order; the cart total is only a preview.
+  }
+
   void Promise.resolve(
-    supabase
-      .from('profiles')
-      .update({ name: details.name.trim(), mobile: details.mobile.trim() })
-      .eq('id', signedIn.id),
+    supabase.from('profiles').update({ name: details.name.trim() }).eq('id', signedIn.id),
   ).catch(() => undefined);
 
   return placed;

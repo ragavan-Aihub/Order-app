@@ -27,6 +27,7 @@ Last updated: 4 Oct 2026.
   7. `supabase/migrations/20261004030000_order_update_limit_message.sql` (the limit error says "Modify limit reached" without showing customers the number of updates)
   8. `supabase/migrations/20261004040000_order_status_events_customer_read.sql` (lets customers read the status history of their own orders, so the app can show the date and time of each step; until it runs, the app shows only the placed time)
   9. `supabase/migrations/20261005000000_customer_cancel_rules.sql` (customers can cancel only while an order is Placed, at most 3 cancellations in 24 hours; the reason is always set on the server. The admin panel is not affected. Until it runs, the app hides Cancel for confirmed orders but the server still allows it)
+  10. `supabase/migrations/20261005010000_security_hardening.sql` (run after step 9. Order prices and totals come from the product list instead of the app; customers cannot mark orders as paid or set other internal fields; the customer record links by the verified OTP phone; plus address, cancel, Partner API and storage limits. Works with the current app, no new build needed)
 
 ### Build a new APK with the latest customer app changes
 
@@ -105,11 +106,17 @@ Last updated: 4 Oct 2026.
 - **Hands-free conversation mode:** after the assistant replies, reopen the mic automatically for the follow-up, until the customer taps X or stays quiet.
 - **Wake word:** a "Hey …" wake word was tried and removed. Android speech recognition has to listen all the time for it, which costs battery and data, sends everything said near the phone for transcription, and only works on Android 13 or newer. If it comes back, use an on-device wake-word engine (for example Picovoice Porcupine) instead.
 - **Status notifications:** tell customers by push notification or WhatsApp when their order status changes.
+- **Help and contact screen** in the app (call or WhatsApp the shop). The business phone and email are already stored.
+- **Delivery instructions** typed by the customer in the app.
+- **Better voice:** a natural cloud voice, "your usual order" and product tips.
+- **Delivery planning by community** (delivery runs). The `delivery_runs` tables exist, but no screen uses them yet.
+- **Download from Reports.** Today, use Export on the Orders list.
+- **Partner API limits:** rate limits and usage statistics, to protect against misuse.
 
 ## Documentation
 
-- **Business Guide:** `docs/business-guide.md`. Customer app and admin panel features, business rules, Partner API, Phase 2, dropped items, future ideas, FAQ.
-- **Technical Guide:** `docs/technical-guide.md`. Architecture, setup, new business setup, database and migrations, app internals, order lifecycle, Partner API, voice, build and deploy, troubleshooting, tech debt.
+- **Business Guide:** `docs/business-guide.md`. Written for the business owner and staff. It covers only what is live today: customer app, admin panel, business rules and FAQ. It does not cover the Partner API, WhatsApp, features that are switched off, dropped features or future ideas. Those live in the Technical Guide and in this file.
+- **Technical Guide:** `docs/technical-guide.md`. Covers what is present in the code: architecture, setup, new business setup, database and migrations, app internals, order lifecycle, Partner API, voice, switched-off features, build and deploy, troubleshooting, tech debt. Future ideas live only in this file.
 - **PDF:** run `npm run docs:pdf` from the repo root. Output goes to `docs/pdf/Business-Guide.pdf` and `docs/pdf/Technical-Guide.pdf`. Styling is in `docs/pdf-style.css`.
 - **No brand name:** both guides are written for any business using this product. Keep them that way.
 - **Keep them current:** when a feature, rule or migration changes, update the matching guide in the same change.

@@ -11,6 +11,7 @@ import {
   loadAddressBook,
   type SavedAddress,
 } from '@/cart/address-book';
+import { useCart } from '@/cart/CartContext';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { signOut } from '@/services/auth';
@@ -25,6 +26,7 @@ function formatMobile(value: string | null) {
 export default function AccountScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { clearCart, refreshOpenOrder } = useCart();
   const [signedIn, setSignedIn] = useState(false);
   const [name, setName] = useState<string | null>(null);
   const [mobile, setMobile] = useState<string | null>(null);
@@ -130,6 +132,8 @@ export default function AccountScreen() {
         <Pressable
           onPress={async () => {
             await signOut();
+            clearCart();
+            refreshOpenOrder();
             await load();
           }}
           style={({ pressed }) => [styles.signOutButton, pressed && styles.signOutPressed]}

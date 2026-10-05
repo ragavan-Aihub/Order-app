@@ -34,7 +34,7 @@ pdf_options:
 11. [Build and deploy](#11-build-and-deploy)
 12. [Quality checks](#12-quality-checks)
 13. [Troubleshooting](#13-troubleshooting)
-14. [Tech debt, Phase 2, dropped and future items](#14-tech-debt-phase-2-dropped-and-future-items)
+14. [Tech debt, switched-off features and dropped items](#14-tech-debt-switched-off-features-and-dropped-items)
 
 ### Who this guide is for
 
@@ -276,14 +276,17 @@ Moving these values into environment variables or the `businesses` table is list
 
 Every table has RLS on. The pattern is:
 
-- **Customer rules:** `user_id = auth.uid()`. Customers can read their own profile, addresses, orders, order items and (since migration 34) their own order status events. They can insert orders and order items for themselves.
+- **Customer rules:** `user_id = auth.uid()`. Customers can read their own profile, addresses, orders, order items and (since migration 34) their own order status events. They can insert orders for themselves, and items only into the order they placed in the last 15 minutes (still `new`, never modified). Later changes go through `customer_replace_order_items`.
+- **Server-side prices (migration 36):** the app's prices and totals are never trusted. Triggers re-price every customer item from `products` (must be available and active) and recompute `total_amount`. On a customer order insert, `payment_method`, `refund_status`, `channel`, `external_id`, `cancel_reason`, `update_count`, `created_at` and `customer_id` are set by the server, and `customer_address_id` must be one of the customer's own addresses.
 - **Admin rules:** `business_id = current_admin_business_id()`. Admins can read and change rows of their own business only.
 - **Public shop data** (products, categories, business details) is read through security-definer RPCs, so the shop works before sign-in:
   - `get_available_products(p_business_id)`: active products
   - `get_shop_categories(p_business_id)`: active categories, when enabled
   - `get_business_public(p_business_id)`: name, logo, banner, description
-- **Profile protection:** the `profiles_protect_privileges` trigger stops users from changing their own `role` or `business_id`.
-- **Storage:** buckets `product-images` and `business-logos` are public to read. Only admins can write.
+- **Profile protection:** the `profiles_protect_privileges` trigger stops users from changing their own `role` or `business_id`, and keeps a customer's `mobile` equal to the phone verified at OTP sign-in.
+- **Customer record:** customers cannot read the `customers` table (it holds the shop's notes). `ensure_customer_profile` links the record by the verified phone from the login token, not by a number sent by the app.
+- **Storage:** buckets `product-images` and `business-logos` are public to read. Only admins can write. Uploads are limited to JPEG, PNG, GIF and WebP up to 5 MB.
+- **Function access:** Supabase lets `anon` run new functions by default, so internal functions are revoked from `anon` explicitly. `partner_auth` and `partner_order_payload` run only inside the other partner functions.
 
 **Helper functions:** `current_admin_business_id()`, `current_customer_business_id()`, `is_admin()`.
 
@@ -292,7 +295,11 @@ Every table has RLS on. The pattern is:
 | Trigger | Table | What it does |
 |---|---|---|
 | `*_set_updated_at` | most tables | Keeps `updated_at` current |
-| `profiles_protect_privileges` | `profiles` | Blocks role and business changes by users |
+| `profiles_protect_privileges` | `profiles` | Blocks role and business changes by users; keeps the customer's account phone equal to the verified login phone |
+| `orders_customer_guard` | `orders` | On customer inserts, sets payment, refund, channel and bookkeeping fields on the server; checks the address belongs to the customer |
+| `order_items_customer_guard` | `order_items` | Re-prices customer items from `products` (available and active only) |
+| `order_items_customer_totals` | `order_items` | Recomputes the order total after a customer adds items |
+| `customer_addresses_owner_guard` | `customer_addresses` | Customers can link an address only to their own customer record |
 | `orders_assign_order_number` | `orders` | Sets the next 6-digit order number |
 | `orders_log_status` | `orders` | Writes `order_status_events` on insert ("Order placed") and on each status change ("Updated by admin" or the cancel reason) |
 | `orders_snapshot_community` | `orders` | Copies community from the address |
@@ -306,11 +313,11 @@ Every table has RLS on. The pattern is:
 
 | Function | Called by | Purpose |
 |---|---|---|
-| `ensure_customer_profile` | Customer app after OTP | Creates or updates the `profiles` row and the `customers` row (source `app`) |
+| `ensure_customer_profile` | Customer app after OTP | Creates or updates the `profiles` row and the `customers` row (source `app`), using the verified phone from the login token |
 | `get_available_products`, `get_shop_categories`, `get_business_public` | Customer app | Public shop data |
 | `find_open_customer_order` | Customer app | Finds the open order for an address |
-| `customer_cancel_order` | Customer app | Cancels the customer's own order only while `new`, at most 3 customer cancellations in 24 hours. Ignores the reason sent by the app and saves "Customer requested". |
-| `customer_replace_order_items` | Customer app | Replaces the items of an open order in one transaction. Checks owner, status, 1 to 15 lines, 1 to 10 each, and the 5-modification limit. Increases `update_count`. |
+| `customer_cancel_order` | Customer app | Cancels the customer's own order only while `new`, at most 3 customer cancellations in 24 hours (a per-customer lock stops parallel cancels from beating the limit). Ignores the reason sent by the app and saves "Customer requested". |
+| `customer_replace_order_items` | Customer app | Replaces the items of an open order in one transaction. Checks owner, status, 1 to 15 lines, 1 to 10 each, the 5-modification limit, and that the address belongs to the customer. Prices come from `products`; a product the shop stopped selling keeps the price already on the order. Increases `update_count`. |
 | `partner_auth`, `partner_shop`, `partner_products`, `partner_product`, `partner_place_order`, `partner_get_order`, `partner_list_orders`, `partner_order_payload` | Admin `/api/v1` routes | Partner API (see section 9) |
 | `ensure_order_channels` | Migrations | Seeds channel values |
 
@@ -355,6 +362,7 @@ Run every file in `supabase/migrations/` in name order, in the Supabase SQL edit
 | 33 | `order_update_limit_message` | Friendlier limit message |
 | 34 | `order_status_events_customer_read` | Customers can read their own status history |
 | 35 | `customer_cancel_rules` | `cancelled_by`; customers cancel only while `new`, max 3 per 24 hours; status-aware modify limit message |
+| 36 | `security_hardening` | Server-side prices and totals, locked customer order fields, verified-phone customer linking, no customer read of `customers`, address and item rules, cancel lock, partner `active` check and input caps, function revokes, image bucket limits |
 
 **Note:** `supabase/documentation/admin-setup.md` lists migrations only up to `admin_customers`. Use the folder as the source of truth.
 
@@ -683,9 +691,9 @@ There are no automated tests yet. Before each change, run:
 | "This order is confirmed, so it can no longer be cancelled" | Customers cancel only while `new` | Business rule. Customer can modify, or the shop can cancel. |
 | Changes in `.env` have no effect in the app | Expo caches env values | Restart with `npx expo start -c` |
 
-## 14. Tech debt, Phase 2, dropped and future items
+## 14. Tech debt, switched-off features and dropped items
 
-The live list is `docs/pending-and-future-scope.md`. Update that file when anything changes. This section is a summary at the time of writing.
+The live list, including future ideas, is `docs/pending-and-future-scope.md`. Update that file when anything changes. This section lists only what exists in the code today.
 
 ### 14.1 Must do before go-live
 
@@ -715,12 +723,11 @@ The live list is `docs/pending-and-future-scope.md`. Update that file when anyth
 | Reports read up to 3,000 orders in the server | Slow for large ranges | Move totals into SQL |
 | Shop name and logo fixed in code in a few places (section 4.4) | Extra work to set up a new business | Read them from environment variables or the `businesses` table |
 
-### 14.3 Phase 2 (built or designed, switched off)
+### 14.3 Switched off in the code
 
-- Voice ordering: needs public hosting (planned: Supabase Edge Function) and `EXPO_PUBLIC_VOICE_ORDERING=true`.
+- Voice ordering: needs a publicly hosted voice server and `EXPO_PUBLIC_VOICE_ORDERING=true`.
 - Product detail page: pass `onPress` to `ProductCard` in Home and Buy again.
 - Quick status actions on the orders list: `LIST_QUICK_ACTIONS = true`.
-- Next-step actions on the dashboard.
 - Settings in the admin menu: `SHOW_LATER_PHASE_MENUS = true`.
 - Decision needed: allow a new order to an address whose order is out for delivery?
 
@@ -732,13 +739,3 @@ The live list is `docs/pending-and-future-scope.md`. Update that file when anyth
 | Wake word ("Hey ...") | Always-on listening: battery, data, privacy, Android 13+ only. If it returns, use an on-device engine such as Picovoice Porcupine. |
 | Map-based address entry | Unreliable maps and search. Replaced by typed address with pincode lookup. |
 | Call and WhatsApp items in the order menu | Simplified. If they return, build the WhatsApp link from the last 10 digits plus `91`. |
-
-### 14.5 Future ideas
-
-- Status notifications by push or WhatsApp.
-- Help and contact screen in the app.
-- Customer delivery instructions in the app.
-- Voice improvements: offline and background recognition, better Tamil, hands-free mode, natural cloud voice, hosted AI.
-- Delivery planning by community using `delivery_runs`.
-- CSV export from Reports.
-- Partner API rate limits and usage statistics.

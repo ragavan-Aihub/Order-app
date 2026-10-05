@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">How the customer app and the admin panel work, written for the business owner, staff and product managers.</p>
 
-<p class="meta">Version 1 &middot; Last updated 4 October 2026</p>
+<p class="meta">Version 1 &middot; Last updated 5 October 2026</p>
 
 </div>
 
@@ -26,17 +26,13 @@ pdf_options:
 3. [The customer app](#3-the-customer-app)
 4. [The admin panel](#4-the-admin-panel)
 5. [All business rules in one place](#5-all-business-rules-in-one-place)
-6. [Partner API (for websites and bots)](#6-partner-api-for-websites-and-bots)
-7. [Hidden for now (Phase 2)](#7-hidden-for-now-phase-2)
-8. [Features we removed, and why](#8-features-we-removed-and-why)
-9. [Future ideas](#9-future-ideas)
-10. [Frequently asked questions](#10-frequently-asked-questions)
+6. [Frequently asked questions](#6-frequently-asked-questions)
 
 ### Who this guide is for
 
 - **Business owner:** to understand everything the product can do today.
 - **Shop staff:** to handle orders, payments, products and customers every day.
-- **Product managers:** to see the rules, the limits and what is planned next.
+- **Product managers:** to see the rules and the limits.
 
 You do not need any technical knowledge to read this guide. For technical details, see the separate **Technical Guide**.
 
@@ -49,7 +45,7 @@ This is an online ordering system for a small business that takes orders and del
 | **Customer app** | Customers | Android phone (installed as an app) |
 | **Admin panel** | Business owner and staff | Web browser on a laptop or phone |
 
-The app carries **your** business name, logo, home banner, products and prices. You set all of these in the admin panel, so the same system can serve any business.
+The app carries **your** business name, logo, home banner, products and prices, so the same system can serve any business. You manage products, prices, orders and customers in the admin panel.
 
 Both parts share one online database. When a customer places an order in the app, it appears in the admin panel at once. When the shop changes the order status in the admin panel, the customer sees it in the app.
 
@@ -84,11 +80,10 @@ Both parts share one online database. When a customer places an order in the app
 | **Active / Inactive** | Active products show in the app. Inactive products are hidden from the app. |
 | **Outstanding** | An order that is delivered but not yet paid. |
 | **Refund pending / Refunded** | For a paid order that was later cancelled: the money still has to be returned, or it has been returned. |
-| **Channel** | How an order came in: App, Phone / Offline, WhatsApp, Web, Direct, Admin or Partner API. |
-| **Source** | How a customer first reached you: App, Phone / Offline, WhatsApp, Web, Direct or Other. |
+| **Channel** | How an order came in, for example from the App or entered by the shop as Phone / Offline. |
+| **Source** | How a customer first reached you, for example App or Phone / Offline. |
 | **Community** | An optional group of delivery addresses (for example, one apartment complex). Only the shop sees it. Customers never see communities. |
 | **Category** | An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home. |
-| **Partner API** | A secure connection that lets another website or a WhatsApp bot read your products and place orders. |
 | **OTP** | One Time Password. A 6-digit code sent by SMS to sign in. |
 | **IST** | India Standard Time. All "today" figures in the admin panel use IST. |
 
@@ -146,7 +141,7 @@ Both parts share one online database. When a customer places an order in the app
 
 **Coming soon products** show dimmed with the words "Coming soon" and have no Add button. They appear at the end of the list.
 
-**Tapping a product** does nothing in this version. The product detail page is hidden for now (see section 7).
+**Tapping a product** does nothing in this version.
 
 **Buy again tab:** shows products from the customer's last 10 orders (cancelled orders are not counted). It uses the same 3-per-row grid and has its own search box. It is a quick way to repeat a usual order.
 
@@ -197,7 +192,7 @@ Both parts share one online database. When a customer places an order in the app
 
 **Customers with two addresses** can have two open orders, one for each address. When they tap Modify on an order, the app switches to that order's address automatically.
 
-**Orders that are out for delivery do not block a new order.** For that address the screen shows "An order is on its way to this address" with a **View order** button and a **Deliver a new order here** link. (Whether this should stay allowed is a pending business decision; see section 7.)
+**Orders that are out for delivery do not block a new order.** For that address the screen shows "An order is on its way to this address" with a **View order** button and a **Deliver a new order here** link.
 
 ### 3.7 Modifying an order
 
@@ -367,9 +362,9 @@ The customer sees the order as cancelled, with the reason. If the order was alre
 | Refunded | "Refunded ₹X" | Nothing more to do. |
 | Cancelled and never paid | Payment shows "Not Applicable" | Nothing to do. |
 
-#### Creating an order for a customer (phone or WhatsApp orders)
+#### Creating an order for a customer (phone or in-person orders)
 
-Use this when a customer orders by phone, WhatsApp or in person.
+Use this when a customer orders by phone or in person.
 
 1. Go to **Orders**, then **Create order**. Or open a customer and tap **Place order**.
 2. **Customer:** search by name or phone (press space to see everyone), or choose **New customer** and enter name and 10-digit phone.
@@ -403,7 +398,7 @@ Tap **Add product**, or **Edit** on a product.
 | Product image | Required for new products. JPG, PNG, WebP or GIF, up to 5 MB. |
 | Product name | Required, up to 120 characters. |
 | Description | Optional, up to 500 characters. |
-| Ingredients | Optional, up to 500 characters. Used by voice ordering later. |
+| Ingredients | Optional, up to 500 characters. |
 | Price (₹) | Required. |
 | Category | Optional, only if categories are on. |
 
@@ -482,18 +477,7 @@ Title: "Sales, collections, and outstanding payments for this period".
 Notes:
 
 - Reports read up to 3,000 orders for one view. For longer periods, use smaller date ranges.
-- The channel filter in Reports lists App, Admin, WhatsApp, Phone / Offline and Direct. Use the Orders list for Web and Partner API orders.
 - To download data, use **Export** on the Orders list.
-
-### 4.8 Settings (hidden from the menu for now)
-
-Settings pages are hidden from the menu in this phase, but they work if you open them directly: `/settings/business-info`, `/settings/branding` and `/settings/api` on the admin website.
-
-| Page | What you can change |
-|---|---|
-| **Business info** | Business name, phone, email, address, description. The name, logo and description appear on the app's welcome screen. |
-| **Branding** | Business logo and the home banner picture shown on the app's Home screen (up to 5 MB each). |
-| **API** | Create and revoke Partner API keys (see section 6). |
 
 ## 5. All business rules in one place
 
@@ -520,67 +504,7 @@ Settings pages are hidden from the menu in this phase, but they work if you open
 | Categories | Optional. Shown to customers as filters on Home. |
 | Times | All "today" and date filters use India Standard Time. |
 
-## 6. Partner API (for websites and bots)
-
-**What it is:** a secure connection that lets another system, for example your own website or a WhatsApp ordering bot, work with your shop.
-
-**What a partner system can do:**
-
-- read your business details;
-- read your list of active, available products with prices;
-- place an order (it appears in the admin panel with the channel **Partner API** or **WhatsApp**);
-- read the status of its orders.
-
-**How to give access:**
-
-1. Open `/settings/api` on the admin website.
-2. Enter a name (for example "Website") and choose the channel (Partner API or WhatsApp).
-3. Tap **Create key** and copy the key straight away. **It is shown only once.**
-4. Give the key to the developer of the partner system, privately.
-5. To stop access, tap **Revoke** next to the key.
-
-**Safety:** treat a key like a password. Anyone with the key can place orders for your shop.
-
-## 7. Hidden for now (Phase 2)
-
-These features are built or designed, but switched off in this phase. They can be switched on later.
-
-| Feature | Why it is hidden | How to bring it back |
-|---|---|---|
-| **Voice ordering** (speak to order) | Today it works only on the developer's Wi-Fi and has no AI. It needs a public server first. | Host the voice server online, switch on the voice setting, and build a new app version. |
-| **Product detail page** in the app | The page needs better content (description, sizes, related items) first. | A small code change in the Home and Buy again screens. |
-| **Quick status buttons on the Orders list** | Status changes are kept on the order details page for now, to avoid mistakes. | One setting in the admin code. |
-| **Next-step button on the Dashboard** | Same reason as above. | Planned work. |
-| **Settings in the admin menu** | Business info, Branding and API are rarely changed. | One setting in the admin code. The pages already work by direct link. |
-| **Categories screen in the app** | Categories are shown as chips on Home instead. | The screen exists; it only needs a link. |
-
-**Decisions still needed from the business:**
-
-- **New orders to an address that is out for delivery:** today a customer can start a new order to an address whose order is already out for delivery. Should this stay allowed?
-
-## 8. Features we removed, and why
-
-| Feature | Why it was removed |
-|---|---|
-| **"Preparing" status** | It added a step without value. Orders now go Placed, Confirmed, Out for delivery, Delivered. Old "Preparing" orders were moved to Confirmed. |
-| **Wake word** (start voice ordering by saying a fixed word) | The phone had to listen all the time. It used battery and data, raised privacy concerns and worked only on new Android versions. |
-| **Map-based address entry** | Maps did not load well and search was not reliable. Customers now type the address, and city and state fill in from the pincode. |
-| **Call and WhatsApp buttons on an order** | Removed from the order menu to keep it simple. They can come back later. |
-| **Microphone permission** | The app no longer asks for the microphone while voice ordering is hidden. |
-
-## 9. Future ideas
-
-These are ideas, not yet agreed:
-
-- **Order status notifications** to customers by app notification or WhatsApp.
-- **Help and contact** screen in the app (call or WhatsApp the shop). The business phone and email are already stored.
-- **Delivery instructions** typed by the customer in the app.
-- **Better voice ordering:** a natural voice, better Tamil, hands-free conversation, "your usual order" and product tips.
-- **Delivery planning by community** (delivery runs). The database is ready, but there is no screen yet.
-- **Download from Reports** (today, use Export on the Orders list).
-- **Usage limits for the Partner API**, to protect against misuse.
-
-## 10. Frequently asked questions
+## 6. Frequently asked questions
 
 **Why can't a customer modify their order?**
 The order is no longer open (it is Out for delivery, Delivered or Cancelled), or it has already been modified 5 times. If the order is still Placed, the customer can cancel it instead.

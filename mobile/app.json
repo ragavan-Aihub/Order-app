@@ -17,7 +17,7 @@
     "android": {
       "versionCode": 11,
       "softwareKeyboardLayoutMode": "pan",
-      "usesCleartextTraffic": true,
+      "allowBackup": false,
       "permissions": ["RECORD_AUDIO"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
