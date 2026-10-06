@@ -14,13 +14,19 @@ const FILL = {
   'data-form-type': 'other',
 } as const;
 
+type NoFillInputProps = InputHTMLAttributes<HTMLInputElement> & {
+  /** When false, the field accepts typing on first focus (use for product search). Default true reduces autofill on address fields. */
+  lockUntilInteraction?: boolean;
+};
+
 export function NoFillInput({
   onFocus,
   onBlur,
   onMouseDown,
+  lockUntilInteraction = true,
   ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  const [locked, setLocked] = useState(true);
+}: NoFillInputProps) {
+  const [locked, setLocked] = useState(lockUntilInteraction);
   return (
     <input
       {...FILL}

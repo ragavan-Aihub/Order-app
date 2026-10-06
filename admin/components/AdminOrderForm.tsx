@@ -1,7 +1,16 @@
 'use client';
 
 import { AlertCircle, MapPin, Minus, Plus, Search, Trash2, UserPlus } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
@@ -85,6 +94,39 @@ function fromBook(row?: CustomerAddress | null, person?: CustomerOption | null):
   };
 }
 
+type ProductRow =
+  | { id: string; kind: 'search'; query: string }
+  | { id: string; kind: 'line'; productId: string; quantity: number };
+
+function filterProductsForQuery(products: Product[], query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return products;
+  }
+  return products.filter((product) => product.name.toLowerCase().includes(needle));
+}
+
+function ensureTrailingSearch(rows: ProductRow[], createSearchRowId: () => string): ProductRow[] {
+  const next = [...rows];
+  while (next.length > 1) {
+    const last = next[next.length - 1];
+    const prev = next[next.length - 2];
+    if (last.kind === 'search' && prev.kind === 'search') {
+      next.pop();
+    } else {
+      break;
+    }
+  }
+  const last = next[next.length - 1];
+  if (!last || last.kind !== 'search') {
+    next.push({ id: createSearchRowId(), kind: 'search', query: '' });
+  }
+  return next;
+}
+
+const PRODUCT_SEARCH_PLACEHOLDER = 'Search or click to add an item';
+const PRODUCT_SEARCH_TITLE = 'Type a product name or pick one from the list.';
+
 export function AdminOrderForm({
   customers: initialCustomers,
   selectedCustomerId,
@@ -93,6 +135,12 @@ export function AdminOrderForm({
 }: AdminOrderFormProps) {
   const router = useRouter();
   const notice = useActionNotice();
+  const productRowIdPrefix = useId();
+  const productRowSeq = useRef(0);
+  const createProductRowId = useCallback(() => {
+    productRowSeq.current += 1;
+    return `${productRowIdPrefix}-${productRowSeq.current}`;
+  }, [productRowIdPrefix]);
   const initialPerson = initialCustomers.find((person) => person.id === selectedCustomerId);
   const initialBook = initialAddresses.filter((item) => item.customer_id === selectedCustomerId);
   const initialPreferred = initialBook.find((item) => item.is_default) ?? initialBook[0];
@@ -108,8 +156,10 @@ export function AdminOrderForm({
   const [mobile, setMobile] = useState(initialPerson?.mobile ?? '');
   const [addressId, setAddressId] = useState(initialPreferred?.id ?? '');
   const [ship, setShip] = useState(fromBook(initialPreferred, initialPerson));
-  const [productQuery, setProductQuery] = useState('');
-  const [qty, setQty] = useState<Record<string, number>>({});
+  const [productRows, setProductRows] = useState<ProductRow[]>(() => [
+    { id: `${productRowIdPrefix}-0`, kind: 'search', query: '' },
+  ]);
+  const [openSearchRowId, setOpenSearchRowId] = useState<string | null>(null);
   const [payChoice, setPayChoice] = useState<PaymentChoice>('later');
   const [attempted, setAttempted] = useState(false);
   const [changingCustomer, setChangingCustomer] = useState(false);
@@ -145,24 +195,26 @@ export function AdminOrderForm({
     );
   }, [people, customerQuery]);
 
-  const productMatches = useMemo(() => {
-    const needle = productQuery.trim().toLowerCase();
-    if (!needle && productQuery.length === 0) {
-      return [];
-    }
-    if (!needle) {
-      return products;
-    }
-    return products.filter((product) => product.name.toLowerCase().includes(needle));
-  }, [products, productQuery]);
+  const lines = useMemo(() => {
+    return productRows.flatMap((row) => {
+      if (row.kind !== 'line') {
+        return [];
+      }
+      const product = products.find((item) => item.id === row.productId);
+      if (!product) {
+        return [];
+      }
+      return [
+        {
+          rowId: row.id,
+          product,
+          quantity: row.quantity,
+          subtotal: product.price * row.quantity,
+        },
+      ];
+    });
+  }, [productRows, products]);
 
-  const lines = products
-    .filter((product) => (qty[product.id] ?? 0) > 0)
-    .map((product) => ({
-      product,
-      quantity: qty[product.id] ?? 0,
-      subtotal: product.price * (qty[product.id] ?? 0),
-    }));
   const total = lines.reduce((sum, line) => sum + line.subtotal, 0);
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const activeAddress = book.find((item) => item.id === activeAddressId) ?? null;
@@ -288,24 +340,61 @@ export function AdminOrderForm({
     };
   }, [creatingCustomer, mobile, ignoredMobile]);
 
-  function addProduct(product: Product) {
+  function pickProduct(searchRowId: string, product: Product) {
     if (!product.available || product.active === false) {
       return;
     }
-    setQty((current) => ({ ...current, [product.id]: (current[product.id] ?? 0) + 1 }));
-    setProductQuery('');
+
+    setProductRows((current) => {
+      const index = current.findIndex((row) => row.id === searchRowId);
+      if (index < 0) {
+        return current;
+      }
+
+      const existingIndex = current.findIndex(
+        (row) => row.kind === 'line' && row.productId === product.id,
+      );
+
+      if (existingIndex >= 0) {
+        const merged = current.map((row, i) =>
+          i === existingIndex && row.kind === 'line'
+            ? { ...row, quantity: row.quantity + 1 }
+            : row,
+        );
+        const cleared = merged.map((row) =>
+          row.id === searchRowId && row.kind === 'search' ? { ...row, query: '' } : row,
+        );
+        return ensureTrailingSearch(cleared, createProductRowId);
+      }
+
+      const next = [...current];
+      next[index] = { id: searchRowId, kind: 'line', productId: product.id, quantity: 1 };
+      return ensureTrailingSearch(next, createProductRowId);
+    });
+
+    setOpenSearchRowId(null);
   }
 
-  function setLineQty(productId: string, quantity: number) {
-    setQty((current) => {
-      const next = { ...current };
+  function updateSearchQuery(searchRowId: string, query: string) {
+    setProductRows((current) =>
+      current.map((row) => (row.id === searchRowId && row.kind === 'search' ? { ...row, query } : row)),
+    );
+  }
+
+  function setLineRowQty(rowId: string, quantity: number) {
+    setProductRows((current) => {
+      let next = current.map((row) =>
+        row.id === rowId && row.kind === 'line' ? { ...row, quantity } : row,
+      );
       if (quantity < 1) {
-        delete next[productId];
-      } else {
-        next[productId] = quantity;
+        next = next.filter((row) => row.id !== rowId);
       }
-      return next;
+      return ensureTrailingSearch(next, createProductRowId);
     });
+  }
+
+  function openProductSearch(rowId: string) {
+    setOpenSearchRowId(rowId);
   }
 
   async function ensureCustomer(): Promise<
@@ -722,108 +811,182 @@ export function AdminOrderForm({
               ) : null}
             </div>
 
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3 size-4 text-stone-400" aria-hidden />
-              <NoFillInput
-                type="search"
-                value={productQuery}
-                onChange={(event) => setProductQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter') {
-                    return;
-                  }
-                  event.preventDefault();
-                  if (productMatches.length === 1) {
-                    addProduct(productMatches[0]);
-                  }
-                }}
-                name="q-prod"
-                placeholder="Search products to add"
-                className={`${searchClass} pl-9`}
-              />
-            </div>
-
-            {productQuery.length > 0 ? (
-              <ul className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-sm">
-                {productMatches.length === 0 ? (
-                  <li className="px-3 py-2.5 text-sm text-stone-500">No products match that search.</li>
-                ) : (
-                  productMatches.map((product) => {
-                    const blocked = !product.available || product.active === false;
+            <div className="rounded-lg border border-stone-200">
+              <div
+                className="grid min-w-[28rem] grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_2.5rem] gap-x-2 border-b border-stone-100 bg-stone-50/80 px-3 py-2 text-xs font-medium text-stone-500"
+                role="row"
+              >
+                <div role="columnheader">Item name</div>
+                <div className="text-center" role="columnheader">
+                  Qty
+                </div>
+                <div className="text-right" role="columnheader">
+                  Amount
+                </div>
+                <span className="sr-only" role="columnheader">
+                  Actions
+                </span>
+              </div>
+              <ul className="divide-y divide-stone-100 overflow-visible">
+                {productRows.map((row) => {
+                  if (row.kind === 'line') {
+                    const product = products.find((item) => item.id === row.productId);
+                    if (!product) {
+                      return null;
+                    }
+                    const subtotal = product.price * row.quantity;
                     return (
-                      <li key={product.id} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-stone-50">
+                      <li
+                        key={row.id}
+                        className="grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_2.5rem] items-center gap-x-2 px-3 py-2.5"
+                      >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-stone-900">{product.name}</p>
-                          <p className="text-xs tabular-nums text-stone-400">
-                            {formatPrice(product.price)}
-                            {product.active === false ? ' · Inactive' : !product.available ? ' · Coming soon' : ''}
-                          </p>
+                          <p className="text-xs tabular-nums text-stone-400">{formatPrice(product.price)} each</p>
                         </div>
+                        <div className="flex justify-center">
+                          <div className="flex items-center rounded-lg border border-stone-200 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => setLineRowQty(row.id, row.quantity - 1)}
+                              className="inline-flex size-8 items-center justify-center rounded-l-lg text-stone-600 hover:bg-stone-50"
+                              aria-label={`Decrease ${product.name}`}
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="w-8 text-center text-sm font-semibold tabular-nums">{row.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => setLineRowQty(row.id, row.quantity + 1)}
+                              className="inline-flex size-8 items-center justify-center rounded-r-lg text-stone-600 hover:bg-stone-50"
+                              aria-label={`Increase ${product.name}`}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <span className="text-right text-sm font-semibold tabular-nums text-stone-900">
+                          {formatPrice(subtotal)}
+                        </span>
                         <button
                           type="button"
-                          onClick={() => addProduct(product)}
-                          disabled={blocked}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                          onClick={() => setLineRowQty(row.id, 0)}
+                          className="inline-flex size-8 items-center justify-center rounded-md text-stone-400 hover:bg-red-50 hover:text-red-600"
+                          aria-label={`Remove ${product.name}`}
                         >
-                          <Plus size={14} aria-hidden /> Add
+                          <Trash2 size={15} />
                         </button>
                       </li>
                     );
-                  })
-                )}
+                  }
+
+                  const matches = filterProductsForQuery(products, row.query);
+                  const dropdownOpen = openSearchRowId === row.id;
+
+                  return (
+                    <li
+                      key={row.id}
+                      className={`px-3 py-2.5 ${dropdownOpen ? 'relative z-10 bg-white' : ''}`}
+                    >
+                      <div className="grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_2.5rem] items-start gap-x-2">
+                        <div className="min-w-0">
+                          <div className="relative">
+                            <Search
+                              className="pointer-events-none absolute left-3 top-3 size-4 text-stone-400"
+                              aria-hidden
+                            />
+                            <NoFillInput
+                              type="search"
+                              lockUntilInteraction={false}
+                              value={row.query}
+                              onChange={(event) => {
+                                updateSearchQuery(row.id, event.target.value);
+                                openProductSearch(row.id);
+                              }}
+                              onFocus={() => openProductSearch(row.id)}
+                              onBlur={() => {
+                                window.setTimeout(() => {
+                                  setOpenSearchRowId((open) => (open === row.id ? null : open));
+                                }, 200);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter') {
+                                  return;
+                                }
+                                event.preventDefault();
+                                if (matches.length === 1) {
+                                  pickProduct(row.id, matches[0]);
+                                }
+                              }}
+                              name={`q-prod-${row.id}`}
+                              data-product-search-row={row.id}
+                              placeholder={PRODUCT_SEARCH_PLACEHOLDER}
+                              title={PRODUCT_SEARCH_TITLE}
+                              autoComplete="off"
+                              className={`${searchClass} pl-9`}
+                              aria-expanded={dropdownOpen}
+                              aria-controls={`product-list-${row.id}`}
+                            />
+                          </div>
+                          {dropdownOpen ? (
+                            <ul
+                              id={`product-list-${row.id}`}
+                              role="listbox"
+                              className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-md"
+                            >
+                              {matches.length === 0 ? (
+                                <li className="px-3 py-2.5 text-sm text-stone-500">No products match that search.</li>
+                              ) : (
+                                matches.map((product) => {
+                                  const blocked = !product.available || product.active === false;
+                                  return (
+                                    <li key={product.id} role="option">
+                                      <button
+                                        type="button"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={() => pickProduct(row.id, product)}
+                                        disabled={blocked}
+                                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-stone-50 disabled:opacity-40"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="truncate font-semibold text-stone-900">{product.name}</p>
+                                          <p className="text-xs tabular-nums text-stone-400">
+                                            {formatPrice(product.price)}
+                                            {product.active === false
+                                              ? ' · Inactive'
+                                              : !product.available
+                                                ? ' · Coming soon'
+                                                : ''}
+                                          </p>
+                                        </div>
+                                        <Plus size={14} className="shrink-0 text-emerald-700" aria-hidden />
+                                      </button>
+                                    </li>
+                                  );
+                                })
+                              )}
+                            </ul>
+                          ) : null}
+                        </div>
+                        <span className="pt-2 text-center text-sm text-stone-300" aria-hidden>
+                          —
+                        </span>
+                        <span className="pt-2 text-right text-sm text-stone-300" aria-hidden>
+                          —
+                        </span>
+                        <span className="sr-only">Add a product</span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
-            ) : null}
+            </div>
 
             {showProductsIssue ? (
               <div className="mt-3">
                 <MissingNote>Add at least one product</MissingNote>
               </div>
             ) : null}
-
-            {lines.length === 0 ? (
-              <p className="mt-3 text-sm text-stone-500">No items yet. Search to add products.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-stone-100 rounded-lg border border-stone-200">
-                {lines.map((line) => (
-                  <li key={line.product.id} className="flex items-center gap-3 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-stone-900">{line.product.name}</p>
-                      <p className="text-xs tabular-nums text-stone-400">{formatPrice(line.product.price)} each</p>
-                    </div>
-                    <div className="flex items-center rounded-lg border border-stone-200 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setLineQty(line.product.id, line.quantity - 1)}
-                        className="inline-flex size-8 items-center justify-center rounded-l-lg text-stone-600 hover:bg-stone-50"
-                        aria-label={`Decrease ${line.product.name}`}
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span className="w-8 text-center text-sm font-semibold tabular-nums">{line.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => setLineQty(line.product.id, line.quantity + 1)}
-                        className="inline-flex size-8 items-center justify-center rounded-r-lg text-stone-600 hover:bg-stone-50"
-                        aria-label={`Increase ${line.product.name}`}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                    <span className="w-20 text-right text-sm font-semibold tabular-nums text-stone-900">
-                      {formatPrice(line.subtotal)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setLineQty(line.product.id, 0)}
-                      className="inline-flex size-8 items-center justify-center rounded-md text-stone-400 hover:bg-red-50 hover:text-red-600"
-                      aria-label={`Remove ${line.product.name}`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
         </div>
 
