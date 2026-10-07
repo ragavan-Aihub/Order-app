@@ -16,6 +16,16 @@ type ProductCardProps = {
   compact?: boolean;
 };
 
+/** Slightly wider than square — shorter image block (reference grid). */
+const IMAGE_ASPECT = 5 / 4;
+
+const NAME_FONT = 15;
+const NAME_LINE = 21;
+
+const BODY_PAD_H = spacing.sm;
+/** Minimum gap between name block and bottom price row when names match height. */
+const MIN_NAME_FOOTER_GAP = 4;
+
 export function ProductCard({
   product,
   quantity,
@@ -27,13 +37,14 @@ export function ProductCard({
 }: ProductCardProps) {
   const comingSoon = product.available === false;
 
-  const body = (
+  const content = (
     <>
-      <View style={[styles.imageFrame, compact && styles.imageFrameCompact]}>
+      <View style={styles.imageFrame}>
         <Image
           source={product.image_url ? { uri: product.image_url } : undefined}
           style={[styles.image, comingSoon && styles.dimmed]}
-          contentFit="contain"
+          contentFit="cover"
+          contentPosition="center"
           transition={180}
           cachePolicy="memory-disk"
           recyclingKey={product.id}
@@ -47,82 +58,74 @@ export function ProductCard({
           </View>
         ) : null}
       </View>
-      <Text
-        style={[styles.name, compact && styles.nameCompact, comingSoon && styles.dimmedText]}
-        numberOfLines={2}
-      >
-        {product.name}
-      </Text>
+      <View style={[styles.body, compact && styles.bodyCompact]}>
+        <Text
+          style={[styles.name, compact && styles.nameCompact, comingSoon && styles.dimmedText]}
+          numberOfLines={2}
+        >
+          {product.name}
+        </Text>
+        <View style={styles.bodySpacer} />
+        <View style={styles.footerRow}>
+          <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
+          {comingSoon ? null : quantity > 0 ? (
+            <QuantityStepper
+              compact
+              dense
+              value={quantity}
+              onDecrease={onDecrease}
+              onIncrease={onIncrease}
+            />
+          ) : (
+            <Pressable
+              onPress={onAddToCart}
+              style={[styles.addButton, compact && styles.addButtonCompact]}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${product.name}`}
+            >
+              <Text style={styles.addLabel}>Add</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
     </>
   );
 
   return (
     <View style={styles.card}>
       {comingSoon || !onPress ? (
-        <View>{body}</View>
+        <View style={styles.cardFill}>{content}</View>
       ) : (
-        <Pressable onPress={onPress} accessibilityRole="button">
-          {body}
+        <Pressable onPress={onPress} accessibilityRole="button" style={styles.cardFill}>
+          {content}
         </Pressable>
       )}
-      <View style={[styles.footer, compact && styles.footerCompact]}>
-        <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
-        {comingSoon ? null : quantity > 0 ? (
-          <QuantityStepper
-            compact
-            stretch={compact}
-            value={quantity}
-            onDecrease={onDecrease}
-            onIncrease={onIncrease}
-          />
-        ) : (
-          <Pressable
-            onPress={onAddToCart}
-            style={[styles.addButton, compact && styles.addButtonCompact]}
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${product.name}`}
-          >
-            <Text style={[styles.addLabel, compact && styles.addLabelCompact]}>Add</Text>
-          </Pressable>
-        )}
-      </View>
     </View>
   );
 }
 
-/** Shared photo stage for every card in the 2-column grid. */
-const IMAGE_ASPECT = 1;
-
 const styles = StyleSheet.create({
   card: {
     flex: 1,
+    alignSelf: 'stretch',
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     overflow: 'hidden',
     ...shadow.sm,
+  },
+  cardFill: {
+    flex: 1,
+    flexDirection: 'column',
   },
   imageFrame: {
     aspectRatio: IMAGE_ASPECT,
     width: '100%',
     overflow: 'hidden',
     backgroundColor: '#F7FAF9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 8,
-  },
-  imageFrameCompact: {
-    margin: 6,
-    marginBottom: 0,
-    borderRadius: radius.sm,
-    backgroundColor: '#F7FAF9',
-    paddingHorizontal: 6,
-    paddingVertical: 8,
   },
   image: {
     width: '100%',
     height: '100%',
-    maxHeight: '100%',
   },
   dimmed: {
     opacity: 0.4,
@@ -138,81 +141,72 @@ const styles = StyleSheet.create({
     color: colors.primaryText,
     fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 0.2,
     textAlign: 'center',
   },
   soonCompact: {
     fontSize: 10,
   },
+  body: {
+    flex: 1,
+    flexDirection: 'column',
+    paddingHorizontal: BODY_PAD_H,
+    paddingTop: MIN_NAME_FOOTER_GAP,
+    paddingBottom: spacing.sm,
+  },
+  bodyCompact: {
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
   name: {
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '700',
+    fontSize: NAME_FONT,
+    lineHeight: NAME_LINE,
+    fontWeight: '600',
     color: colors.text,
-    minHeight: 34,
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
   },
   nameCompact: {
-    fontSize: 12.5,
+    fontSize: 13,
     lineHeight: 16,
-    fontWeight: '600',
-    minHeight: 38,
-    paddingHorizontal: 8,
-    paddingTop: 6,
   },
   dimmedText: {
     color: colors.textMuted,
   },
-  footer: {
+  bodySpacer: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: MIN_NAME_FOOTER_GAP,
+  },
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
-    paddingTop: 2,
-  },
-  footerCompact: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingTop: 0,
-    paddingBottom: 8,
+    minHeight: 32,
   },
   price: {
     flexShrink: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.primaryDark,
   },
   priceCompact: {
-    flex: 0,
-    fontSize: 14.5,
+    fontSize: 14,
   },
   addButton: {
     minWidth: 56,
-    minHeight: 32,
-    paddingHorizontal: spacing.sm,
+    height: 32,
+    paddingHorizontal: 14,
     borderRadius: radius.sm,
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: colors.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonCompact: {
-    minWidth: 0,
-    minHeight: 30,
-    paddingHorizontal: 0,
+    minWidth: 48,
+    height: 28,
   },
   addLabel: {
-    color: colors.primaryDark,
+    color: colors.primaryText,
     fontSize: 13,
-    fontWeight: '800',
-  },
-  addLabelCompact: {
-    fontSize: 13,
+    fontWeight: '700',
   },
 });

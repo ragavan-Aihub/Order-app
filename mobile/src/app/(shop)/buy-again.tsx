@@ -251,10 +251,12 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'stretch',
     marginHorizontal: -4,
   },
   gridItem: {
     width: '50%',
     padding: 4,
+    alignItems: 'stretch',
   },
 });

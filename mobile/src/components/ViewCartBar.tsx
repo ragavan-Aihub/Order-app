@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { useCart } from '@/cart/CartContext';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { formatPrice } from '@/utils/format';
@@ -10,23 +8,21 @@ import { formatPrice } from '@/utils/format';
 /** Matches shop tab bar content height (icons + labels). */
 export const SHOP_TAB_BAR_HEIGHT = 56;
 
-/** Gap between cart pill bottom edge and top of tab bar content. */
-const CART_ABOVE_TAB_GAP = 0;
+/** Distance from tab scene bottom to pill bottom (scene ends above tab bar). */
+export const CART_BOTTOM_INSET = 6;
 
 /** Compact corner pill height (reference-style quick access). */
 export const FLOATING_CART_BAR_HEIGHT = 44;
 
-export function viewCartScrollPadding(bottomInset: number, hasCart: boolean) {
-  const tabStack = SHOP_TAB_BAR_HEIGHT + bottomInset;
+export function viewCartScrollPadding(_bottomInset: number, hasCart: boolean) {
   if (!hasCart) {
-    return tabStack + spacing.md;
+    return spacing.md;
   }
-  // Corner pill — minimal extra scroll; tab stack keeps controls clear of the nav bar.
-  return tabStack + spacing.md;
+  return CART_BOTTOM_INSET + FLOATING_CART_BAR_HEIGHT + spacing.md;
 }
 
 /** @deprecated Use viewCartScrollPadding with safe-area bottom inset. */
-export const VIEW_CART_BAR_SPACE = SHOP_TAB_BAR_HEIGHT + spacing.md;
+export const VIEW_CART_BAR_SPACE = CART_BOTTOM_INSET + FLOATING_CART_BAR_HEIGHT + spacing.md;
 
 export function ViewCartBar({
   inline = false,
@@ -34,7 +30,6 @@ export function ViewCartBar({
   inline?: boolean;
 }) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { itemCount, totalAmount } = useCart();
 
@@ -46,10 +41,8 @@ export function ViewCartBar({
     return null;
   }
 
-  const bottomOffset = inline
-    ? undefined
-    : insets.bottom + SHOP_TAB_BAR_HEIGHT + CART_ABOVE_TAB_GAP;
-  const countLabel = itemCount > 99 ? '99+' : String(itemCount);
+  const bottomOffset = inline ? undefined : CART_BOTTOM_INSET;
+  const amountLabel = formatPrice(totalAmount);
 
   return (
     <View
@@ -69,11 +62,13 @@ export function ViewCartBar({
         onPress={() => router.push('/cart')}
         style={({ pressed }) => [styles.bar, pressed && styles.barPressed]}
         accessibilityRole="button"
-        accessibilityLabel={`View cart, ${itemCount} items, ${formatPrice(totalAmount)}`}
+        accessibilityLabel={`View cart, ${amountLabel}, ${itemCount} items`}
       >
-        <Ionicons name="bag-handle" size={18} color={colors.primarySoft} />
-        <Text style={styles.count}>{countLabel}</Text>
-        <Ionicons name="chevron-forward" size={16} color={colors.primaryText} />
+        <Ionicons name="bag-handle" size={18} color={colors.primaryDark} />
+        <Text style={styles.amount} numberOfLines={1}>
+          {amountLabel}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
       </Pressable>
     </View>
   );
@@ -95,7 +90,9 @@ const styles = StyleSheet.create({
     height: FLOATING_CART_BAR_HEIGHT,
     minWidth: 72,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: 'rgba(15, 118, 110, 0.2)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -106,11 +103,10 @@ const styles = StyleSheet.create({
   barPressed: {
     opacity: 0.92,
   },
-  count: {
-    color: colors.primaryText,
-    fontSize: 15,
+  amount: {
+    color: colors.primaryDark,
+    fontSize: 14,
     fontWeight: '800',
-    minWidth: 14,
     textAlign: 'center',
   },
 });

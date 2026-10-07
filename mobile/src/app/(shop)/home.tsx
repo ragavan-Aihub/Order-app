@@ -308,8 +308,8 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    gap: spacing.sm,
+    paddingTop: 4,
+    gap: spacing.xs,
   },
   offlineWrap: {
     paddingHorizontal: spacing.md,
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   searchBar: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+    paddingBottom: 4,
     backgroundColor: colors.background,
   },
   searchBarTop: {
@@ -414,7 +414,8 @@ const styles = StyleSheet.create({
   },
   chips: {
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingTop: 0,
+    paddingBottom: 4,
     paddingRight: spacing.md,
   },
   chip: {
@@ -460,11 +461,13 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'stretch',
     marginHorizontal: -4,
   },
   gridItem: {
     width: '50%',
     padding: 4,
+    alignItems: 'stretch',
   },
   centered: {
     flex: 1,
