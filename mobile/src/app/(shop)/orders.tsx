@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import { Alert, ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useTopInset } from '@/utils/safe-area';
+
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { EmptyState } from '@/components/EmptyState';
@@ -30,6 +32,7 @@ function itemSummary(order: OrderWithItems) {
 export default function MyOrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,7 +92,7 @@ export default function MyOrdersScreen() {
       contentContainerStyle={[
         styles.content,
         {
-          paddingTop: insets.top + spacing.sm,
+          paddingTop: topInset + spacing.sm,
           paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md,
         },
       ]}

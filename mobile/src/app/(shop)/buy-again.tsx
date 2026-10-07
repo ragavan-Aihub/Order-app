@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
@@ -19,7 +20,7 @@ import { HomeHeader } from '@/components/HomeHeader';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
-import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
+import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getReorderOrders } from '@/services/orders';
@@ -29,6 +30,7 @@ import type { Product } from '@/types/product';
 
 export default function BuyAgainScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { increase, decrease, items, itemCount } = useCart();
   const addToCart = useAddToCart();
   const { offline } = useNetworkStatus();
@@ -155,7 +157,7 @@ export default function BuyAgainScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: itemCount > 0 ? VIEW_CART_BAR_SPACE + spacing.md : spacing.lg },
+          { paddingBottom: viewCartScrollPadding(insets.bottom, itemCount > 0) },
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -177,7 +179,6 @@ export default function BuyAgainScreen() {
             {visibleProducts.map((product) => (
               <View key={product.id} style={styles.gridItem}>
                 <ProductCard
-                  compact
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
                   onAddToCart={() => addToCart(product, 1)}
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   gridItem: {
-    width: '33.3333%',
+    width: '50%',
     padding: 4,
   },
 });

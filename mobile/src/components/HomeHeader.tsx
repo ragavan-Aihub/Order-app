@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTopInset } from '@/utils/safe-area';
 
 import {
   formatSavedAddressLabel,
@@ -18,20 +18,23 @@ import { getSignedInUser } from '@/services/supabase';
 
 export function HomeHeader() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [addressLine, setAddressLine] = useState('Add a delivery address');
-  const [label, setLabel] = useState('Home');
+  const topInset = useTopInset();
+  const [hasAddress, setHasAddress] = useState(false);
+  const [placeLabel, setPlaceLabel] = useState('Home');
+  const [addressLine, setAddressLine] = useState('Add delivery address');
   const [initial, setInitial] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const showSelected = useCallback(() => {
     const selected = getSelectedAddress();
     if (selected) {
-      setLabel(formatSavedAddressLabel(selected.label));
+      setHasAddress(true);
+      setPlaceLabel(formatSavedAddressLabel(selected.label));
       setAddressLine(formatSavedAddressLine(selected));
     } else {
-      setLabel('Deliver to');
-      setAddressLine('Add a delivery address');
+      setHasAddress(false);
+      setPlaceLabel('Home');
+      setAddressLine('Add delivery address');
     }
   }, []);
 
@@ -59,31 +62,37 @@ export function HomeHeader() {
   );
 
   return (
-    <View style={[styles.band, { paddingTop: insets.top + spacing.sm }]}>
+    <View style={[styles.shell, { paddingTop: topInset + spacing.xs }]}>
       <Pressable
-        style={styles.address}
+        style={({ pressed }) => [styles.address, pressed && styles.pressed]}
         onPress={() => setPickerOpen(true)}
         accessibilityRole="button"
         accessibilityLabel="Choose delivery address"
       >
-        <Text style={styles.kicker}>{label.toUpperCase()}</Text>
-        <View style={styles.addressRow}>
-          <Text style={styles.addressValue} numberOfLines={1}>
-            {addressLine}
+        <Ionicons name="location-outline" size={17} color={colors.primary} style={styles.pin} />
+        <View style={styles.copy}>
+          <Text style={styles.line1} numberOfLines={1}>
+            Deliver to{' '}
+            {hasAddress ? <Text style={styles.line1Strong}>{placeLabel}</Text> : null}
           </Text>
-          <Ionicons name="chevron-down" size={16} color={colors.primaryDark} />
+          <View style={styles.line2Row}>
+            <Text style={styles.line2} numberOfLines={1}>
+              {addressLine}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+          </View>
         </View>
       </Pressable>
       <Pressable
         onPress={() => router.push('/account')}
-        style={styles.avatar}
+        style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
         accessibilityRole="button"
         accessibilityLabel="Account"
       >
         {initial ? (
           <Text style={styles.avatarLabel}>{initial}</Text>
         ) : (
-          <Ionicons name="person" size={20} color={colors.primaryText} />
+          <Ionicons name="person-outline" size={20} color={colors.primary} />
         )}
       </Pressable>
       <AddressPickerSheet
@@ -99,47 +108,65 @@ export function HomeHeader() {
 }
 
 const styles = StyleSheet.create({
-  band: {
-    backgroundColor: '#CCFBF1',
+  shell: {
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   address: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     minHeight: 44,
-    justifyContent: 'center',
+    gap: spacing.xs,
   },
-  kicker: {
-    fontSize: 11,
+  pin: {
+    marginTop: 1,
+  },
+  copy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  line1: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textMuted,
+  },
+  line1Strong: {
     fontWeight: '800',
-    letterSpacing: 0.6,
-    color: colors.primaryDark,
+    color: colors.text,
   },
-  addressRow: {
+  line2Row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  addressValue: {
+  line2: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text,
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLabel: {
-    color: colors.primaryText,
+    color: colors.primaryDark,
     fontSize: 16,
     fontWeight: '800',
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });

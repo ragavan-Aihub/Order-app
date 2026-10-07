@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useTopInset } from '@/utils/safe-area';
+
 import {
   formatSavedAddressLabel,
   formatSavedAddressLine,
@@ -26,6 +28,7 @@ function formatMobile(value: string | null) {
 export default function AccountScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
   const { clearCart, refreshOpenOrder } = useCart();
   const [signedIn, setSignedIn] = useState(false);
   const [name, setName] = useState<string | null>(null);
@@ -63,7 +66,7 @@ export default function AccountScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      contentContainerStyle={[styles.content, { paddingTop: topInset + spacing.md }]}
     >
       <View style={styles.profile}>
         <View style={styles.profileGlow} pointerEvents="none" />

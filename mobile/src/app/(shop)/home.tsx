@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
@@ -22,7 +23,7 @@ import { HomeHeader } from '@/components/HomeHeader';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
-import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
+import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { env } from '@/config/env';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -36,6 +37,7 @@ function matchesSearch(product: Product, term: string) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { increase, decrease, items, itemCount, resumeEdit, takeResumeEdit } = useCart();
   const addToCart = useAddToCart();
 
@@ -220,9 +222,7 @@ export default function HomeScreen() {
           {
             paddingBottom: keyboardOpen
               ? keyboardHeight + spacing.md
-              : itemCount > 0
-                ? VIEW_CART_BAR_SPACE + spacing.md
-                : spacing.xl,
+              : viewCartScrollPadding(insets.bottom, itemCount > 0),
           },
         ]}
         keyboardShouldPersistTaps="handled"
@@ -281,7 +281,6 @@ export default function HomeScreen() {
             {visibleProducts.map((product) => (
               <View key={product.id} style={styles.gridItem}>
                 <ProductCard
-                  compact
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
                   onAddToCart={() => addToCart(product, 1)}
@@ -319,6 +318,7 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
     backgroundColor: colors.background,
   },
@@ -393,10 +393,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     backgroundColor: colors.surface,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     minHeight: 48,
-    ...shadow.sm,
   },
   search: {
     flex: 1,
@@ -413,12 +414,12 @@ const styles = StyleSheet.create({
   },
   chips: {
     gap: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.md,
   },
   chip: {
-    minHeight: 38,
+    height: 40,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
@@ -462,7 +463,7 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   gridItem: {
-    width: '33.3333%',
+    width: '50%',
     padding: 4,
   },
   centered: {

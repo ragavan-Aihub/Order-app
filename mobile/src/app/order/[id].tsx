@@ -20,6 +20,7 @@ import {
 import {
   displayPaymentStatus,
   formatDateTime,
+  ORDER_AWAITING_SHOP_NOTE,
   formatOrderNumber,
   formatOrderStatus,
   formatPrice,
@@ -160,8 +161,11 @@ export default function OrderDetailScreen() {
         </View>
         <View style={styles.metaRow}>
           <Ionicons name="time-outline" size={15} color={colors.textMuted} />
-          <Text style={styles.meta}>Placed {formatDateTime(order.created_at)}</Text>
+          <Text style={styles.meta}>Ordered {formatDateTime(order.created_at)}</Text>
         </View>
+        {order.status === 'new' ? (
+          <Text style={styles.awaitingNote}>{ORDER_AWAITING_SHOP_NOTE}</Text>
+        ) : null}
         {displayPaymentStatus(order) === 'not_applicable' ? null : (
           <View style={styles.metaRow}>
             <Ionicons name="card-outline" size={15} color={colors.textMuted} />
@@ -333,6 +337,13 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 13,
     color: colors.textMuted,
+  },
+  awaitingNote: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    fontWeight: '500',
   },
   payRow: {
     flexDirection: 'row',

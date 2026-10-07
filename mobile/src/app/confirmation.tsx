@@ -21,7 +21,12 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
 import { canCancelOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
-import { formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
+import {
+  ORDER_AWAITING_SHOP_NOTE,
+  formatOrderNumber,
+  formatOrderStatus,
+  formatPrice,
+} from '@/utils/format';
 
 const BAND_SUCCESS = '#E3F3EC';
 const BAND_CANCELLED = '#FDECEC';
@@ -98,8 +103,10 @@ export default function OrderStatusScreen() {
       : fresh === 'updated'
         ? 'Order updated successfully'
         : fresh === 'placed' && status === 'new'
-          ? 'Thank you! Your order is placed.'
+          ? 'Order received'
           : formatOrderStatus(status);
+
+  const showAwaitingShopNote = !cancelled && status === 'new';
 
   const savedAddress = order?.customer_address_id
     ? getAddressBook().find((item) => item.id === order.customer_address_id)
@@ -193,6 +200,9 @@ export default function OrderStatusScreen() {
             Order #{orderNumber != null ? formatOrderNumber(orderNumber) : '—'}
           </Text>
           <Text style={[styles.headline, cancelled && styles.headlineCancelled]}>{headline}</Text>
+          {showAwaitingShopNote ? (
+            <Text style={styles.headlineNote}>{ORDER_AWAITING_SHOP_NOTE}</Text>
+          ) : null}
           <View style={styles.heroDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
@@ -356,6 +366,15 @@ const styles = StyleSheet.create({
   },
   headlineCancelled: {
     color: colors.danger,
+  },
+  headlineNote: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: spacing.sm,
   },
   heroDivider: {
     alignSelf: 'stretch',

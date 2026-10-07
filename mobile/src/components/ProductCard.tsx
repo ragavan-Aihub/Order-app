@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
@@ -33,7 +33,7 @@ export function ProductCard({
         <Image
           source={product.image_url ? { uri: product.image_url } : undefined}
           style={[styles.image, comingSoon && styles.dimmed]}
-          contentFit="cover"
+          contentFit="contain"
           transition={180}
           cachePolicy="memory-disk"
           recyclingKey={product.id}
@@ -90,35 +90,39 @@ export function ProductCard({
   );
 }
 
+/** Shared photo stage for every card in the 2-column grid. */
+const IMAGE_ASPECT = 1;
+
 const styles = StyleSheet.create({
   card: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#1C1917',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    ...shadow.sm,
   },
   imageFrame: {
-    aspectRatio: 4 / 3,
+    aspectRatio: IMAGE_ASPECT,
+    width: '100%',
     overflow: 'hidden',
-    backgroundColor: '#F1F5F4',
+    backgroundColor: '#F7FAF9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
   },
   imageFrameCompact: {
-    aspectRatio: 1,
     margin: 6,
     marginBottom: 0,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(24,24,27,0.06)',
+    borderRadius: radius.sm,
+    backgroundColor: '#F7FAF9',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
   },
   image: {
     width: '100%',
     height: '100%',
+    maxHeight: '100%',
   },
   dimmed: {
     opacity: 0.4,
@@ -142,6 +146,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 13,
+    lineHeight: 17,
     fontWeight: '700',
     color: colors.text,
     minHeight: 34,
@@ -152,7 +157,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 16,
     fontWeight: '600',
-    letterSpacing: 0.1,
     minHeight: 38,
     paddingHorizontal: 8,
     paddingTop: 6,
@@ -167,7 +171,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.sm,
-    paddingTop: 4,
+    paddingTop: 2,
   },
   footerCompact: {
     flexDirection: 'column',
@@ -178,15 +182,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   price: {
-    flex: 1,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '800',
-    color: colors.text,
+    color: colors.primaryDark,
   },
   priceCompact: {
     flex: 0,
     fontSize: 14.5,
-    letterSpacing: 0.1,
   },
   addButton: {
     minWidth: 56,
@@ -208,7 +211,6 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 0.2,
   },
   addLabelCompact: {
     fontSize: 13,

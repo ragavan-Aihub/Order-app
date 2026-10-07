@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { StyleSheet } from 'react-native';
 
 import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
 import { colors } from '@/config/theme';
@@ -11,14 +12,26 @@ export const unstable_settings = {
 function ShopTabs() {
   return (
     <Tabs
+      safeAreaInsets={{ top: 0 }}
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text,
         headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarShowLabel: true,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          paddingTop: 4,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+        tabBarIconStyle: { marginTop: 2 },
+        sceneStyle: styles.scene,
       }}
     >
       <Tabs.Screen
@@ -26,23 +39,29 @@ function ShopTabs() {
         options={{
           title: 'Home',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="buy-again"
         options={{
-          title: 'Buy again',
+          title: 'Order again',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="repeat-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'repeat' : 'repeat-outline'} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'My orders',
+          title: 'My Order',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -88,3 +107,10 @@ export default function ShopTabsLayout() {
     </ShopCatalogProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  scene: {
+    flex: 1,
+    paddingTop: 0,
+  },
+});

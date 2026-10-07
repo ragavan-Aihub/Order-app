@@ -2,18 +2,20 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { useShopCatalog } from '@/catalog/ShopCatalogContext';
 import { setHomeCategoryId } from '@/catalog/home-filter';
 import { HomeHeader } from '@/components/HomeHeader';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { ViewCartBar, VIEW_CART_BAR_SPACE } from '@/components/ViewCartBar';
+import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 
 export default function CategoriesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { categories, refreshCatalog } = useShopCatalog();
   const { itemCount } = useCart();
   const { offline } = useNetworkStatus();
@@ -35,7 +37,7 @@ export default function CategoriesScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: itemCount > 0 ? VIEW_CART_BAR_SPACE + spacing.md : spacing.lg },
+          { paddingBottom: viewCartScrollPadding(insets.bottom, itemCount > 0) },
         ]}
       >
         {offline ? <OfflineBanner /> : null}

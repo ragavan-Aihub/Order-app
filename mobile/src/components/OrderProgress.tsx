@@ -3,10 +3,10 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '@/config/theme';
 import type { OrderStatusEvent } from '@/types/order';
-import { formatStepTime } from '@/utils/format';
+import { ORDER_AWAITING_SHOP_NOTE, formatStepTime } from '@/utils/format';
 
 const STEPS = [
-  { status: 'new', label: 'Placed' },
+  { status: 'new', label: 'Order received' },
   { status: 'confirmed', label: 'Confirmed' },
   { status: 'out_for_delivery', label: 'Out for delivery' },
   { status: 'delivered', label: 'Delivered' },
@@ -104,6 +104,9 @@ export function OrderProgress({
                 ) : null}
               </View>
               {time ? <Text style={styles.time}>{time}</Text> : null}
+              {here && step.status === 'new' ? (
+                <Text style={styles.stepHint}>{ORDER_AWAITING_SHOP_NOTE}</Text>
+              ) : null}
             </View>
           </View>
         );
@@ -221,6 +224,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     fontVariant: ['tabular-nums'],
+  },
+  stepHint: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+    fontWeight: '500',
   },
   cancelledBox: {
     paddingVertical: 8,

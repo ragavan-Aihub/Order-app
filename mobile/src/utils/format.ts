@@ -70,8 +70,12 @@ export function formatStepTime(value: string): string {
   }
 }
 
+/** Shown under status when the shop has not confirmed yet. */
+export const ORDER_AWAITING_SHOP_NOTE =
+  'The shop will review and confirm before preparing your order.';
+
 const STATUS_LABELS: Record<string, string> = {
-  new: 'Placed',
+  new: 'Waiting for confirmation',
   confirmed: 'Confirmed',
   out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
