@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,18 +18,16 @@ import {
   type OrderWithItems,
 } from '@/types/order';
 import {
-  displayPaymentStatus,
-  formatDateTime,
-  ORDER_AWAITING_SHOP_NOTE,
   formatOrderNumber,
   formatOrderStatus,
+  formatPaymentSummaryLine,
+  formatPlacedAt,
   formatPrice,
   formatStepTime,
   orderStatusTone,
 } from '@/utils/format';
 
 export default function OrderDetailScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { beginEditOrder, forgetOpenOrder } = useCart();
   const { id: idParam } = useLocalSearchParams<{ id: string }>();
@@ -87,6 +85,11 @@ export default function OrderDetailScreen() {
   const statusTone = orderStatusTone(order.status);
   const cancelledAt = order.status === 'cancelled' ? latestStatusTime(order.status_events, 'cancelled') : null;
   const current = order;
+  const orderTitle = `Order #${formatOrderNumber(order.order_number)}`;
+  const paymentLine = formatPaymentSummaryLine(order);
+  const deliveryLines = [order.delivery_address, order.pincode ? `Pincode ${order.pincode}` : null]
+    .filter(Boolean)
+    .join('\n');
 
   function confirmCancel() {
     Alert.alert(
@@ -113,7 +116,7 @@ export default function OrderDetailScreen() {
   }
 
   function openMore() {
-    Alert.alert(`Order #${formatOrderNumber(current.order_number)}`, undefined, [
+    Alert.alert(orderTitle, undefined, [
       { text: 'Cancel order', style: 'destructive', onPress: () => setTimeout(confirmCancel, 200) },
       { text: 'Close', style: 'cancel' },
     ]);
@@ -121,150 +124,101 @@ export default function OrderDetailScreen() {
 
   return (
     <>
-    <Stack.Screen
-      options={{
-        headerRight: canCancelOrder(order.status)
-          ? () => (
+      <Stack.Screen
+        options={{
+          title: orderTitle,
+          headerRight: canCancelOrder(order.status)
+            ? () => (
+                <Pressable
+                  onPress={openMore}
+                  hitSlop={10}
+                  style={styles.more}
+                  accessibilityRole="button"
+                  accessibilityLabel="More order options"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+                </Pressable>
+              )
+            : undefined,
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
+        ]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+        }
+      >
+        <View style={styles.summary}>
+          <Text style={[styles.summaryStatus, { color: statusTone.fg }]}>{formatOrderStatus(order.status)}</Text>
+          <Text style={styles.summaryMeta}>{formatPlacedAt(order.created_at)}</Text>
+          {paymentLine ? <Text style={styles.summaryMeta}>{paymentLine}</Text> : null}
+        </View>
+
+        {isOpenOrderStatus(order.status) ? (
+          <View style={styles.actions}>
+            {canModifyOrder(order) ? (
               <Pressable
-                onPress={openMore}
-                hitSlop={10}
-                style={styles.more}
+                onPress={() => goModifyOrder(order, beginEditOrder)}
+                style={({ pressed }) => [styles.modifyBtn, pressed && styles.modifyPressed]}
                 accessibilityRole="button"
-                accessibilityLabel="More order options"
               >
-                <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+                <Text style={styles.modifyLabel}>Modify order</Text>
               </Pressable>
-            )
-          : undefined,
-      }}
-    />
-    <ScrollView
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
-      ]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
-      }
-    >
-      <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <View style={styles.heroTitle}>
-            <Text style={styles.kicker}>Order</Text>
-            <Text style={styles.number}>#{formatOrderNumber(order.order_number)}</Text>
+            ) : (
+              <Text style={styles.limitText}>{orderLockedMessage(order.status)}</Text>
+            )}
           </View>
-          <View style={[styles.statusHero, { backgroundColor: statusTone.bg }]}>
-            <Text style={[styles.statusHeroLabel, { color: statusTone.fg }]}>
-              {formatOrderStatus(order.status)}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.metaRow}>
-          <Ionicons name="time-outline" size={15} color={colors.textMuted} />
-          <Text style={styles.meta}>Ordered {formatDateTime(order.created_at)}</Text>
-        </View>
-        {order.status === 'new' ? (
-          <Text style={styles.awaitingNote}>{ORDER_AWAITING_SHOP_NOTE}</Text>
         ) : null}
-        {displayPaymentStatus(order) === 'not_applicable' ? null : (
-          <View style={styles.metaRow}>
-            <Ionicons name="card-outline" size={15} color={colors.textMuted} />
-            <Text style={styles.meta}>Payment</Text>
-            <PaymentBadge
-              method={order.payment_method ?? 'pending'}
-              orderStatus={order.status}
-              refundStatus={order.refund_status}
-            />
+
+        {order.status === 'cancelled' ? (
+          <View style={styles.block}>
+            <Text style={styles.blockTitle}>Cancelled</Text>
+            <Text style={styles.bodyText}>{order.cancel_reason || 'This order was cancelled.'}</Text>
+            {cancelledAt ? <Text style={styles.muted}>{formatStepTime(cancelledAt)}</Text> : null}
+            <View style={styles.payRow}>
+              <PaymentBadge
+                method={order.payment_method ?? 'pending'}
+                orderStatus={order.status}
+                refundStatus={order.refund_status}
+              />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.block}>
+            <Text style={styles.blockTitle}>Order progress</Text>
+            <OrderProgress status={order.status} events={order.status_events} placedAt={order.created_at} />
           </View>
         )}
-      </View>
 
-      {isOpenOrderStatus(order.status) ? (
-        <View style={styles.actions}>
-          {canModifyOrder(order) ? (
-            <Pressable
-              onPress={() => goModifyOrder(order, beginEditOrder)}
-              style={styles.modifyBtn}
-            >
-              <Text style={styles.modifyLabel}>Modify order</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.limitNote}>
-              <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.limitText}>{orderLockedMessage(order.status)}</Text>
+        <View style={styles.block}>
+          <Text style={styles.blockTitle}>Delivery</Text>
+          <Text style={styles.bodyText}>{order.customer_name}</Text>
+          <Text style={styles.bodyText}>{order.mobile}</Text>
+          <Text style={styles.bodyText}>{deliveryLines}</Text>
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.blockTitle}>Items</Text>
+          {order.order_items.map((item) => (
+            <View key={item.id} style={styles.itemRow}>
+              <View style={styles.itemCopy}>
+                <Text style={styles.itemName} numberOfLines={2}>
+                  {item.product_name}
+                </Text>
+                <Text style={styles.itemQty}>× {item.quantity}</Text>
+              </View>
+              <Text style={styles.itemPrice}>{formatPrice(item.subtotal)}</Text>
             </View>
-          )}
-        </View>
-      ) : null}
-
-      {order.status === 'cancelled' ? (
-        <View style={styles.card}>
-          <View style={styles.sectionHead}>
-            <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
-            <Text style={styles.heading}>Cancelled</Text>
-          </View>
-          <Text style={styles.body}>{order.cancel_reason || 'This order was cancelled.'}</Text>
-          {cancelledAt ? <Text style={styles.cancelledAt}>Cancelled on {formatStepTime(cancelledAt)}</Text> : null}
-          <View style={styles.payRow}>
-            <PaymentBadge
-              method={order.payment_method ?? 'pending'}
-              orderStatus={order.status}
-              refundStatus={order.refund_status}
-            />
+          ))}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
           </View>
         </View>
-      ) : (
-        <View style={styles.card}>
-          <View style={styles.sectionHead}>
-            <Ionicons name="navigate-outline" size={18} color={colors.primaryDark} />
-            <Text style={styles.heading}>Progress</Text>
-          </View>
-          <OrderProgress status={order.status} events={order.status_events} placedAt={order.created_at} />
-        </View>
-      )}
-
-      <View style={styles.card}>
-        <View style={styles.sectionHead}>
-          <Ionicons name="bicycle-outline" size={18} color={colors.primaryDark} />
-          <Text style={styles.heading}>Delivery</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="person-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.body}>{order.customer_name}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="call-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.body}>{order.mobile}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="location-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.body}>
-            {order.delivery_address}
-            {'\n'}Pincode {order.pincode}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.sectionHead}>
-          <Ionicons name="bag-handle-outline" size={18} color={colors.primaryDark} />
-          <Text style={styles.heading}>Items</Text>
-        </View>
-        {order.order_items.map((item) => (
-          <View key={item.id} style={styles.itemRow}>
-            <View style={styles.itemCopy}>
-              <Text style={styles.itemName}>{item.product_name}</Text>
-              <Text style={styles.itemQty}>× {item.quantity}</Text>
-            </View>
-            <Text style={styles.itemPrice}>{formatPrice(item.subtotal)}</Text>
-          </View>
-        ))}
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
-        </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
     </>
   );
 }
@@ -283,114 +237,98 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    gap: spacing.sm,
+    paddingTop: spacing.xs,
+    gap: spacing.xs,
     backgroundColor: colors.background,
   },
-  hero: {
+  summary: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: 8,
-  },
-  heroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  heroTitle: {
-    flex: 1,
-    minWidth: 0,
-  },
-  kicker: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
-  },
-  number: {
-    marginTop: 1,
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  statusHero: {
+    borderRadius: radius.sm,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
+    paddingVertical: 10,
+    gap: 2,
   },
-  statusHeroLabel: {
-    fontSize: 15,
+  summaryStatus: {
+    fontSize: 19,
     fontWeight: '800',
+    color: colors.primaryDark,
+    letterSpacing: -0.3,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  meta: {
+  summaryMeta: {
     fontSize: 13,
+    lineHeight: 17,
     color: colors.textMuted,
+    fontWeight: '500',
   },
-  awaitingNote: {
-    marginTop: 8,
+  actions: {
+    paddingHorizontal: 2,
+  },
+  modifyBtn: {
+    alignSelf: 'flex-start',
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modifyPressed: {
+    opacity: 0.88,
+    backgroundColor: colors.primarySoft,
+  },
+  modifyLabel: {
+    color: colors.primaryDark,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  limitText: {
     fontSize: 13,
     lineHeight: 18,
     color: colors.textMuted,
     fontWeight: '500',
   },
+  block: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  blockTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.45,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+    marginBottom: 1,
+  },
+  bodyText: {
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  muted: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
   payRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: 4,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: 8,
-  },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  heading: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  body: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.text,
-  },
-  cancelledAt: {
-    marginTop: 4,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
+    marginTop: 2,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
+    paddingVertical: 1,
   },
   itemCopy: {
     flex: 1,
@@ -402,8 +340,8 @@ const styles = StyleSheet.create({
   },
   itemName: {
     flexShrink: 1,
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '600',
     color: colors.text,
   },
@@ -413,14 +351,14 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   itemPrice: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.text,
   },
   totalRow: {
-    marginTop: 4,
-    paddingTop: 10,
-    borderTopWidth: 1,
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -432,40 +370,9 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   totalValue: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '800',
     color: colors.primaryDark,
-  },
-  actions: {
-    gap: 8,
-  },
-  modifyBtn: {
-    minHeight: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modifyLabel: {
-    color: colors.primaryText,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  limitNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 12,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  limitText: {
-    flex: 1,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
   },
   more: {
     width: 40,

@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '@/config/theme';
+import { colors } from '@/config/theme';
 import type { OrderStatusEvent } from '@/types/order';
-import { ORDER_AWAITING_SHOP_NOTE, formatStepTime } from '@/utils/format';
+import { formatStepTime } from '@/utils/format';
 
 const STEPS = [
-  { status: 'new', label: 'Order received' },
+  { status: 'new', label: 'New' },
   { status: 'confirmed', label: 'Confirmed' },
-  { status: 'out_for_delivery', label: 'Out for delivery' },
+  { status: 'out_for_delivery', label: 'Out for Delivery' },
   { status: 'delivered', label: 'Delivered' },
 ] as const;
 
@@ -54,8 +54,9 @@ export function OrderProgress({
     );
   }
   const current = rank(status);
+  const allComplete = status === 'delivered';
   const stepTime = (index: number) => {
-    if (index > current) {
+    if (!allComplete && index > current) {
       return null;
     }
     const step = STEPS[index].status;
@@ -65,8 +66,8 @@ export function OrderProgress({
   return (
     <View style={styles.list} accessibilityRole="progressbar">
       {STEPS.map((step, index) => {
-        const done = index < current;
-        const here = index === current;
+        const done = allComplete || index < current;
+        const here = !allComplete && index === current;
         const last = index === STEPS.length - 1;
         const time = stepTime(index);
         return (
@@ -80,33 +81,25 @@ export function OrderProgress({
                   !done && !here && styles.dotUpcoming,
                 ]}
               >
-                {done ? <Ionicons name="checkmark" size={12} color={colors.primaryText} /> : null}
-                {here ? <View style={styles.currentCore} /> : null}
+                {done ? <Ionicons name="checkmark" size={11} color={colors.primaryText} /> : null}
+                {here && !done ? <View style={styles.currentCore} /> : null}
               </View>
-              {last ? null : <View style={[styles.line, index < current && styles.lineOn]} />}
+              {last ? null : (
+                <View style={[styles.line, (allComplete || index < current) && styles.lineOn]} />
+              )}
             </View>
             <View style={styles.copy}>
-              <View style={styles.labelRow}>
-                <Text
-                  style={[
-                    styles.label,
-                    done && styles.labelDone,
-                    here && styles.labelCurrent,
-                    !done && !here && styles.labelUpcoming,
-                  ]}
-                >
-                  {step.label}
-                </Text>
-                {here ? (
-                  <View style={styles.nowPill}>
-                    <Text style={styles.now}>Current</Text>
-                  </View>
-                ) : null}
-              </View>
-              {time ? <Text style={styles.time}>{time}</Text> : null}
-              {here && step.status === 'new' ? (
-                <Text style={styles.stepHint}>{ORDER_AWAITING_SHOP_NOTE}</Text>
-              ) : null}
+              <Text
+                style={[
+                  styles.label,
+                  done && styles.labelDone,
+                  here && styles.labelCurrent,
+                  !done && !here && styles.labelUpcoming,
+                ]}
+              >
+                {step.label}
+              </Text>
+              {time ? <Text style={[styles.time, here && styles.timeCurrent]}>{time}</Text> : null}
             </View>
           </View>
         );
@@ -117,21 +110,20 @@ export function OrderProgress({
 
 const styles = StyleSheet.create({
   list: {
-    paddingTop: 4,
-    gap: 0,
+    paddingTop: 0,
   },
   row: {
     flexDirection: 'row',
-    minHeight: 36,
+    minHeight: 26,
   },
   rail: {
-    width: 24,
+    width: 20,
     alignItems: 'center',
   },
   dot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
@@ -140,39 +132,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   dotCurrent: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 17,
+    height: 17,
+    borderRadius: 9,
     backgroundColor: colors.primarySoft,
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 3,
   },
   currentCore: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.primary,
   },
   dotUpcoming: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    marginTop: 3,
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.border,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    marginTop: 2,
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: '#D4D4D8',
   },
   line: {
     flex: 1,
     width: 2,
-    minHeight: 14,
+    minHeight: 6,
     backgroundColor: colors.border,
-    marginVertical: 2,
+    marginVertical: 0,
   },
   lineOn: {
     backgroundColor: colors.primary,
@@ -180,60 +167,44 @@ const styles = StyleSheet.create({
   copy: {
     flex: 1,
     minWidth: 0,
-    paddingLeft: 10,
-    paddingBottom: 10,
+    paddingLeft: 7,
+    paddingBottom: 4,
     justifyContent: 'flex-start',
   },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
   label: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
-    color: colors.text,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 17,
+    color: colors.textMuted,
   },
   labelDone: {
-    color: colors.text,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   labelCurrent: {
     fontSize: 15,
+    lineHeight: 19,
     color: colors.primaryDark,
     fontWeight: '800',
   },
   labelUpcoming: {
-    color: '#A1A1AA',
+    color: '#C4C4CC',
     fontWeight: '500',
   },
-  nowPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-    borderRadius: 999,
-    backgroundColor: colors.primarySoft,
-  },
-  now: {
-    fontSize: 11,
-    color: colors.primaryDark,
-    fontWeight: '800',
-  },
   time: {
-    marginTop: 1,
-    fontSize: 12,
+    marginTop: 0,
+    fontSize: 10,
+    lineHeight: 14,
     color: colors.textMuted,
     fontVariant: ['tabular-nums'],
   },
-  stepHint: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.textMuted,
-    fontWeight: '500',
+  timeCurrent: {
+    color: colors.primaryDark,
+    fontWeight: '600',
+    opacity: 0.85,
   },
   cancelledBox: {
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   cancelledLabel: {
     fontSize: 15,

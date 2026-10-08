@@ -12,8 +12,6 @@ import {
   type ScrollView as NativeScrollView,
 } from 'react-native';
 import { GestureHandlerRootView, ScrollView, Swipeable } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import {
   getSelectedAddress,
   loadAddressBook,
@@ -29,8 +27,8 @@ import {
   savedAddressLine,
 } from '@/components/AddressPickerSheet';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
+import { PlaceOrderConfirmSheet } from '@/components/PlaceOrderConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { PrimaryButton } from '@/components/PrimaryButton';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -38,10 +36,11 @@ import { checkOrderEditable } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
+import { useTopInset } from '@/utils/safe-area';
 
 export default function CartScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topInset = useTopInset();
   const { focus } = useLocalSearchParams<{ focus?: string }>();
   const {
     items,
@@ -59,11 +58,14 @@ export default function CartScreen() {
     openOrderReady,
   } = useCart();
   const { offline, requireConnection } = useNetworkStatus();
-  const bottomPad = Math.max(insets.bottom, spacing.sm) + spacing.md;
+  /** Tab scene ends above shop tab bar; keep checkout flush above nav icons. */
+  const bottomPad = spacing.xs;
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [selected, setSelected] = useState<SavedAddress | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [footerHeight, setFooterHeight] = useState(96);
   const discarding = useRef(false);
   const leaving = useRef(false);
   const swipeables = useRef(new Map<string, Swipeable>());
@@ -178,24 +180,6 @@ export default function CartScreen() {
 
   const editingOpen = Boolean(openOrder && editingOrderId === openOrder.id);
 
-  function confirmClearCart() {
-    Alert.alert(
-      'Clear cart?',
-      'This will remove all items from your cart. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear cart',
-          style: 'destructive',
-          onPress: () => {
-            clearCart();
-            router.replace('/home');
-          },
-        },
-      ],
-    );
-  }
-
   function exitModify() {
     leaving.current = true;
     if (router.canGoBack()) {
@@ -227,8 +211,28 @@ export default function CartScreen() {
 
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
+  const placeOrderLabel = submitting
+    ? editingOpen
+      ? 'Updating…'
+      : 'Placing order…'
+    : editingOpen
+      ? 'Update order'
+      : 'Place order';
+  const placeOrderDisabled = submitting || Boolean(editingOpen && !hasOrderChanges);
 
-  async function onPlaceOrder() {
+  function onPlaceOrder() {
+    if (placeOrderDisabled) {
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
+  function confirmPlaceOrder() {
+    setConfirmOpen(false);
+    void submitPlaceOrder();
+  }
+
+  async function submitPlaceOrder() {
     setError(null);
     if (!selected) {
       setPickerOpen(true);
@@ -327,14 +331,14 @@ export default function CartScreen() {
 
   return (
     <GestureHandlerRootView style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { paddingTop: topInset + spacing.xs }]}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
           style={styles.back}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Pressable
           style={styles.address}
@@ -342,14 +346,16 @@ export default function CartScreen() {
           accessibilityRole="button"
           accessibilityLabel="Change delivery address"
         >
-          <View style={styles.addressIcon}>
-            <Ionicons name="location" size={18} color={colors.primary} />
+          <View style={styles.addressIconCircle}>
+            <Ionicons name="location" size={16} color={colors.primaryDark} />
           </View>
           <View style={styles.addressCopy}>
             <View style={styles.addressTitleRow}>
-              <Text style={styles.addressKicker}>Deliver to</Text>
-              <Text style={styles.addressTitle}>{addressTitle}</Text>
-              <Ionicons name="chevron-down" size={16} color={colors.primaryDark} />
+              <Text style={styles.addressKicker} numberOfLines={1}>
+                Deliver to{' '}
+                {selected ? <Text style={styles.addressTitleStrong}>{addressTitle}</Text> : null}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
             </View>
             <Text style={styles.addressLine} numberOfLines={1}>
               {addressLine}
@@ -364,33 +370,19 @@ export default function CartScreen() {
       ) : null}
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.content}
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: footerHeight + 4 }]}
         keyboardShouldPersistTaps="handled"
         onLayout={(event) => {
           viewportHeight.current = event.nativeEvent.layout.height;
         }}
       >
         {offline ? <OfflineBanner /> : null}
-        {editingOpen ? null : (
-          <View style={styles.countRow}>
-            <Text style={styles.count}>
-              {itemCount} {itemCount === 1 ? 'item' : 'items'}
-            </Text>
-            <Pressable
-              onPress={confirmClearCart}
-              style={({ pressed }) => [styles.clearButton, pressed && styles.clearPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Clear cart"
-              hitSlop={6}
-            >
-              <Ionicons name="trash-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.clearLabel}>Clear cart</Text>
-            </Pressable>
-          </View>
-        )}
-        {items.map((item) => {
+        <View style={styles.itemList}>
+        {items.map((item, index) => {
           const subtotal = item.product.price * item.quantity;
           const change = rowChange(item.product.id);
+          const isLast = index === items.length - 1;
           return (
             <Swipeable
               key={item.product.id}
@@ -416,7 +408,11 @@ export default function CartScreen() {
               )}
             >
               <View
-                style={[styles.row, change?.kind === 'new' && styles.rowNew]}
+                style={[
+                  styles.row,
+                  change?.kind === 'new' && styles.rowNew,
+                  isLast && styles.rowLast,
+                ]}
                 accessibilityHint="Swipe left to delete"
               >
                 <Image
@@ -424,36 +420,36 @@ export default function CartScreen() {
                   style={styles.thumb}
                   contentFit="cover"
                 />
-                <View style={styles.details}>
-                  <View style={styles.rowTop}>
-                    <Text style={styles.name} numberOfLines={2}>
-                      {item.product.name}
-                    </Text>
-                    <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
-                  </View>
+                <View style={styles.detailsLeft}>
+                  <Text style={styles.name} numberOfLines={2}>
+                    {item.product.name}
+                  </Text>
                   <Text style={styles.unit}>{formatPrice(item.product.price)} each</Text>
-                  <View style={styles.rowBottom}>
-                    <QuantityStepper
-                      compact
-                      value={item.quantity}
-                      onDecrease={() => onDecrease(item)}
-                      onIncrease={() => increase(item.product.id)}
-                    />
-                    {change?.kind === 'new' ? (
-                      <View style={[styles.tag, styles.tagNew]}>
-                        <Text style={[styles.tagLabel, styles.tagNewLabel]}>New</Text>
-                      </View>
-                    ) : change?.kind === 'changed' ? (
-                      <View style={[styles.tag, styles.tagChanged]}>
-                        <Text style={[styles.tagLabel, styles.tagChangedLabel]}>Was {change.from}</Text>
-                      </View>
-                    ) : null}
-                  </View>
+                  {change?.kind === 'new' ? (
+                    <View style={[styles.tag, styles.tagNew]}>
+                      <Text style={[styles.tagLabel, styles.tagNewLabel]}>New</Text>
+                    </View>
+                  ) : change?.kind === 'changed' ? (
+                    <View style={[styles.tag, styles.tagChanged]}>
+                      <Text style={[styles.tagLabel, styles.tagChangedLabel]}>Was {change.from}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.detailsRight}>
+                  <QuantityStepper
+                    compact
+                    dense
+                    value={item.quantity}
+                    onDecrease={() => onDecrease(item)}
+                    onIncrease={() => increase(item.product.id)}
+                  />
+                  <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
                 </View>
               </View>
             </Swipeable>
           );
         })}
+        </View>
         <Pressable
           style={({ pressed }) => [styles.addMore, pressed && styles.pressed]}
           onPress={() => router.push('/home')}
@@ -475,53 +471,46 @@ export default function CartScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </Pressable>
 
-        <View style={styles.bill}>
-          <Text style={styles.billHeading}>Bill summary</Text>
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>
-              Item total ({itemCount} {itemCount === 1 ? 'item' : 'items'})
-            </Text>
-            <Text style={styles.billValue}>{formatPrice(totalAmount)}</Text>
-          </View>
-          <View style={styles.billDivider} />
-          <View style={styles.billRow}>
-            <Text style={styles.billTotalLabel}>To pay</Text>
-            <Text style={styles.billTotalValue}>{formatPrice(totalAmount)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.payNote}>
-          <Ionicons name="cash-outline" size={18} color={colors.primaryDark} />
-          <Text style={styles.payNoteText}>Pay on delivery · Cash or UPI</Text>
-        </View>
       </ScrollView>
-      <View style={[styles.footer, { paddingBottom: bottomPad }]}>
-        <View>
-          <Text style={styles.totalLabel}>
-            Total · {itemCount} {itemCount === 1 ? 'item' : 'items'}
-          </Text>
-          <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
-        </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View
+        style={[styles.footer, { paddingBottom: bottomPad }]}
+        onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+      >
+        {error ? <Text style={[styles.error, styles.footerMessage]}>{error}</Text> : null}
         {openOrder && !editingOpen ? (
-          <Text style={styles.error}>
+          <Text style={[styles.error, styles.footerMessage]}>
             Order #{formatOrderNumber(openOrder.order_number)} is already open at this address. Pick another
             address to place a new order, or modify the open one.
           </Text>
         ) : null}
-        <PrimaryButton
-          label={
-            submitting
-              ? editingOpen
-                ? 'Updating…'
-                : 'Placing order…'
-              : editingOpen
-                ? 'Update order'
-                : 'Place order'
-          }
-          disabled={submitting || Boolean(editingOpen && !hasOrderChanges)}
-          onPress={() => onPlaceOrder().catch(() => undefined)}
-        />
+        <View style={styles.checkoutBar}>
+          <View style={styles.checkoutLeft}>
+            <Text style={styles.checkoutMeta}>
+              Total · {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            </Text>
+            <Text style={styles.checkoutTotal}>{formatPrice(totalAmount)}</Text>
+          </View>
+          <Pressable
+            onPress={onPlaceOrder}
+            disabled={placeOrderDisabled}
+            style={({ pressed }) => [
+              styles.placeOrderButton,
+              placeOrderDisabled && styles.placeOrderDisabled,
+              pressed && !placeOrderDisabled && styles.placeOrderPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={placeOrderLabel}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color={colors.primaryText} />
+            ) : (
+              <>
+                <Text style={styles.placeOrderLabel}>{placeOrderLabel}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.primaryText} />
+              </>
+            )}
+          </Pressable>
+        </View>
       </View>
       <AddressPickerSheet
         visible={pickerOpen}
@@ -529,6 +518,18 @@ export default function CartScreen() {
           setPickerOpen(false);
           loadAddress().catch(() => undefined);
         }}
+      />
+      <PlaceOrderConfirmSheet
+        visible={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={confirmPlaceOrder}
+        totalAmount={totalAmount}
+        itemCount={itemCount}
+        addressTitle={
+          selected ? `Deliver to ${savedAddressLabel(selected.label)}` : 'Delivery address'
+        }
+        addressLine={selected ? savedAddressLine(selected) : 'Add a delivery address'}
+        mode={editingOpen ? 'update' : 'place'}
       />
     </GestureHandlerRootView>
   );
@@ -539,6 +540,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  scroll: {
+    flex: 1,
+  },
   blocked: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -546,31 +550,31 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
+    gap: 2,
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   back: {
-    minWidth: 44,
-    minHeight: 44,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   address: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingRight: spacing.md,
+    gap: 6,
+    paddingRight: spacing.sm,
   },
-  addressIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  addressIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -585,73 +589,51 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addressKicker: {
+    flex: 1,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: colors.textMuted,
   },
-  addressTitle: {
-    fontSize: 15,
-    fontWeight: '800',
+  addressTitleStrong: {
+    fontWeight: '700',
     color: colors.text,
   },
   addressLine: {
     fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
+    fontWeight: '500',
+    color: colors.text,
+    marginTop: 1,
   },
   content: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-    gap: spacing.sm,
+    paddingTop: 4,
+    gap: spacing.xs,
   },
-  countRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  count: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  clearButton: {
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-  },
-  clearPressed: {
-    backgroundColor: colors.border,
-  },
-  clearLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
+  itemList: {
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
   },
   modifyBarWrap: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingTop: spacing.xs,
+    paddingBottom: 4,
     backgroundColor: colors.background,
   },
   row: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   rowNew: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    backgroundColor: '#F7FDFB',
+  },
+  rowLast: {
+    borderBottomWidth: 0,
   },
   tag: {
     paddingHorizontal: 8,
@@ -675,39 +657,34 @@ const styles = StyleSheet.create({
     color: '#92400E',
   },
   thumb: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
-    backgroundColor: colors.background,
+    width: 68,
+    height: 68,
+    borderRadius: radius.sm,
+    backgroundColor: '#F7FAF9',
   },
-  details: {
+  detailsLeft: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'space-between',
     gap: 2,
+    paddingRight: spacing.xs,
   },
-  rowTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
+  detailsRight: {
+    width: 92,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 6,
+    paddingTop: 2,
   },
   name: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.text,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   unit: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textMuted,
-  },
-  rowBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.xs,
-    marginTop: 4,
+    marginTop: 1,
   },
   subtotal: {
     fontSize: 16,
@@ -716,10 +693,9 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   deleteAction: {
-    width: 72,
+    width: 68,
     alignSelf: 'stretch',
-    marginLeft: spacing.sm,
-    borderRadius: radius.md,
+    marginLeft: spacing.xs,
     backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
@@ -728,110 +704,82 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F0FDFA',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: '#99F6E4',
-    paddingHorizontal: spacing.md,
-    minHeight: 52,
+    paddingHorizontal: spacing.xs,
+    minHeight: 40,
+    marginTop: 2,
   },
   addMoreLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 6,
   },
   addMoreLabel: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
-  bill: {
-    marginTop: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  billHeading: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  billRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  billLabel: {
     fontSize: 14,
-    color: colors.textMuted,
-  },
-  billValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  billDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginVertical: 4,
-  },
-  billTotalLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  billTotalValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  payNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
-  },
-  payNoteText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primaryDark,
+    fontWeight: '600',
+    color: colors.primary,
   },
   pressed: {
     opacity: 0.88,
   },
   footer: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.surface,
-    gap: spacing.sm,
-    shadowColor: '#18181B',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.primarySoft,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(15, 118, 110, 0.2)',
   },
-  totalLabel: {
+  footerMessage: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  checkoutBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  checkoutLeft: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  checkoutMeta: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.textMuted,
   },
-  total: {
-    marginTop: 1,
-    fontSize: 28,
-    lineHeight: 34,
+  checkoutTotal: {
+    fontSize: 22,
     fontWeight: '800',
-    color: colors.text,
+    color: colors.primaryDark,
     letterSpacing: -0.4,
   },
+  placeOrderButton: {
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  placeOrderDisabled: {
+    opacity: 0.5,
+  },
+  placeOrderPressed: {
+    opacity: 0.92,
+  },
+  placeOrderLabel: {
+    color: colors.primaryText,
+    fontSize: 15,
+    fontWeight: '800',
+  },
   error: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.danger,
     fontWeight: '600',
   },

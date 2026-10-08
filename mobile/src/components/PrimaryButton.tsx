@@ -6,7 +6,7 @@ type PrimaryButtonProps = PressableProps & {
   label: string;
 };
 
-export function PrimaryButton({ label, disabled, ...rest }: PrimaryButtonProps) {
+export function PrimaryButton({ label, disabled, style, ...rest }: PrimaryButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -14,6 +14,8 @@ export function PrimaryButton({ label, disabled, ...rest }: PrimaryButtonProps) 
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
+        typeof style === 'object' && style != null && !Array.isArray(style) ? style : null,
+        Array.isArray(style) ? style : null,
         pressed && styles.pressed,
         disabled && styles.disabled,
       ]}

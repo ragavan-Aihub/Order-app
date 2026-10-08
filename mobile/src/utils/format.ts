@@ -75,9 +75,9 @@ export const ORDER_AWAITING_SHOP_NOTE =
   'The shop will review and confirm before preparing your order.';
 
 const STATUS_LABELS: Record<string, string> = {
-  new: 'Waiting for confirmation',
+  new: 'New',
   confirmed: 'Confirmed',
-  out_for_delivery: 'Out for delivery',
+  out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
@@ -153,6 +153,31 @@ export function formatDisplayPayment(order: {
     default:
       return 'Payment pending';
   }
+}
+
+/** Compact payment line for order detail summary (e.g. "Payment · Pending"). */
+export function formatPaymentSummaryLine(order: {
+  status?: string;
+  payment_method?: string | null;
+  refund_status?: string | null;
+}): string | null {
+  switch (displayPaymentStatus(order)) {
+    case 'not_applicable':
+      return null;
+    case 'paid':
+      return order.payment_method === 'upi' ? 'Payment · UPI' : 'Payment · Cash';
+    case 'refund_pending':
+      return 'Payment · Refund pending';
+    case 'refunded':
+      return 'Payment · Refunded';
+    default:
+      return 'Payment · Pending';
+  }
+}
+
+export function formatPlacedAt(value: string): string {
+  const when = formatStepTime(value);
+  return when ? `Placed ${when}` : 'Placed';
 }
 
 export function displayPaymentTone(status: ReturnType<typeof displayPaymentStatus>): { bg: string; fg: string } {
