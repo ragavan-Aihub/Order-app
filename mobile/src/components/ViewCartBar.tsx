@@ -5,8 +5,8 @@ import { useCart } from '@/cart/CartContext';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { formatPrice } from '@/utils/format';
 
-/** Matches shop tab bar content height (icons + labels). */
-export const SHOP_TAB_BAR_HEIGHT = 56;
+/** Matches shop tab bar content height (icons only; labels hidden on Android). */
+export const SHOP_TAB_BAR_HEIGHT = 52;
 
 /** Distance from tab scene bottom to pill bottom (scene ends above tab bar). */
 export const CART_BOTTOM_INSET = 6;

@@ -3,6 +3,8 @@ export const colors = {
   surface: '#FFFFFF',
   text: '#18181B',
   textMuted: '#71717A',
+  /** Bottom tab labels/icons when not selected — darker than textMuted for readability. */
+  tabBarInactive: '#52525B',
   primary: '#0F766E',
   primaryDark: '#115E59',
   primarySoft: '#CCFBF1',

@@ -101,6 +101,7 @@ export default function MyOrdersScreen() {
       }
     >
       {offline ? <OfflineBanner /> : null}
+      <Text style={styles.screenTitle}>My orders</Text>
       {orders.length === 0 ? (
         <View style={styles.emptyCard}>
           <Ionicons name="receipt-outline" size={28} color={colors.primary} />
@@ -225,6 +226,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     flexGrow: 1,
     backgroundColor: colors.background,
+  },
+  screenTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    color: colors.text,
+    marginBottom: 2,
   },
   emptyCard: {
     backgroundColor: colors.surface,

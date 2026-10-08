@@ -17,20 +17,22 @@ function ShopTabs() {
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text,
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarShowLabel: true,
+        tabBarActiveTintColor: colors.primaryDark,
+        tabBarInactiveTintColor: colors.tabBarInactive,
+        /** Icons only — labels clash with Android 3-button / gesture nav bar. */
+        tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          paddingTop: 4,
+          paddingTop: 8,
+          paddingBottom: 6,
+          elevation: 8,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 6,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-        tabBarIconStyle: { marginTop: 2 },
+        tabBarIconStyle: { marginTop: 0 },
         sceneStyle: styles.scene,
       }}
     >

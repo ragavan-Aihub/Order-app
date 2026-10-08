@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
   },
   line1: {
     fontSize: 13,
-    fontWeight: '500',
-    color: colors.textMuted,
+    fontWeight: '600',
+    color: colors.text,
   },
   line1Strong: {
     fontWeight: '800',
