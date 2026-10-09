@@ -36,7 +36,10 @@ export async function findOpenOrderForSelectedAddress(reload = true): Promise<Or
 }
 
 export async function selectAddressForOrder(order: Order) {
-  const list = await loadAddressBook().catch(() => getAddressBook());
+  let list = getAddressBook();
+  if (!list.length) {
+    list = await loadAddressBook().catch(() => getAddressBook());
+  }
   const match =
     list.find((address) => order.customer_address_id && address.id === order.customer_address_id) ??
     list.find((address) =>

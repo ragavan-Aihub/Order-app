@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,6 +7,7 @@ import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
 import { CART_LIMIT_QTY, MAX_ITEM_QTY } from '@/cart/limits';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { ViewCartBar } from '@/components/ViewCartBar';
 import { colors, spacing } from '@/config/theme';
@@ -61,11 +61,15 @@ export default function ProductDetailsScreen() {
     <View style={styles.screen}>
       <Stack.Screen options={{ title: product.name }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Image
-          source={product.image_url ? { uri: product.image_url } : undefined}
-          style={[styles.image, comingSoon && styles.imageSoon]}
-          contentFit="cover"
-        />
+        <View style={styles.imageWrap}>
+          <ProductImage
+            uri={product.image_url}
+            style={styles.image}
+            dimmed={comingSoon}
+            recyclingKey={product.id}
+            accessibilityLabel={product.name}
+          />
+        </View>
         <View style={styles.body}>
           <Text style={styles.name}>{product.name}</Text>
           {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
@@ -114,13 +118,14 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: spacing.lg,
   },
-  image: {
+  imageWrap: {
     width: '100%',
     height: 200,
-    backgroundColor: colors.border,
+    backgroundColor: '#E4E4E7',
   },
-  imageSoon: {
-    opacity: 0.45,
+  image: {
+    width: '100%',
+    height: '100%',
   },
   body: {
     padding: spacing.md,

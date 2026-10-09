@@ -15,10 +15,10 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 11,
+      "versionCode": 14,
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
-      "permissions": ["RECORD_AUDIO"],
+      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "backgroundColor": "#F4F4F5",
@@ -35,6 +35,15 @@
           "backgroundColor": "#F4F4F5",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 180
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#047857",
+          "defaultChannel": "order-updates",
+          "sounds": []
         }
       ],
       [

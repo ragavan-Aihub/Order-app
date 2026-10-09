@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, spacing } from '@/config/theme';
 import type { Product } from '@/types/product';
@@ -60,10 +60,12 @@ export function SamOrderLine({
   const line = unit * quantity;
   return (
     <View style={styles.orderRow}>
-      <Image
-        source={product.image_url ? { uri: product.image_url } : undefined}
+      <ProductImage
+        uri={product.image_url}
         style={styles.thumb}
-        contentFit="cover"
+        compact
+        recyclingKey={product.id}
+        accessibilityLabel={product.name}
       />
       <View style={styles.meta}>
         <Text style={styles.name} numberOfLines={1}>
@@ -110,7 +112,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 10,
-    backgroundColor: colors.background,
+    backgroundColor: '#E4E4E7',
   },
   meta: {
     flex: 1,

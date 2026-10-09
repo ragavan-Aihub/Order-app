@@ -31,26 +31,53 @@ export function useNetworkStatus(): NetworkContextValue {
   return value;
 }
 
+const OFFLINE_BANNER_DELAY_MS = 900;
+
 export function NetworkProvider({ children }: { children: ReactNode }) {
   const state = Network.useNetworkState();
-  const offline = isDefinitelyOffline(state);
+  const rawOffline = isDefinitelyOffline(state);
+  const [offline, setOffline] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [cacheReady, setCacheReady] = useState(false);
 
   useEffect(() => {
+    if (!rawOffline) {
+      setOffline(false);
+      return;
+    }
+    const timer = setTimeout(() => setOffline(true), OFFLINE_BANNER_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [rawOffline]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     hasCatalogCache()
       .then((cached) => {
+        if (cancelled) {
+          return;
+        }
         setCacheReady(cached);
         if (!cached) {
-          getIsOffline().then((down) => {
-            if (down) {
-              setBlocking(true);
-            }
-          });
+          timer = setTimeout(() => {
+            getIsOffline().then((down) => {
+              if (!cancelled && down) {
+                setBlocking(true);
+              }
+            });
+          }, OFFLINE_BANNER_DELAY_MS);
         }
       })
       .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, []);
 
   useEffect(() => {

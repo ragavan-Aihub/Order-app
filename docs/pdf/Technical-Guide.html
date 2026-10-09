@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ordering App Technical Guide</title>
+  <style>
+    body { max-width: 820px; margin: 24px auto; padding: 0 16px 48px; }
+    html {
+  font-size: 11pt;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  color: #1f2937;
+  line-height: 1.55;
+}
+
+.markdown-body {
+  max-width: none;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: #14532d;
+  line-height: 1.25;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h2 {
+  border-bottom: 2px solid #16a34a;
+  padding-bottom: 6px;
+  margin-top: 1.6em;
+  font-size: 1.6em;
+}
+
+/* Start major sections on a new page, but not the table-of-contents block. */
+h2[id^="1-"],
+h2[id^="2-"],
+h2[id^="3-"],
+h2[id^="4-"],
+h2[id^="5-"],
+h2[id^="6-"],
+h2[id^="7-"],
+h2[id^="8-"],
+h2[id^="9-"],
+h2[id^="10-"],
+h2[id^="11-"],
+h2[id^="12-"],
+h2[id^="13-"],
+h2[id^="14-"],
+h2[id^="15-"] {
+  page-break-before: always;
+  break-before: page;
+  margin-top: 0;
+}
+
+h3 {
+  font-size: 1.2em;
+  margin-top: 1.4em;
+}
+
+h4 {
+  font-size: 1.05em;
+  margin-top: 1.2em;
+}
+
+.cover {
+  text-align: center;
+  padding-top: 220px;
+}
+
+.cover h1 {
+  font-size: 2.4em;
+  border: none;
+  color: #14532d;
+}
+
+.cover .subtitle {
+  font-size: 1.15em;
+  color: #374151;
+  max-width: 480px;
+  margin: 16px auto;
+}
+
+.cover .meta {
+  color: #6b7280;
+  margin-top: 40px;
+}
+
+a {
+  color: #15803d;
+  text-decoration: none;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 18px;
+  font-size: 0.92em;
+  page-break-inside: auto;
+}
+
+tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+thead {
+  display: table-header-group;
+}
+
+th,
+td {
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f0fdf4;
+  color: #14532d;
+  font-weight: 600;
+}
+
+tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+code {
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+pre {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.8em;
+  line-height: 1.4;
+  overflow: hidden;
+  white-space: pre;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 1em;
+}
+
+ul,
+ol {
+  padding-left: 1.4em;
+}
+
+li {
+  margin: 2px 0;
+}
+
+.page-break {
+  page-break-after: always;
+  break-after: page;
+}
+
+    @media print { body { max-width: none; margin: 0; } }
+  </style>
+</head>
+<body class="markdown-body"><div class="cover">
+
+<h1>Ordering App: Technical Guide</h1>
+<p class="subtitle">Architecture, code, database and operations for developers and technical architects.</p>
+
+<p class="meta">Version 1 &middot; Last updated 4 October 2026</p>
+
+</div>
+
+<h2>Contents</h2>
+<ol>
+<li><a href="#1-architecture">Architecture</a></li>
+<li><a href="#2-repository-layout">Repository layout</a></li>
+<li><a href="#3-stack-and-versions">Stack and versions</a></li>
+<li><a href="#4-setup-and-environment-variables">Setup, environment variables and new business setup</a></li>
+<li><a href="#5-database">Database</a></li>
+<li><a href="#6-customer-app-internals">Customer app internals</a></li>
+<li><a href="#7-admin-panel-internals">Admin panel internals</a></li>
+<li><a href="#8-order-lifecycle">Order lifecycle</a></li>
+<li><a href="#9-partner-api-v1">Partner API v1</a></li>
+<li><a href="#10-voice-ordering">Voice ordering</a></li>
+<li><a href="#11-build-and-deploy">Build and deploy</a></li>
+<li><a href="#12-quality-checks">Quality checks</a></li>
+<li><a href="#13-troubleshooting">Troubleshooting</a></li>
+<li><a href="#14-tech-debt-switched-off-features-and-dropped-items">Tech debt, switched-off features and dropped items</a></li>
+</ol>
+<h3>Who this guide is for</h3>
+<ul>
+<li><strong>New developers:</strong> to set up the project, find code quickly and make safe changes.</li>
+<li><strong>Technical architects:</strong> to understand the design, the data model, the security model and the known risks.</li>
+</ul>
+<p>For screens and business rules in plain language, read the <strong>Business Guide</strong> first. This guide does not repeat them in detail.</p>
+<h3>Glossary</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Business</strong></td>
+<td>One shop. Every row in the database belongs to one business (<code>business_id</code>).</td>
+</tr>
+<tr>
+<td><strong>Admin</strong></td>
+<td>A user whose <code>profiles.role = &#39;admin&#39;</code> and who has a <code>business_id</code>.</td>
+</tr>
+<tr>
+<td><strong>Customer</strong></td>
+<td>A user who signed in with phone OTP. Has a <code>profiles</code> row and a <code>customers</code> row.</td>
+</tr>
+<tr>
+<td><strong>RLS</strong></td>
+<td>Row Level Security. Postgres rules that decide which rows each user can read or write.</td>
+</tr>
+<tr>
+<td><strong>RPC</strong></td>
+<td>A Postgres function called from the app with <code>supabase.rpc(...)</code>.</td>
+</tr>
+<tr>
+<td><strong>Security definer</strong></td>
+<td>A Postgres function that runs with the owner&#39;s rights, so it can bypass RLS in a controlled way.</td>
+</tr>
+<tr>
+<td><strong>Open order</strong></td>
+<td>Status <code>new</code> or <code>confirmed</code>.</td>
+</tr>
+<tr>
+<td><strong>Edit mode</strong></td>
+<td>The customer app state while modifying an open order.</td>
+</tr>
+<tr>
+<td><strong>Anon key</strong></td>
+<td>The public Supabase key. It is safe in apps because RLS protects data.</td>
+</tr>
+<tr>
+<td><strong>Service-role key</strong></td>
+<td>The secret Supabase key that bypasses RLS. <strong>Never</strong> used in either app.</td>
+</tr>
+<tr>
+<td><strong><code>sam</code></strong></td>
+<td>Folder name used in code for the voice and chat ordering assistant (<code>admin/lib/sam/</code>, <code>mobile/src/sam/</code>).</td>
+</tr>
+</tbody></table>
+<h2>1. Architecture</h2>
+<p>Three parts share one Supabase project:</p>
+<pre><code>+---------------------------+          +---------------------------+
+|  Customer app (mobile/)   |          |  Admin panel (admin/)     |
+|  Expo / React Native      |          |  Next.js (App Router)     |
+|  Android APK              |          |  Server components and    |
+|                           |          |  server actions           |
++-------------+-------------+          +------+-------------+------+
+              |                               |             |
+              | supabase-js (anon key)        | supabase-js | /api/v1  (Partner API)
+              | phone OTP session             | (anon key)  | /api/sam (voice)
+              |                               | email login |
+              v                               v             v
++-------------------------------------------------------------------+
+|                         Supabase                                  |
+|  Auth: phone OTP (customers, SMS by Twilio), email (admins)       |
+|  Postgres: tables, RLS policies, triggers, RPC functions          |
+|  Storage: product-images, business-logos (public read)            |
++-------------------------------------------------------------------+
+
+   Partner systems (website, WhatsApp bot) ----&gt; admin /api/v1 ----&gt; Supabase RPC
+   Pincode lookup (customer app) ----&gt; api.postalpincode.in
+   Optional AI for voice (admin server) ----&gt; Ollama (OLLAMA_URL)
+</code></pre>
+<p><strong>Key design decisions:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>No custom backend server. Apps talk to Supabase directly.</td>
+<td>Small team, low cost. Security is enforced by RLS and security-definer functions.</td>
+</tr>
+<tr>
+<td>Only the anon key is used, in both apps.</td>
+<td>A leaked app bundle must not expose full database access.</td>
+</tr>
+<tr>
+<td>One business per deployment (<code>EXPO_PUBLIC_BUSINESS_ID</code>).</td>
+<td>The schema is multi-business, but the customer app serves one shop.</td>
+</tr>
+<tr>
+<td>Orders store a snapshot of customer name, mobile, address and item prices.</td>
+<td>Later edits to products or addresses must not change past orders.</td>
+</tr>
+<tr>
+<td>Order rules live in the database where possible (one open order per address, modify limit, order numbers, status history).</td>
+<td>Rules then hold for every client: app, admin and partner API.</td>
+</tr>
+<tr>
+<td>Product catalog is cached on the phone.</td>
+<td>Fast start and browsing without internet.</td>
+</tr>
+</tbody></table>
+<h2>2. Repository layout</h2>
+<pre><code>order-app/
+  package.json              Root scripts: admin, mobile, docs:pdf
+  README.md
+  docs/                     These guides, pending-and-future-scope.md, PDF output
+  supabase/
+    migrations/             35 SQL files, run in name order
+    scripts/                Reusable SQL for support and testing (not migrations)
+    documentation/          admin-setup.md, phone-otp.md
+  mobile/                   Customer app (Expo)
+    app.json, app.config.js, eas.json
+    src/
+      app/                  Expo Router screens (file = route)
+        (shop)/             Tab group: home, buy-again, orders, cart, account, ...
+        order/[id].tsx      Order details
+        address/form.tsx    Add or edit an address
+        confirmation.tsx, new-order.tsx, checkout.tsx, login.tsx, verify.tsx, sam.tsx
+      cart/                 Cart state, edit mode, address book, submit and limits
+      catalog/              ShopCatalogContext (products, categories, business)
+      components/           UI components (ProductCard, ModifyOrderBar, OrderProgress, ...)
+      services/             Supabase calls (orders, addresses, auth, products, ...)
+      sam/                  Voice ordering client and NewOrderAddressPicker
+      network/              NetworkProvider (online or offline)
+      config/               env.ts, constants.ts, theme.ts
+      types/, utils/
+  admin/                    Admin panel (Next.js)
+    proxy.ts                Session refresh and login redirect (replaces middleware)
+    app/
+      (admin)/              Dashboard, orders, products, customers, communities, reports, settings
+      api/v1/               Partner API routes
+      api/sam/turn/         Voice ordering endpoint
+      login/, unauthorized/
+    components/             Client and server UI components
+    services/               Data loading (orders.ts, ...) and server actions (*-actions.ts)
+    services/supabase/      browser.ts, server.ts, admin-session.ts
+    lib/                    partner-api.ts, partner-openapi.ts, sam/
+    scripts/sam-eval.ts     Voice parser test script
+    types/, utils/, config/
+</code></pre>
+<h2>3. Stack and versions</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Technology</th>
+<th>Version</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Customer app</td>
+<td>Expo SDK</td>
+<td>~57.0.19</td>
+</tr>
+<tr>
+<td></td>
+<td>React Native</td>
+<td>0.86.3</td>
+</tr>
+<tr>
+<td></td>
+<td>Expo Router</td>
+<td>~57.0.18</td>
+</tr>
+<tr>
+<td></td>
+<td>React</td>
+<td>19.2.3</td>
+</tr>
+<tr>
+<td></td>
+<td>TypeScript</td>
+<td>~6.0.3</td>
+</tr>
+<tr>
+<td></td>
+<td>AsyncStorage</td>
+<td>for session, cart and catalog cache</td>
+</tr>
+<tr>
+<td>Admin panel</td>
+<td>Next.js (App Router, <code>proxy.ts</code>)</td>
+<td>16.3.4</td>
+</tr>
+<tr>
+<td></td>
+<td>React</td>
+<td>19.2.8</td>
+</tr>
+<tr>
+<td></td>
+<td>Tailwind CSS</td>
+<td>4</td>
+</tr>
+<tr>
+<td></td>
+<td><code>@supabase/ssr</code> and <code>@supabase/supabase-js</code></td>
+<td>supabase-js 2.114</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td>Supabase (Postgres, Auth, Storage)</td>
+<td>hosted</td>
+</tr>
+<tr>
+<td>SMS</td>
+<td>Twilio (through Supabase phone auth)</td>
+<td></td>
+</tr>
+<tr>
+<td>Builds</td>
+<td>EAS Build (Android)</td>
+<td>CLI &gt;= 16.17.0</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td>md-to-pdf</td>
+<td>latest through <code>npx</code></td>
+</tr>
+</tbody></table>
+<p><strong>Important:</strong> Expo 57 and Next.js 16 changed many APIs. Read the versioned Expo docs at <a href="https://docs.expo.dev/versions/v57.0.0/">https://docs.expo.dev/versions/v57.0.0/</a> and the Next.js 16 docs before writing code. In Next.js 16, <code>middleware.ts</code> is replaced by <code>proxy.ts</code>.</p>
+<h2>4. Setup and environment variables</h2>
+<h3>4.1 First-time setup</h3>
+<pre><code class="language-bash">cd mobile &amp;&amp; npm install
+cd ../admin &amp;&amp; npm install
+cp mobile/.env.example mobile/.env
+cp admin/.env.example admin/.env
+</code></pre>
+<p>Then:</p>
+<ol>
+<li>Create a Supabase project. Run every file in <code>supabase/migrations/</code> in the SQL editor, <strong>in name order</strong> (see 5.6).</li>
+<li>Create the business, the admin auth user and the admin profile. Follow <code>supabase/documentation/admin-setup.md</code>.</li>
+<li>Set up phone OTP with Twilio. Follow <code>supabase/documentation/phone-otp.md</code>. For testing, add a test phone number and fixed OTP in Supabase Auth (format <code>91XXXXXXXXXX=123456</code>), so no real SMS is sent.</li>
+<li>Fill in the <code>.env</code> files (below).</li>
+</ol>
+<h3>4.2 Run</h3>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Command</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Admin panel</td>
+<td><code>npm run admin</code> (root) or <code>cd admin &amp;&amp; npm run dev</code></td>
+<td><a href="http://localhost:3000">http://localhost:3000</a>, sign in at <code>/login</code></td>
+</tr>
+<tr>
+<td>Customer app</td>
+<td><code>npm run mobile</code> (root) or <code>cd mobile &amp;&amp; npx expo start</code></td>
+<td>Open in Expo Go or a development build</td>
+</tr>
+<tr>
+<td>PDF guides</td>
+<td><code>npm run docs:pdf</code> (root)</td>
+<td>Writes <code>docs/pdf/*.pdf</code></td>
+</tr>
+</tbody></table>
+<p>Without Supabase variables, the admin panel runs with mock data and a local admin. This is for UI work only.</p>
+<h3>4.3 Environment variables</h3>
+<p><strong>Customer app (<code>mobile/.env</code>, and the EAS <code>preview</code> environment for builds):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Required</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>EXPO_PUBLIC_SUPABASE_URL</code></td>
+<td>Yes</td>
+<td>Supabase project URL</td>
+</tr>
+<tr>
+<td><code>EXPO_PUBLIC_SUPABASE_ANON_KEY</code></td>
+<td>Yes</td>
+<td>Supabase anon key</td>
+</tr>
+<tr>
+<td><code>EXPO_PUBLIC_BUSINESS_ID</code></td>
+<td>Yes</td>
+<td>The shop&#39;s <code>businesses.id</code></td>
+</tr>
+<tr>
+<td><code>EXPO_PUBLIC_SAM_API_URL</code></td>
+<td>No</td>
+<td>Voice endpoint, for example <code>https://&lt;admin-host&gt;/api/sam/turn</code></td>
+</tr>
+<tr>
+<td><code>EXPO_PUBLIC_VOICE_ORDERING</code></td>
+<td>No</td>
+<td><code>true</code> shows voice ordering. Leave unset in this phase. Missing from <code>.env.example</code>.</td>
+</tr>
+</tbody></table>
+<p>All <code>EXPO_PUBLIC_*</code> values are built into the app and are public. Never put secrets there.</p>
+<h3>4.4 Setting up for a new business</h3>
+<p>The product is not tied to one shop. Business name, logo, banner, description, products, categories and prices come from the database and are set in the admin panel. A few values are still fixed in code and must be changed for each new business:</p>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>App name, slug, URL scheme, Android package, voice permission texts</td>
+<td><code>mobile/app.json</code></td>
+</tr>
+<tr>
+<td>App icon, splash and fallback logo on the welcome screen</td>
+<td><code>mobile/assets/images/</code>, <code>mobile/src/components/WelcomeSignup.tsx</code></td>
+</tr>
+<tr>
+<td>Business id</td>
+<td><code>EXPO_PUBLIC_BUSINESS_ID</code> (in <code>.env</code> and the EAS environment)</td>
+</tr>
+<tr>
+<td>Storage key prefix</td>
+<td>see 6.3</td>
+</tr>
+<tr>
+<td>Admin sidebar and login logo and name</td>
+<td><code>admin/components/AdminShell.tsx</code>, <code>admin/app/login/page.tsx</code>, <code>admin/public/branding/</code></td>
+</tr>
+<tr>
+<td>Voice assistant replies and AI prompt (mention the shop name)</td>
+<td><code>admin/lib/sam/replies.ts</code>, <code>admin/lib/sam/intent-prompt.ts</code>, <code>mobile/src/sam/useSamSpeech.ts</code></td>
+</tr>
+<tr>
+<td>Package names</td>
+<td><code>mobile/package.json</code>, root <code>package.json</code></td>
+</tr>
+</tbody></table>
+<p>Then create the business row, the admin user and the admin profile (<code>supabase/documentation/admin-setup.md</code>), and set the logo and banner in <strong>Settings &gt; Branding</strong>.</p>
+<p>Moving these values into environment variables or the <code>businesses</code> table is listed as tech debt in section 14.</p>
+<p><strong>Admin panel (<code>admin/.env</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Required</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>NEXT_PUBLIC_SUPABASE_URL</code></td>
+<td>Yes</td>
+<td>Supabase project URL</td>
+</tr>
+<tr>
+<td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td>
+<td>Yes</td>
+<td>Supabase anon key</td>
+</tr>
+<tr>
+<td><code>OLLAMA_URL</code></td>
+<td>No</td>
+<td>Local AI server for voice ordering, for example <code>http://127.0.0.1:11434</code></td>
+</tr>
+<tr>
+<td><code>OLLAMA_MODEL</code></td>
+<td>No</td>
+<td>AI model name. Default <code>llama3.2</code>.</td>
+</tr>
+</tbody></table>
+<h2>5. Database</h2>
+<h3>5.1 Tables</h3>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>businesses</code></td>
+<td>One row per shop</td>
+<td><code>business_name</code>, <code>logo_url</code>, <code>banner_url</code>, <code>phone</code>, <code>email</code>, <code>address</code>, <code>description</code>, <code>communities_enabled</code>, <code>categories_enabled</code></td>
+</tr>
+<tr>
+<td><code>profiles</code></td>
+<td>One row per auth user</td>
+<td><code>id</code> (= <code>auth.users.id</code>), <code>role</code> (<code>customer</code> or <code>admin</code>), <code>business_id</code>, <code>name</code>, <code>mobile</code>, <code>email</code></td>
+</tr>
+<tr>
+<td><code>customers</code></td>
+<td>Shop&#39;s customer list (app and offline)</td>
+<td><code>name</code>, <code>mobile</code>, <code>mobile_key</code> (last 10 digits, unique per business), <code>source</code> (<code>app</code>, <code>whatsapp</code>, <code>walk_in</code>, <code>phone</code>, <code>other</code>), <code>notes</code>, <code>auth_user_id</code></td>
+</tr>
+<tr>
+<td><code>customer_addresses</code></td>
+<td>Address book, max 3 per customer</td>
+<td><code>user_id</code> or <code>customer_id</code>, <code>label</code> (<code>home</code>, <code>work</code>, <code>other</code>), <code>name</code>, <code>mobile</code>, <code>house</code>, <code>locality</code>, <code>address</code>, <code>pincode</code>, <code>city</code>, <code>instructions</code>, <code>is_default</code>, <code>community_id</code>, <code>community_name</code></td>
+</tr>
+<tr>
+<td><code>products</code></td>
+<td>Catalog</td>
+<td><code>name</code>, <code>description</code>, <code>ingredients</code>, <code>price</code>, <code>image_url</code>, <code>available</code> (false = Coming soon), <code>active</code> (false = hidden), <code>category_id</code></td>
+</tr>
+<tr>
+<td><code>product_categories</code></td>
+<td>Optional categories</td>
+<td><code>name</code> (unique per business), <code>image_url</code>, <code>active</code></td>
+</tr>
+<tr>
+<td><code>orders</code></td>
+<td>One row per order</td>
+<td>see 5.2</td>
+</tr>
+<tr>
+<td><code>order_items</code></td>
+<td>Lines of an order (snapshot)</td>
+<td><code>product_id</code>, <code>product_name</code>, <code>product_price</code>, <code>quantity</code>, <code>subtotal</code></td>
+</tr>
+<tr>
+<td><code>order_status_events</code></td>
+<td>Status history with times</td>
+<td><code>order_id</code>, <code>status</code>, <code>note</code>, <code>created_at</code></td>
+</tr>
+<tr>
+<td><code>order_counters</code></td>
+<td>Next order number per business</td>
+<td>used by <code>assign_order_number</code></td>
+</tr>
+<tr>
+<td><code>order_channels</code></td>
+<td>Allowed channel values with labels</td>
+<td><code>id</code>, <code>label</code></td>
+</tr>
+<tr>
+<td><code>api_keys</code></td>
+<td>Partner API keys</td>
+<td><code>key_prefix</code>, <code>key_hash</code> (SHA-256), <code>channel</code>, <code>scopes</code>, <code>active</code>, <code>revoked_at</code>, <code>last_used_at</code></td>
+</tr>
+<tr>
+<td><code>communities</code></td>
+<td>Optional address groups</td>
+<td><code>name</code>, <code>active</code></td>
+</tr>
+<tr>
+<td><code>delivery_runs</code>, <code>delivery_run_orders</code></td>
+<td>Planned delivery batches</td>
+<td><strong>Not used by either app yet</strong></td>
+</tr>
+<tr>
+<td><code>product_info_requests</code></td>
+<td>Questions the voice assistant could not answer</td>
+<td>for future product content</td>
+</tr>
+</tbody></table>
+<h3>5.2 The <code>orders</code> table</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Values and meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>order_number</code></td>
+<td>100001 to 999999, per business. Set by trigger.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>new</code> (shown as Placed), <code>confirmed</code>, <code>out_for_delivery</code>, <code>delivered</code>, <code>cancelled</code></td>
+</tr>
+<tr>
+<td><code>payment_method</code></td>
+<td><code>pending</code>, <code>cash</code>, <code>upi</code></td>
+</tr>
+<tr>
+<td><code>refund_status</code></td>
+<td><code>null</code>, <code>pending</code>, <code>refunded</code></td>
+</tr>
+<tr>
+<td><code>cancel_reason</code></td>
+<td>Text. Customer cancels always save &quot;Customer requested&quot; (set on the server).</td>
+</tr>
+<tr>
+<td><code>cancelled_by</code></td>
+<td><code>customer</code> when the customer cancelled, otherwise <code>null</code>. Cleared by trigger whenever the status is not <code>cancelled</code>. Used for the daily cancel limit.</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td><code>app</code>, <code>web</code>, <code>whatsapp</code>, <code>phone</code>, <code>walk_in</code> (Direct), <code>admin</code>, <code>api</code> (Partner API)</td>
+</tr>
+<tr>
+<td><code>external_id</code></td>
+<td>Partner&#39;s own order id. Unique per business and channel (idempotency).</td>
+</tr>
+<tr>
+<td><code>user_id</code>, <code>customer_id</code></td>
+<td>Auth user and <code>customers</code> row</td>
+</tr>
+<tr>
+<td><code>customer_address_id</code></td>
+<td>The saved address used. Drives the one-open-order rule.</td>
+</tr>
+<tr>
+<td><code>customer_name</code>, <code>mobile</code>, <code>delivery_address</code>, <code>pincode</code></td>
+<td>Snapshot at order time</td>
+</tr>
+<tr>
+<td><code>community_id</code>, <code>community_name</code></td>
+<td>Snapshot from the address (trigger)</td>
+</tr>
+<tr>
+<td><code>total_amount</code></td>
+<td>Sum of item subtotals</td>
+</tr>
+<tr>
+<td><code>placed_via</code></td>
+<td><code>app</code> or <code>voice</code></td>
+</tr>
+<tr>
+<td><code>update_count</code></td>
+<td>Number of customer modifications (max 5)</td>
+</tr>
+</tbody></table>
+<h3>5.3 Security (RLS)</h3>
+<p>Every table has RLS on. The pattern is:</p>
+<ul>
+<li><strong>Customer rules:</strong> <code>user_id = auth.uid()</code>. Customers can read their own profile, addresses, orders, order items and (since migration 34) their own order status events. They can insert orders for themselves, and items only into the order they placed in the last 15 minutes (still <code>new</code>, never modified). Later changes go through <code>customer_replace_order_items</code>.</li>
+<li><strong>Server-side prices (migration 36):</strong> the app&#39;s prices and totals are never trusted. Triggers re-price every customer item from <code>products</code> (must be available and active) and recompute <code>total_amount</code>. On a customer order insert, <code>payment_method</code>, <code>refund_status</code>, <code>channel</code>, <code>external_id</code>, <code>cancel_reason</code>, <code>update_count</code>, <code>created_at</code> and <code>customer_id</code> are set by the server, and <code>customer_address_id</code> must be one of the customer&#39;s own addresses.</li>
+<li><strong>Admin rules:</strong> <code>business_id = current_admin_business_id()</code>. Admins can read and change rows of their own business only.</li>
+<li><strong>Public shop data</strong> (products, categories, business details) is read through security-definer RPCs, so the shop works before sign-in:<ul>
+<li><code>get_available_products(p_business_id)</code>: active products</li>
+<li><code>get_shop_categories(p_business_id)</code>: active categories, when enabled</li>
+<li><code>get_business_public(p_business_id)</code>: name, logo, banner, description</li>
+</ul>
+</li>
+<li><strong>Profile protection:</strong> the <code>profiles_protect_privileges</code> trigger stops users from changing their own <code>role</code> or <code>business_id</code>, and keeps a customer&#39;s <code>mobile</code> equal to the phone verified at OTP sign-in.</li>
+<li><strong>Customer record:</strong> customers cannot read the <code>customers</code> table (it holds the shop&#39;s notes). <code>ensure_customer_profile</code> links the record by the verified phone from the login token, not by a number sent by the app.</li>
+<li><strong>Storage:</strong> buckets <code>product-images</code> and <code>business-logos</code> are public to read. Only admins can write. Uploads are limited to JPEG, PNG, GIF and WebP up to 5 MB.</li>
+<li><strong>Function access:</strong> Supabase lets <code>anon</code> run new functions by default, so internal functions are revoked from <code>anon</code> explicitly. <code>partner_auth</code> and <code>partner_order_payload</code> run only inside the other partner functions.</li>
+</ul>
+<p><strong>Helper functions:</strong> <code>current_admin_business_id()</code>, <code>current_customer_business_id()</code>, <code>is_admin()</code>.</p>
+<h3>5.4 Triggers</h3>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Table</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>*_set_updated_at</code></td>
+<td>most tables</td>
+<td>Keeps <code>updated_at</code> current</td>
+</tr>
+<tr>
+<td><code>profiles_protect_privileges</code></td>
+<td><code>profiles</code></td>
+<td>Blocks role and business changes by users; keeps the customer&#39;s account phone equal to the verified login phone</td>
+</tr>
+<tr>
+<td><code>orders_customer_guard</code></td>
+<td><code>orders</code></td>
+<td>On customer inserts, sets payment, refund, channel and bookkeeping fields on the server; checks the address belongs to the customer</td>
+</tr>
+<tr>
+<td><code>order_items_customer_guard</code></td>
+<td><code>order_items</code></td>
+<td>Re-prices customer items from <code>products</code> (available and active only)</td>
+</tr>
+<tr>
+<td><code>order_items_customer_totals</code></td>
+<td><code>order_items</code></td>
+<td>Recomputes the order total after a customer adds items</td>
+</tr>
+<tr>
+<td><code>customer_addresses_owner_guard</code></td>
+<td><code>customer_addresses</code></td>
+<td>Customers can link an address only to their own customer record</td>
+</tr>
+<tr>
+<td><code>orders_assign_order_number</code></td>
+<td><code>orders</code></td>
+<td>Sets the next 6-digit order number</td>
+</tr>
+<tr>
+<td><code>orders_log_status</code></td>
+<td><code>orders</code></td>
+<td>Writes <code>order_status_events</code> on insert (&quot;Order placed&quot;) and on each status change (&quot;Updated by admin&quot; or the cancel reason)</td>
+</tr>
+<tr>
+<td><code>orders_snapshot_community</code></td>
+<td><code>orders</code></td>
+<td>Copies community from the address</td>
+</tr>
+<tr>
+<td><code>customer_addresses_before_write</code></td>
+<td><code>customer_addresses</code></td>
+<td>Fills <code>business_id</code> and <code>customer_id</code>, enforces the 3-address limit</td>
+</tr>
+<tr>
+<td><code>customer_addresses_sync_default</code></td>
+<td><code>customer_addresses</code></td>
+<td>When one address becomes default, clears the others</td>
+</tr>
+<tr>
+<td><code>customer_addresses_protect_community</code></td>
+<td><code>customer_addresses</code></td>
+<td>Only admins can set or change the community. A new customer address copies the community only when all the customer&#39;s mapped addresses share one.</td>
+</tr>
+<tr>
+<td><code>products_category_same_business</code></td>
+<td><code>products</code></td>
+<td>Category must belong to the same business</td>
+</tr>
+<tr>
+<td><code>orders_reset_cancelled_by</code></td>
+<td><code>orders</code></td>
+<td>Clears <code>cancelled_by</code> when the status is not <code>cancelled</code></td>
+</tr>
+</tbody></table>
+<h3>5.5 Functions (RPC)</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Called by</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ensure_customer_profile</code></td>
+<td>Customer app after OTP</td>
+<td>Creates or updates the <code>profiles</code> row and the <code>customers</code> row (source <code>app</code>), using the verified phone from the login token</td>
+</tr>
+<tr>
+<td><code>get_available_products</code>, <code>get_shop_categories</code>, <code>get_business_public</code></td>
+<td>Customer app</td>
+<td>Public shop data</td>
+</tr>
+<tr>
+<td><code>find_open_customer_order</code></td>
+<td>Customer app</td>
+<td>Finds the open order for an address</td>
+</tr>
+<tr>
+<td><code>customer_cancel_order</code></td>
+<td>Customer app</td>
+<td>Cancels the customer&#39;s own order only while <code>new</code>, at most 3 customer cancellations in 24 hours (a per-customer lock stops parallel cancels from beating the limit). Ignores the reason sent by the app and saves &quot;Customer requested&quot;.</td>
+</tr>
+<tr>
+<td><code>customer_replace_order_items</code></td>
+<td>Customer app</td>
+<td>Replaces the items of an open order in one transaction. Checks owner, status, 1 to 15 lines, 1 to 10 each, the 5-modification limit, and that the address belongs to the customer. Optional <code>p_expected_items_revision</code> raises <code>ORDER_STALE</code> on conflict. Prices come from shared SQL with the admin path. Writes an <code>order_modifications</code> audit row, increments <code>items_revision</code> and <code>update_count</code>.</td>
+</tr>
+<tr>
+<td><code>admin_replace_order_items</code></td>
+<td>Admin panel</td>
+<td>Same open-order item rules as the customer replace RPC (status <code>new</code> or <code>confirmed</code>, server-side pricing). Optional revision check. Writes <code>order_modifications</code> with <code>actor_type = admin</code>. Increments <code>items_revision</code> only (does not touch customer <code>update_count</code>, payment, or refund fields).</td>
+</tr>
+<tr>
+<td><code>partner_auth</code>, <code>partner_shop</code>, <code>partner_products</code>, <code>partner_product</code>, <code>partner_place_order</code>, <code>partner_get_order</code>, <code>partner_list_orders</code>, <code>partner_order_payload</code></td>
+<td>Admin <code>/api/v1</code> routes</td>
+<td>Partner API (see section 9)</td>
+</tr>
+<tr>
+<td><code>ensure_order_channels</code></td>
+<td>Migrations</td>
+<td>Seeds channel values</td>
+</tr>
+</tbody></table>
+<h3>5.6 Migrations</h3>
+<p>Run every file in <code>supabase/migrations/</code> in name order, in the Supabase SQL editor. The last files end with <code>notify pgrst, &#39;reload schema&#39;;</code> so the API sees changes at once.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>File (date prefix removed)</th>
+<th>What it adds or changes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td><code>init</code></td>
+<td>Core tables, RLS, storage buckets, shop RPCs</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>ensure_customer_profile</code></td>
+<td>Profile creation after OTP sign-in</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>order_number</code></td>
+<td>6-digit order numbers per business</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>reload_order_number_api</code></td>
+<td>Schema reload for the API</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>order_number_idempotent</code></td>
+<td>Safe re-run of the order number setup</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>business_branding</code></td>
+<td><code>banner_url</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>order_channels_partner_api</code></td>
+<td>Channels, <code>external_id</code>, <code>api_keys</code>, partner functions</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>customer_addresses</code></td>
+<td>Address book with default address</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>order_payment_method</code></td>
+<td><code>payment_method</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>order_status_workflow</code></td>
+<td><code>cancel_reason</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>order_status_events</code></td>
+<td>Status history table and trigger, backfill</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>order_refund_status</code></td>
+<td><code>refund_status</code></td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>admin_customers</code></td>
+<td><code>customers</code> table, admin address management, <code>other</code> label</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>order_channels_sources</code></td>
+<td>More channels and customer sources</td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>communities</code></td>
+<td>Communities and (unused) delivery runs</td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>community_address_mapping</code></td>
+<td>Map addresses to communities</td>
+</tr>
+<tr>
+<td>17</td>
+<td><code>communities_enabled</code></td>
+<td>On or off switch</td>
+</tr>
+<tr>
+<td>18</td>
+<td><code>order_community_from_address</code></td>
+<td>Order community snapshot</td>
+</tr>
+<tr>
+<td>19</td>
+<td><code>product_categories</code></td>
+<td>Categories and <code>categories_enabled</code></td>
+</tr>
+<tr>
+<td>20</td>
+<td><code>product_category_same_business</code></td>
+<td>Business check on categories</td>
+</tr>
+<tr>
+<td>21</td>
+<td><code>shop_categories_rpc</code></td>
+<td><code>get_shop_categories</code></td>
+</tr>
+<tr>
+<td>22</td>
+<td><code>shop_categories_visible</code></td>
+<td>Only active categories</td>
+</tr>
+<tr>
+<td>23</td>
+<td><code>category_images</code></td>
+<td>Category <code>image_url</code></td>
+</tr>
+<tr>
+<td>24</td>
+<td><code>product_active</code></td>
+<td><code>products.active</code></td>
+</tr>
+<tr>
+<td>25</td>
+<td><code>sam_ingredients_feedback</code></td>
+<td><code>ingredients</code>, <code>product_info_requests</code></td>
+</tr>
+<tr>
+<td>26</td>
+<td><code>open_order_per_address</code></td>
+<td><code>customer_address_id</code>, unique open-order index, find, cancel and replace RPCs</td>
+</tr>
+<tr>
+<td>27</td>
+<td><code>replace_order_address</code></td>
+<td>Replace RPC can also change the address</td>
+</tr>
+<tr>
+<td>28</td>
+<td><code>orders_lookup_indexes</code></td>
+<td>Faster order lookups</td>
+</tr>
+<tr>
+<td>29</td>
+<td><code>remove_preparing_status</code></td>
+<td>Moves <code>preparing</code> to <code>confirmed</code>, adds <code>out_for_delivery</code></td>
+</tr>
+<tr>
+<td>30</td>
+<td><code>address_city</code></td>
+<td><code>customer_addresses.city</code></td>
+</tr>
+<tr>
+<td>31</td>
+<td><code>fix_address_community_trigger</code></td>
+<td>Fixes &quot;function max(uuid) does not exist&quot;</td>
+</tr>
+<tr>
+<td>32</td>
+<td><code>order_placed_via_update_limit</code></td>
+<td><code>placed_via</code>, <code>update_count</code>, 5-modification limit</td>
+</tr>
+<tr>
+<td>33</td>
+<td><code>order_update_limit_message</code></td>
+<td>Friendlier limit message</td>
+</tr>
+<tr>
+<td>34</td>
+<td><code>order_status_events_customer_read</code></td>
+<td>Customers can read their own status history</td>
+</tr>
+<tr>
+<td>35</td>
+<td><code>customer_cancel_rules</code></td>
+<td><code>cancelled_by</code>; customers cancel only while <code>new</code>, max 3 per 24 hours; status-aware modify limit message</td>
+</tr>
+<tr>
+<td>36</td>
+<td><code>security_hardening</code></td>
+<td>Server-side prices and totals, locked customer order fields, verified-phone customer linking, no customer read of <code>customers</code>, address and item rules, cancel lock, partner <code>active</code> check and input caps, function revokes, image bucket limits</td>
+</tr>
+<tr>
+<td>37</td>
+<td><code>order_modifications</code></td>
+<td><code>orders.items_revision</code>, <code>order_modifications</code> audit table, shared pricing helpers, <code>admin_replace_order_items</code>, customer replace extended with audit + optimistic locking, RLS for customers and admins to read history</td>
+</tr>
+</tbody></table>
+<p><strong>Note:</strong> <code>supabase/documentation/admin-setup.md</code> lists migrations only up to <code>admin_customers</code>. Use the folder as the source of truth.</p>
+<h2>6. Customer app internals</h2>
+<h3>6.1 Navigation (Expo Router)</h3>
+<pre><code>_layout.tsx  (providers: Network, ShopCatalog, Cart)
+  index.tsx              Entry: decides welcome, login or home
+  login.tsx, verify.tsx  Phone OTP
+  (shop)/  tabs
+     home                Visible tab
+     buy-again           Visible tab
+     orders              Visible tab (My orders)
+     cart                Hidden tab (stays mounted, opened by View cart)
+     account             Hidden tab
+     categories          Hidden (Phase 2)
+     reorder             Hidden, redirects
+  checkout.tsx           &quot;Saved addresses&quot;
+  address/form.tsx       Add or edit address
+  new-order.tsx          Choose address when an order is already open
+  confirmation.tsx       Order status after place, update or cancel
+  order/[id].tsx         Order details
+  product/[id].tsx       Product details (not linked in this phase)
+  sam.tsx                Voice ordering (hidden; redirects to Home)
+</code></pre>
+<h3>6.2 State and providers</h3>
+<table>
+<thead>
+<tr>
+<th>Provider or module</th>
+<th>File</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>NetworkProvider</code></td>
+<td><code>src/network/NetworkProvider.tsx</code></td>
+<td>Online or offline flag. <code>requireConnection</code> guards OTP and order actions.</td>
+</tr>
+<tr>
+<td><code>ShopCatalogContext</code></td>
+<td><code>src/catalog/ShopCatalogContext.tsx</code></td>
+<td>Products, categories and business, loaded from cache first and then refreshed</td>
+</tr>
+<tr>
+<td><code>CartContext</code></td>
+<td><code>src/cart/CartContext.tsx</code></td>
+<td>Cart items, edit mode, open order for the selected address</td>
+</tr>
+<tr>
+<td>Address book</td>
+<td><code>src/cart/address-book.ts</code></td>
+<td>Saved addresses and the selected one (shared store with subscribe)</td>
+</tr>
+</tbody></table>
+<h3>6.3 Saved data on the phone (AsyncStorage)</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Supabase session</td>
+<td>Managed by supabase-js</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.cart.v1</code></td>
+<td>Cart items</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.cart.edit.v1</code></td>
+<td>Edit mode: <code>{ orderId, fingerprint, items }</code> (original items)</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.delivery-draft</code></td>
+<td>Delivery details draft</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.entered-shop</code></td>
+<td>Whether the customer has passed the welcome screen</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.catalog.products.v4</code></td>
+<td>Product cache</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.catalog.business.v2</code></td>
+<td>Business cache</td>
+</tr>
+<tr>
+<td><code>&lt;app&gt;.catalog.categories.v3</code></td>
+<td>Category cache</td>
+</tr>
+</tbody></table>
+<p><code>&lt;app&gt;</code> is the app&#39;s short name prefix, set in <code>src/cart/cart-storage.ts</code>, <code>src/cart/delivery-draft.ts</code>, <code>src/nav/shop-entry.ts</code> and <code>src/services/catalog-cache.ts</code>. When changing a cached data shape, increase the version number in the key.</p>
+<h3>6.4 Cart and edit mode</h3>
+<p><code>CartContext</code> is the most complex module. Main fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>items</code></td>
+<td>Current cart lines</td>
+</tr>
+<tr>
+<td><code>editingOrderId</code></td>
+<td>Set while modifying an order</td>
+</tr>
+<tr>
+<td><code>editingItemsRevision</code></td>
+<td><code>items_revision</code> captured when modify mode starts; sent as <code>p_expected_items_revision</code> on update</td>
+</tr>
+<tr>
+<td><code>originalItems</code></td>
+<td>Items as last saved on the server (for Discard and &quot;Was N&quot; tags)</td>
+</tr>
+<tr>
+<td><code>savedFingerprint</code></td>
+<td>Fingerprint of <code>originalItems</code>, to detect changes</td>
+</tr>
+<tr>
+<td><code>openOrder</code></td>
+<td>Open order for the selected address, if any</td>
+</tr>
+<tr>
+<td><code>openOrderReady</code></td>
+<td><code>true</code> once the open-order lookup for the current address has finished</td>
+</tr>
+<tr>
+<td><code>rowChange(productId)</code></td>
+<td>Returns <code>{kind:&#39;new&#39;}</code>, <code>{kind:&#39;changed&#39;, from}</code> or <code>null</code></td>
+</tr>
+<tr>
+<td><code>canRevertEdit</code>, <code>revertEditChanges()</code></td>
+<td>Discard support</td>
+</tr>
+</tbody></table>
+<p><strong>Flow to modify an order</strong> (<code>src/cart/modify-flow.ts</code>, <code>goModifyOrder</code>):</p>
+<pre><code>selectAddressForOrder(order)        switch to the order&#39;s address
+  -&gt; beginEditOrder(id, items, order)  load items, set openOrder
+  -&gt; navigate(&#39;/cart&#39;, { focus: &#39;add&#39; })  cart scrolls to &quot;Add more items&quot;
+  -&gt; Update order -&gt; customer_replace_order_items RPC (optional revision token)
+  -&gt; navigate to confirmation, then clearCart()
+</code></pre>
+<p><strong>Shop-side item edits:</strong> admins change lines on the order detail page while the order is still Placed or Confirmed (<code>admin_replace_order_items</code>). Each successful replace appends a row to <code>order_modifications</code>. The customer app loads the latest unacknowledged admin change and shows a <strong>Shop modified</strong> tag until they tap <strong>View changes</strong> (ack stored in <code>AsyncStorage</code> per order and modification id).</p>
+<p><strong>Order status push:</strong> when status becomes <strong>Confirmed</strong>, <strong>Out for delivery</strong>, or <strong>Delivered</strong>, the Edge Function <code>send-order-status-push</code> sends Expo push to tokens in <code>push_tokens</code>. The admin server invokes it after <code>updateOrderStatus</code> when <code>SUPABASE_SERVICE_ROLE_KEY</code> is set. Setup: <code>supabase/documentation/push-notifications.md</code>.</p>
+<p><strong>Rules in code:</strong></p>
+<ul>
+<li>Edit state and cart are saved together, and cleared together on restore, so the app never reopens a plain cart behind an open order.</li>
+<li>If the saved edit has no changes at restart, it is dropped.</li>
+<li>If the order is no longer open (shop moved it on, or cancelled it), changes are discarded with an alert.</li>
+<li>An 8-second lock stops double taps on Update order.</li>
+<li>The cart screen redirects to <code>/new-order?next=cart</code> when the address has an open order and the cart is not in edit mode. It waits for <code>openOrderReady</code> and shows a spinner, so there is no flash.</li>
+</ul>
+<p><strong>Limits:</strong> <code>src/cart/limits.ts</code>: 15 lines, 10 per line. The replace RPC checks them again on the server.</p>
+<h3>6.5 Placing an order (<code>src/services/orders.ts</code>)</h3>
+<ol>
+<li>Check: signed in, business set, cart within limits.</li>
+<li>Insert into <code>orders</code> with <code>status = &#39;new&#39;</code>, the address snapshot, <code>customer_address_id</code>, <code>community_id</code> and <code>total_amount</code> calculated in the app.</li>
+<li>Insert the <code>order_items</code>.</li>
+<li>A unique-index error (<code>23505</code>) means the address already has an open order. The app shows the New order screen.</li>
+<li>If the network drops after insert, the app finds the just-placed order (<code>findJustPlacedOrder</code>) instead of placing a second one.</li>
+</ol>
+<p>Timeouts: 15 seconds for placing, 4 seconds for lookups. All Supabase requests abort after 20 seconds (<code>src/services/supabase.ts</code>).</p>
+<h3>6.6 Addresses</h3>
+<ul>
+<li><code>src/services/addresses.ts</code> reads and writes <code>customer_addresses</code>. <code>setRemoteDefaultAddress(id)</code> sets one default; the trigger clears the rest.</li>
+<li><code>src/cart/address-book.ts</code> switches the address at once (optimistic update), saves in the background and reloads if the save fails.</li>
+<li>City and state come from <code>api.postalpincode.in</code> by pincode.</li>
+</ul>
+<h3>6.7 Order tracking</h3>
+<p><code>src/components/OrderProgress.tsx</code> draws Placed, Confirmed, Out for delivery and Delivered, with the time of each step from <code>order_status_events</code> (<code>getMyOrderById</code> loads them). If the events cannot be read (migration 34 not run), only the placed time shows.</p>
+<h3>6.8 App configuration</h3>
+<ul>
+<li><code>app.json</code>: app name, slug, URL scheme, Android package (<code>com.&lt;business&gt;.app</code>) and <code>versionCode</code>.</li>
+<li><code>app.config.js</code>: when <code>EXPO_PUBLIC_VOICE_ORDERING</code> is not <code>true</code>, removes the speech plugin and blocks the <code>RECORD_AUDIO</code> permission.</li>
+<li><code>expo-location</code> and <code>react-native-maps</code> are installed but not used (map entry was dropped).</li>
+</ul>
+<h2>7. Admin panel internals</h2>
+<h3>7.1 Request flow</h3>
+<pre><code>Browser -&gt; proxy.ts           refreshes the Supabase session cookie;
+                              redirects to /login if not signed in
+        -&gt; (admin)/layout.tsx  getAdminSession(): role = admin and business_id required,
+                              else /unauthorized
+        -&gt; page (server component) loads data with services/*.ts
+        -&gt; client component calls a server action (services/*-actions.ts)
+              each action checks the admin session again, then writes with RLS
+</code></pre>
+<ul>
+<li><code>proxy.ts</code> skips <code>/api/*</code>. Partner API and voice routes do their own checks.</li>
+<li><code>getAdminSession</code> (<code>services/supabase/admin-session.ts</code>) is cached per request.</li>
+<li>Server action body limit is 6 MB (<code>next.config.ts</code>), for image uploads.</li>
+<li>All &quot;today&quot; and date filters use IST (<code>utils/ist-dates.ts</code>).</li>
+</ul>
+<h3>7.2 Main modules</h3>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Pages</th>
+<th>Components</th>
+<th>Services</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dashboard</td>
+<td><code>(admin)/page.tsx</code></td>
+<td></td>
+<td><code>orders.ts</code>, <code>report-metrics.ts</code></td>
+</tr>
+<tr>
+<td>Orders</td>
+<td><code>orders/</code>, <code>orders/[id]</code>, <code>orders/new</code>, <code>customers/[id]/orders/new</code></td>
+<td><code>OrdersBoard</code>, <code>OrderWorkflow</code>, <code>OrderStepper</code>, <code>OrderPaymentForm</code>, <code>AdminOrderForm</code></td>
+<td><code>orders.ts</code>, <code>order-actions.ts</code></td>
+</tr>
+<tr>
+<td>Products</td>
+<td><code>products/</code>, <code>products/new</code>, <code>products/[id]</code></td>
+<td><code>ProductsBoard</code>, <code>ProductForm</code>, <code>ProductImport</code>, <code>ProductCatalogMenu</code>, <code>AvailabilityToggle</code></td>
+<td><code>products.ts</code>, <code>product-actions.ts</code>, <code>storage.ts</code></td>
+</tr>
+<tr>
+<td>Categories</td>
+<td><code>products/categories</code></td>
+<td><code>CategoriesBoard</code>, <code>CategoryForm</code></td>
+<td><code>categories.ts</code>, <code>category-actions.ts</code></td>
+</tr>
+<tr>
+<td>Customers</td>
+<td><code>customers/...</code></td>
+<td><code>CustomersBoard</code>, <code>CustomerForm</code>, <code>CustomerAddressBook</code></td>
+<td><code>customers.ts</code>, <code>customer-actions.ts</code></td>
+</tr>
+<tr>
+<td>Communities</td>
+<td><code>customers/communities/...</code></td>
+<td><code>CommunitiesBoard</code>, <code>CommunityCustomerManager</code></td>
+<td><code>communities.ts</code>, <code>community-actions.ts</code></td>
+</tr>
+<tr>
+<td>Reports</td>
+<td><code>reports/</code></td>
+<td><code>ReportsFilters</code></td>
+<td><code>reports.ts</code>, <code>report-metrics.ts</code></td>
+</tr>
+<tr>
+<td>Settings</td>
+<td><code>settings/business-info</code>, <code>branding</code>, <code>api</code></td>
+<td><code>BusinessInfoForm</code>, <code>BrandingForm</code>, <code>ApiKeysForm</code></td>
+<td><code>business.ts</code>, <code>api-key-actions.ts</code></td>
+</tr>
+</tbody></table>
+<h3>7.3 Feature switches in code</h3>
+<table>
+<thead>
+<tr>
+<th>Switch</th>
+<th>File</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SHOW_LATER_PHASE_MENUS = false</code></td>
+<td><code>components/AdminShell.tsx</code></td>
+<td>Hides Settings from the menu</td>
+</tr>
+<tr>
+<td><code>LIST_QUICK_ACTIONS = false</code></td>
+<td><code>components/OrdersBoard.tsx</code></td>
+<td>Hides next-step buttons on the orders list</td>
+</tr>
+</tbody></table>
+<h3>7.4 Order actions (<code>services/order-actions.ts</code>)</h3>
+<ul>
+<li><strong>Status change:</strong> sets the new status. Cancelling a paid order sets <code>refund_status = &#39;pending&#39;</code>. The trigger writes the status event.</li>
+<li><strong>Payment:</strong> <code>cash</code>, <code>upi</code> or <code>pending</code> (Not yet). Refund: <code>pending</code> to <code>refunded</code>.</li>
+<li><strong>Correction mode</strong> (&quot;Fix a status mistake&quot;) sets any status directly.</li>
+<li><strong>Admin-created orders</strong> (<code>services/customer-actions.ts</code>) use channel <code>phone</code> and prices read from <code>products</code> on the server.</li>
+<li><strong>Community mapping</strong> (<code>services/community-actions.ts</code>) also updates the customer&#39;s existing orders for the same pincode.</li>
+</ul>
+<h2>8. Order lifecycle</h2>
+<pre><code>                customer or admin cancels (reason required for admin)
+        +-------------------+-------------------+
+        |                   |                   |
+        v                   |                   |
+  +-----------+       +-----------+       +------------------+       +-----------+
+  |    new    | ----&gt; | confirmed | ----&gt; | out_for_delivery | ----&gt; | delivered |
+  | (Placed)  |       |           |       |                  |       |           |
+  +-----------+       +-----------+       +------------------+       +-----------+
+        |                   |                   |
+        +---------+---------+                   +--&gt; cancelled (admin only)
+                  |
+     customer can modify (max 5) while new or confirmed
+     customer can cancel only while new (max 3 per 24 hours)
+     only one open order per saved address
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Customer can modify</th>
+<th>Customer can cancel</th>
+<th>Admin next action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>new</code></td>
+<td>Yes</td>
+<td>Yes (max 3 per 24 hours)</td>
+<td>Confirm order</td>
+</tr>
+<tr>
+<td><code>confirmed</code></td>
+<td>Yes</td>
+<td>No (call the shop)</td>
+<td>Mark out for delivery</td>
+</tr>
+<tr>
+<td><code>out_for_delivery</code></td>
+<td>No</td>
+<td>No</td>
+<td>Mark as delivered (asks for payment)</td>
+</tr>
+<tr>
+<td><code>delivered</code></td>
+<td>No</td>
+<td>No</td>
+<td>Record payment if outstanding</td>
+</tr>
+<tr>
+<td><code>cancelled</code></td>
+<td>No</td>
+<td>No</td>
+<td>Mark refunded if refund is pending</td>
+</tr>
+</tbody></table>
+<p><strong>Payment states shown in the apps:</strong></p>
+<pre><code>Not paid:          Awaiting payment --(delivered)--&gt; Outstanding --&gt; Paid (Cash/UPI)
+Paid then cancel:  Paid --&gt; Refund pending --&gt; Refunded
+Never paid, cancel: Not Applicable
+</code></pre>
+<p><strong>Database guarantees:</strong></p>
+<ul>
+<li><code>orders_one_open_per_address</code>: unique index on <code>customer_address_id</code> where the status is open.</li>
+<li><code>customer_replace_order_items</code>: only the owner, only open orders, at most 5 times.</li>
+<li><code>customer_cancel_order</code>: only the owner, only while <code>new</code>, at most 3 customer cancellations in 24 hours (counted from <code>order_status_events</code> where <code>cancelled_by = &#39;customer&#39;</code>).</li>
+<li>Admin actions use the admin RLS policies, not these functions, so the customer limits never apply to the admin panel.</li>
+<li>In the app, <code>canCancelOrder(status)</code> in <code>mobile/src/types/order.ts</code> hides Cancel for confirmed orders; the database enforces the same rule.</li>
+<li><code>orders_log_status</code>: every status change gets a time-stamped event.</li>
+</ul>
+<h2>9. Partner API v1</h2>
+<p>Base path: <code>https://&lt;admin-host&gt;/api/v1</code>. Full OpenAPI document: <code>GET /api/v1/openapi</code>.</p>
+<p><strong>Authentication:</strong> send the key as <code>Authorization: Bearer qk_live_...</code> or <code>X-Api-Key: qk_live_...</code>. Keys are created in <strong>Settings &gt; API</strong>. Only the SHA-256 hash is stored. Each key has a channel (<code>api</code> or <code>whatsapp</code>) and the scopes <code>catalog.read</code>, <code>orders.read</code>, <code>orders.write</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/v1</code></td>
+<td>API info</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/openapi</code></td>
+<td>OpenAPI document</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/shop</code></td>
+<td>Business details</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/products</code></td>
+<td>Available products</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/products/{id}</code></td>
+<td>One product</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/orders</code></td>
+<td>Orders placed with this key&#39;s channel</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/orders</code></td>
+<td>Place an order</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/orders/{id}</code></td>
+<td>One order</td>
+</tr>
+</tbody></table>
+<p><strong>Place order body:</strong></p>
+<pre><code class="language-json">{
+  &quot;customer&quot;: { &quot;name&quot;: &quot;Priya&quot;, &quot;mobile&quot;: &quot;9876543210&quot;,
+                &quot;address&quot;: &quot;12, Anna Nagar, Chennai&quot;, &quot;pincode&quot;: &quot;600040&quot; },
+  &quot;items&quot;: [ { &quot;product_id&quot;: &quot;&lt;uuid&gt;&quot;, &quot;quantity&quot;: 2 } ],
+  &quot;external_id&quot;: &quot;web-1001&quot;
+}
+</code></pre>
+<ul>
+<li>Prices come from the database, not from the request.</li>
+<li><code>external_id</code> makes the call idempotent: sending the same id again returns the same order.</li>
+<li>The route (<code>lib/partner-api.ts</code>) uses the anon key and calls <code>partner_*</code> security-definer functions, which check the key hash.</li>
+<li>CORS is open (<code>*</code>), so browsers can call it. There is no rate limit yet.</li>
+</ul>
+<h2>10. Voice ordering</h2>
+<p><strong>Status: hidden in this phase</strong> (see section 14).</p>
+<pre><code>Customer app (sam.tsx, src/sam/)
+  speech-to-text on the phone
+     |  POST { transcript, businessId, draft }
+     v
+Admin /api/sam/turn  -&gt; lib/sam/process-turn.ts
+     |  normalise input (English, Tamil, mixed)
+     |  intent: Ollama AI if OLLAMA_URL is set, else rule-based fallback parser
+     |  match products, update the draft cart, build the reply
+     v
+Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
+</code></pre>
+<ul>
+<li>Main files: <code>admin/lib/sam/*</code> (parser, intents, matching, replies), <code>mobile/src/sam/*</code> (client, speech, session).</li>
+<li>Languages: <code>en</code>, <code>ta</code>, <code>mix</code>.</li>
+<li>Unknown product questions are saved in <code>product_info_requests</code>.</li>
+<li>Test the parser with <code>cd admin &amp;&amp; npm run sam:eval</code>.</li>
+<li>Orders placed by voice get <code>placed_via = &#39;voice&#39;</code>.</li>
+</ul>
+<h2>11. Build and deploy</h2>
+<h3>11.1 Customer app (Android, EAS)</h3>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Output</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>development</code></td>
+<td>APK with dev client</td>
+<td>Local development</td>
+</tr>
+<tr>
+<td><code>preview</code></td>
+<td>APK</td>
+<td>Testing and current distribution</td>
+</tr>
+<tr>
+<td><code>production</code></td>
+<td>App bundle (AAB)</td>
+<td>Google Play</td>
+</tr>
+</tbody></table>
+<p>Steps:</p>
+<ol>
+<li>Increase <code>android.versionCode</code> in <code>mobile/app.json</code>.</li>
+<li>Make sure the EAS <code>preview</code> environment has the three required <code>EXPO_PUBLIC_*</code> values. Leave <code>EXPO_PUBLIC_VOICE_ORDERING</code> unset.</li>
+<li>From <code>mobile/</code>: <code>npx eas-cli build -p android --profile preview</code>.</li>
+</ol>
+<h3>11.2 Admin panel</h3>
+<p><strong>Hosting is to be decided.</strong> There is no hosting configuration in the repo yet. Any Node.js host that supports Next.js 16 works (for example Vercel). Requirements:</p>
+<ul>
+<li>Set <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.</li>
+<li>Use HTTPS (session cookies are marked secure behind HTTPS).</li>
+<li>Fix the known type errors first, because <code>next build</code> may fail on them (section 14).</li>
+<li>The CSV import reads image files from the server&#39;s disk. On a cloud host this works only for files on that host.</li>
+</ul>
+<h3>11.3 Database changes</h3>
+<ol>
+<li>Add a new file in <code>supabase/migrations/</code> named <code>YYYYMMDDHHMMSS_description.sql</code>.</li>
+<li>Make it safe to run twice (<code>if not exists</code>, <code>create or replace</code>).</li>
+<li>End with <code>notify pgrst, &#39;reload schema&#39;;</code> when it changes functions or columns.</li>
+<li>Run it in the Supabase SQL editor. Add it to the go-live list in <code>docs/pending-and-future-scope.md</code> until it has run in production.</li>
+</ol>
+<h2>12. Quality checks</h2>
+<p>There are no automated tests yet. Before each change, run:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Customer app types</td>
+<td><code>cd mobile &amp;&amp; npx tsc --noEmit</code></td>
+</tr>
+<tr>
+<td>Customer app lint</td>
+<td><code>cd mobile &amp;&amp; npm run lint</code></td>
+</tr>
+<tr>
+<td>Admin types</td>
+<td><code>cd admin &amp;&amp; npx tsc --noEmit</code></td>
+</tr>
+<tr>
+<td>Admin lint</td>
+<td><code>cd admin &amp;&amp; npx eslint .</code></td>
+</tr>
+<tr>
+<td>Admin build</td>
+<td><code>cd admin &amp;&amp; npm run build</code></td>
+</tr>
+<tr>
+<td>Voice parser</td>
+<td><code>cd admin &amp;&amp; npm run sam:eval</code></td>
+</tr>
+</tbody></table>
+<p><strong>Known existing warnings:</strong> three admin type errors (<code>services/reports.ts</code>, <code>services/storage.ts</code>) and some <code>react-hooks/set-state-in-effect</code> lint errors (mobile <code>CartContext</code>, <code>address/form</code>, <code>sam.tsx</code>, <code>ShopCatalogContext</code>, <code>AddressPickerSheet</code>; admin <code>OrdersBoard</code>).</p>
+<p><strong>Manual test list for orders:</strong> place, modify (add, change, remove, Discard, Exit), the 5-modification limit, cancel, two addresses with two open orders, admin status steps with times, payment and refund, offline banner, app restart while modifying.</p>
+<h2>13. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;function max(uuid) does not exist&quot; when adding an address</td>
+<td>Migration 31 not run</td>
+<td>Run <code>fix_address_community_trigger</code></td>
+</tr>
+<tr>
+<td>Saved addresses fail to load or save</td>
+<td>Migration 30 not run (<code>city</code> missing)</td>
+<td>Run <code>address_city</code></td>
+</tr>
+<tr>
+<td>App shows only the Placed time</td>
+<td>Migration 34 not run</td>
+<td>Run <code>order_status_events_customer_read</code></td>
+</tr>
+<tr>
+<td>&quot;Could not find the function ...&quot; from the API</td>
+<td>Schema cache is old</td>
+<td>Run <code>notify pgrst, &#39;reload schema&#39;;</code></td>
+</tr>
+<tr>
+<td>OTP SMS not received</td>
+<td>Twilio setup, DLT template or sender id</td>
+<td>Check <code>supabase/documentation/phone-otp.md</code>. Use the test number for development.</td>
+</tr>
+<tr>
+<td>&quot;Wait about a minute, then request a new OTP.&quot;</td>
+<td>Supabase OTP rate limit</td>
+<td>Wait, or use the test number</td>
+</tr>
+<tr>
+<td>Admin shows &quot;Not authorized&quot;</td>
+<td>Profile is not <code>role = &#39;admin&#39;</code> or has no <code>business_id</code></td>
+<td>Fix the profile row (see <code>admin-setup.md</code>)</td>
+</tr>
+<tr>
+<td>Admin shows mock data</td>
+<td>Supabase variables missing in <code>admin/.env</code></td>
+<td>Set them and restart</td>
+</tr>
+<tr>
+<td>App shows no products</td>
+<td>Wrong <code>EXPO_PUBLIC_BUSINESS_ID</code>, or no active products</td>
+<td>Check the id and product flags</td>
+</tr>
+<tr>
+<td>Voice says it cannot connect</td>
+<td><code>EXPO_PUBLIC_SAM_API_URL</code> points to a local IP</td>
+<td>Expected in this phase</td>
+</tr>
+<tr>
+<td>&quot;Modify limit reached&quot;</td>
+<td><code>update_count</code> reached 5</td>
+<td>Business rule. Customer can still cancel if the order is still <code>new</code>.</td>
+</tr>
+<tr>
+<td>&quot;Cancel limit reached for today&quot;</td>
+<td>Customer cancelled 3 orders in 24 hours</td>
+<td>Business rule. The shop can cancel from the admin panel. To reset it for testing or support, run <code>supabase/scripts/reset-customer-cancel-limit.sql</code>.</td>
+</tr>
+<tr>
+<td>&quot;This order is confirmed, so it can no longer be cancelled&quot;</td>
+<td>Customers cancel only while <code>new</code></td>
+<td>Business rule. Customer can modify, or the shop can cancel.</td>
+</tr>
+<tr>
+<td>Changes in <code>.env</code> have no effect in the app</td>
+<td>Expo caches env values</td>
+<td>Restart with <code>npx expo start -c</code></td>
+</tr>
+</tbody></table>
+<h2>14. Tech debt, switched-off features and dropped items</h2>
+<p>The live list, including future ideas, is <code>docs/pending-and-future-scope.md</code>. Update that file when anything changes. This section lists only what exists in the code today.</p>
+<h3>14.1 Must do before go-live</h3>
+<ul>
+<li>Run migrations 27 to 35 in production (listed in the pending file).</li>
+<li>Build a new APK with the latest app changes.</li>
+<li>Decide and set up admin hosting.</li>
+</ul>
+<h3>14.2 Tech debt and risks</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Risk</th>
+<th>Suggested fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Customer order prices come from the app.</strong> Placing an order inserts <code>total_amount</code> and item prices sent by the app. <code>customer_replace_order_items</code> also trusts the prices in <code>p_items</code>.</td>
+<td>A modified client could place orders at wrong prices. Low risk for a small shop that checks orders, but real.</td>
+<td>Move placing into a security-definer RPC that reads prices from <code>products</code>, and do the same in the replace RPC.</td>
+</tr>
+<tr>
+<td>Order and items are inserted in two calls, not one transaction</td>
+<td>An order without items if the second call fails (the app retries and recovers, but not atomically)</td>
+<td>Same RPC as above</td>
+</tr>
+<tr>
+<td>Old SQL functions still list <code>preparing</code> and do not list <code>out_for_delivery</code></td>
+<td>Harmless after migration 29, but confusing</td>
+<td>Clean up in a new migration</td>
+</tr>
+<tr>
+<td><code>customer_addresses_one_community</code> index is not created by any migration</td>
+<td>Schema drift between environments</td>
+<td>Add a migration or remove references</td>
+</tr>
+<tr>
+<td>Partner functions check <code>available</code> but not <code>active</code></td>
+<td>Hidden products could be ordered by a partner</td>
+<td>Add <code>active = true</code> checks</td>
+</tr>
+<tr>
+<td>No Partner API rate limit; CORS open</td>
+<td>Misuse with a leaked key</td>
+<td>Add rate limits; restrict CORS</td>
+</tr>
+<tr>
+<td>Admin type errors in <code>reports.ts</code> and <code>storage.ts</code></td>
+<td><code>next build</code> may fail</td>
+<td>Fix before hosting</td>
+</tr>
+<tr>
+<td>Lint errors (<code>set-state-in-effect</code>)</td>
+<td>Extra renders</td>
+<td>Refactor when touching those files</td>
+</tr>
+<tr>
+<td>No automated tests</td>
+<td>Regressions</td>
+<td>Start with order-flow tests on the RPCs</td>
+</tr>
+<tr>
+<td><code>OrderTimeline.tsx</code> unused; <code>admin/README.md</code> is boilerplate</td>
+<td>Noise</td>
+<td>Remove or rewrite</td>
+</tr>
+<tr>
+<td><code>expo-location</code>, <code>react-native-maps</code> unused</td>
+<td>Bigger APK</td>
+<td>Remove</td>
+</tr>
+<tr>
+<td><code>EXPO_PUBLIC_VOICE_ORDERING</code> missing from <code>mobile/.env.example</code></td>
+<td>Setup confusion</td>
+<td>Add it with a comment</td>
+</tr>
+<tr>
+<td><code>admin-setup.md</code> migration list is out of date</td>
+<td>Setup confusion</td>
+<td>Point it to the migrations folder</td>
+</tr>
+<tr>
+<td>Development timing logs in <code>mobile/src/services/supabase.ts</code></td>
+<td>Only in dev builds</td>
+<td>Remove when performance is settled</td>
+</tr>
+<tr>
+<td><code>delivery_runs</code> tables unused</td>
+<td>Dead schema</td>
+<td>Build the feature or drop the tables</td>
+</tr>
+<tr>
+<td>Reports read up to 3,000 orders in the server</td>
+<td>Slow for large ranges</td>
+<td>Move totals into SQL</td>
+</tr>
+<tr>
+<td>Shop name and logo fixed in code in a few places (section 4.4)</td>
+<td>Extra work to set up a new business</td>
+<td>Read them from environment variables or the <code>businesses</code> table</td>
+</tr>
+</tbody></table>
+<h3>14.3 Switched off in the code</h3>
+<ul>
+<li>Voice ordering: needs a publicly hosted voice server and <code>EXPO_PUBLIC_VOICE_ORDERING=true</code>.</li>
+<li>Product detail page: pass <code>onPress</code> to <code>ProductCard</code> in Home and Buy again.</li>
+<li>Quick status actions on the orders list: <code>LIST_QUICK_ACTIONS = true</code>.</li>
+<li>Settings in the admin menu: <code>SHOW_LATER_PHASE_MENUS = true</code>.</li>
+<li>Decision needed: allow a new order to an address whose order is out for delivery?</li>
+</ul>
+<h3>14.4 Dropped</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>preparing</code> status</td>
+<td>No value. Migrated to <code>confirmed</code>.</td>
+</tr>
+<tr>
+<td>Wake word (&quot;Hey ...&quot;)</td>
+<td>Always-on listening: battery, data, privacy, Android 13+ only. If it returns, use an on-device engine such as Picovoice Porcupine.</td>
+</tr>
+<tr>
+<td>Map-based address entry</td>
+<td>Unreliable maps and search. Replaced by typed address with pincode lookup.</td>
+</tr>
+<tr>
+<td>Call and WhatsApp items in the order menu</td>
+<td>Simplified. If they return, build the WhatsApp link from the last 10 digits plus <code>91</code>.</td>
+</tr>
+</tbody></table>
+</body>
+</html>

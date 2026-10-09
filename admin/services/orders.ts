@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Order, OrderItem, OrderStatusEvent, OrderWithItems } from '@/types/order';
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, community_id, community_name, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, community_id, community_name, items_revision, created_at, updated_at';
 
 type MappedAddress = {
   community_id: string;

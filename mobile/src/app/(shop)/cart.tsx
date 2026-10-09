@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -27,12 +26,13 @@ import {
   savedAddressLine,
 } from '@/components/AddressPickerSheet';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
+import { ProductImage } from '@/components/ProductImage';
 import { PlaceOrderConfirmSheet } from '@/components/PlaceOrderConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { checkOrderEditable } from '@/services/orders';
+import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
@@ -51,6 +51,9 @@ export default function CartScreen() {
     remove,
     clearCart,
     editingOrderId,
+    editingItemsRevision,
+    syncEditingItemsRevision,
+    refreshOpenOrder,
     beginEditOrder,
     hasOrderChanges,
     openOrder,
@@ -95,7 +98,8 @@ export default function CartScreen() {
   }, [focus, router, scrollToAddMore]);
 
   const loadAddress = useCallback(async () => {
-    await loadAddressBook();
+    setSelected(getSelectedAddress());
+    await loadAddressBook().catch(() => undefined);
     setSelected(getSelectedAddress());
   }, []);
 
@@ -154,9 +158,13 @@ export default function CartScreen() {
   useFocusEffect(
     useCallback(() => {
       discarding.current = false;
-      if (editingOrderId) {
-        discardIfClosed(editingOrderId).catch(() => undefined);
+      if (!editingOrderId) {
+        return;
       }
+      const timer = setTimeout(() => {
+        discardIfClosed(editingOrderId).catch(() => undefined);
+      }, 500);
+      return () => clearTimeout(timer);
     }, [discardIfClosed, editingOrderId]),
   );
 
@@ -167,7 +175,11 @@ export default function CartScreen() {
   }, []);
 
   if (items.length === 0) {
-    return <View style={styles.screen} />;
+    return (
+      <View style={[styles.screen, styles.blocked]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   if (blockedByOpenOrder) {
@@ -267,7 +279,13 @@ export default function CartScreen() {
     }
     setSubmitting(true);
     try {
-      const result = await submitShopOrder(items, selected, updateId);
+      const result = await submitShopOrder(
+        items,
+        selected,
+        updateId,
+        'app',
+        updateId ? editingItemsRevision : undefined,
+      );
       if (!result.ok) {
         if (result.reason === 'locked' && updateId) {
           const check = await checkOrderEditable(updateId);
@@ -301,11 +319,24 @@ export default function CartScreen() {
             {
               text: 'Modify order',
               onPress: () => {
-                setTimeout(() => goModifyOrder(result.openOrder!, beginEditOrder), 200);
+                setTimeout(
+                  () => goModifyOrder(result.openOrder!, beginEditOrder, { skipConfirm: true }),
+                  200,
+                );
               },
             },
           ]);
           return;
+        }
+        if (
+          updateId &&
+          /updated by the shop|ORDER_STALE/i.test(result.message)
+        ) {
+          refreshOpenOrder();
+          const fresh = await getMyOrderById(updateId);
+          if (fresh?.items_revision != null) {
+            syncEditingItemsRevision(fresh.items_revision);
+          }
         }
         setError(result.message);
         return;
@@ -415,10 +446,12 @@ export default function CartScreen() {
                 ]}
                 accessibilityHint="Swipe left to delete"
               >
-                <Image
-                  source={item.product.image_url ? { uri: item.product.image_url } : undefined}
+                <ProductImage
+                  uri={item.product.image_url}
                   style={styles.thumb}
-                  contentFit="cover"
+                  compact
+                  recyclingKey={item.product.id}
+                  accessibilityLabel={item.product.name}
                 />
                 <View style={styles.detailsLeft}>
                   <Text style={styles.name} numberOfLines={2}>
@@ -660,7 +693,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: radius.sm,
-    backgroundColor: '#F7FAF9',
+    backgroundColor: '#E4E4E7',
   },
   detailsLeft: {
     flex: 1,

@@ -30,6 +30,7 @@ import { useNetworkStatus } from '@/network/NetworkProvider';
 import { refreshBusiness } from '@/services/business';
 import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
 import type { Product } from '@/types/product';
+import { sortProductsForDisplay } from '@/utils/product-list-sort';
 
 function matchesSearch(product: Product, term: string) {
   return product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term);
@@ -124,8 +125,7 @@ export default function HomeScreen() {
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return products
-      .filter((product) => {
+    const filtered = products.filter((product) => {
       if (categoriesEnabled && categoryId && product.category_id !== categoryId) {
         return false;
       }
@@ -133,8 +133,8 @@ export default function HomeScreen() {
         return true;
       }
       return matchesSearch(product, term);
-    })
-      .sort((a, b) => Number(a.available === false) - Number(b.available === false));
+    });
+    return sortProductsForDisplay(filtered);
   }, [categoriesEnabled, categoryId, products, query]);
 
   const quantityById = useMemo(() => {

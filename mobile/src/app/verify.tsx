@@ -92,7 +92,9 @@ export default function VerifyScreen() {
                   ? '/account'
                   : next === 'sam'
                     ? '/sam'
-                    : '/home';
+                    : next === 'account'
+                      ? '/account'
+                      : '/home';
       router.replace(destination);
     } catch (verifyError) {
       if (isNetworkFailure(verifyError)) {

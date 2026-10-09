@@ -4,10 +4,36 @@ export const OFFLINE_TITLE = 'You are Offline';
 export const OFFLINE_MESSAGE =
   'You are not connected to the internet. Please connect to the internet and try again';
 
+function isEmptyNetworkState(state: Network.NetworkState): boolean {
+  return (
+    state.type === undefined &&
+    state.isConnected === undefined &&
+    state.isInternetReachable === undefined
+  );
+}
+
 export function isDefinitelyOffline(state: Network.NetworkState): boolean {
+  // useNetworkState() starts as {} until the first async read — not offline.
+  if (isEmptyNetworkState(state)) {
+    return false;
+  }
+
   if (state.type === Network.NetworkStateType.NONE) {
     return true;
   }
+
+  // Android: isInternetReachable is null/undefined while the OS validates — avoid a startup flash.
+  if (state.isInternetReachable === false) {
+    return true;
+  }
+  if (state.isInternetReachable === null || state.isInternetReachable === undefined) {
+    const unknown =
+      !state.type || state.type === Network.NetworkStateType.UNKNOWN;
+    if (unknown) {
+      return false;
+    }
+  }
+
   const unknown =
     !state.type || state.type === Network.NetworkStateType.UNKNOWN;
   if (state.isConnected === false && !unknown) {

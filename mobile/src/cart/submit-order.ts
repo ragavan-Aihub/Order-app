@@ -23,6 +23,7 @@ export async function submitShopOrder(
   selected: SavedAddress | null,
   editingOrderId?: string | null,
   placedVia: OrderPlacedVia = 'app',
+  expectedItemsRevision?: number | null,
 ): Promise<SubmitOrderResult> {
   if (items.length === 0) {
     return { ok: false, reason: 'empty', message: 'Your cart is empty.' };
@@ -49,7 +50,7 @@ export async function submitShopOrder(
 
   try {
     if (editingOrderId) {
-      const order = await replaceOpenOrderItems(editingOrderId, items, details);
+      const order = await replaceOpenOrderItems(editingOrderId, items, details, expectedItemsRevision);
       return { ok: true, order };
     }
 
@@ -62,6 +63,13 @@ export async function submitShopOrder(
     return { ok: true, order };
   } catch (placeError) {
     const message = placeError instanceof Error ? placeError.message : 'Could not place the order.';
+    if (editingOrderId && /ORDER_STALE/i.test(message)) {
+      return {
+        ok: false,
+        reason: 'error',
+        message: 'This order was updated by the shop. Pull to refresh and review your cart.',
+      };
+    }
     if (editingOrderId && /cannot be changed/i.test(message)) {
       return { ok: false, reason: 'locked', message };
     }

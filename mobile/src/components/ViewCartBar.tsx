@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useCart } from '@/cart/CartContext';
-import { colors, radius, shadow, spacing } from '@/config/theme';
+import { colors, radius, spacing } from '@/config/theme';
 import { formatPrice } from '@/utils/format';
 
 /** Matches shop tab bar content height (icons only; labels hidden on Android). */
@@ -18,7 +18,7 @@ export function viewCartScrollPadding(_bottomInset: number, hasCart: boolean) {
   if (!hasCart) {
     return spacing.md;
   }
-  return CART_BOTTOM_INSET + FLOATING_CART_BAR_HEIGHT + spacing.md;
+  return CART_BOTTOM_INSET + FLOATING_CART_BAR_HEIGHT + spacing.lg;
 }
 
 /** @deprecated Use viewCartScrollPadding with safe-area bottom inset. */
@@ -64,11 +64,11 @@ export function ViewCartBar({
         accessibilityRole="button"
         accessibilityLabel={`View cart, ${amountLabel}, ${itemCount} items`}
       >
-        <Ionicons name="bag-handle" size={18} color={colors.primaryDark} />
+        <Ionicons name="bag-handle" size={18} color={colors.primaryText} />
         <Text style={styles.amount} numberOfLines={1}>
           {amountLabel}
         </Text>
-        <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+        <Ionicons name="chevron-forward" size={16} color={colors.primaryText} />
       </Pressable>
     </View>
   );
@@ -89,22 +89,26 @@ const styles = StyleSheet.create({
   bar: {
     height: FLOATING_CART_BAR_HEIGHT,
     minWidth: 72,
+    maxWidth: '100%',
     borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: 'rgba(15, 118, 110, 0.2)',
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    gap: 4,
-    ...shadow.sm,
+    paddingHorizontal: 12,
+    gap: 5,
+    shadowColor: '#115E59',
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   },
   barPressed: {
-    opacity: 0.92,
+    opacity: 0.9,
+    backgroundColor: colors.primaryDark,
   },
   amount: {
-    color: colors.primaryDark,
+    color: colors.primaryText,
     fontSize: 14,
     fontWeight: '800',
     textAlign: 'center',

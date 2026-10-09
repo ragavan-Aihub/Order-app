@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { AvailabilityToggle } from '@/components/AvailabilityToggle';
 import { ProductCatalogMenu } from '@/components/ProductCatalogMenu';
+import { ProductTableThumbnail } from '@/components/ProductTableThumbnail';
 import { TableScroll } from '@/components/TableScroll';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
@@ -93,12 +94,7 @@ export function ProductsBoard({
           <div className="space-y-3 md:hidden">
             {filtered.map((product) => (
               <div key={product.id} className="flex gap-3 rounded-xl border border-stone-200 bg-white p-4">
-                {product.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={product.image_url} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <div className="h-16 w-16 shrink-0 rounded-lg bg-stone-100" />
-                )}
+                <ProductTableThumbnail src={product.image_url} alt={product.name} sizeClass="h-16 w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{product.name}</p>
                   <p className="truncate text-sm text-stone-500">{product.description}</p>
@@ -150,16 +146,7 @@ export function ProductsBoard({
                   {filtered.map((product) => (
                     <tr key={product.id} className="border-t border-stone-200">
                       <td className="px-4 py-3">
-                        {product.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="h-14 w-14 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="h-14 w-14 rounded-lg bg-stone-100" />
-                        )}
+                        <ProductTableThumbnail src={product.image_url} alt={product.name} />
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium">{product.name}</p>

@@ -1,22 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTopInset } from '@/utils/safe-area';
 
-import { useCart } from '@/cart/CartContext';
-import { goModifyOrder } from '@/cart/modify-flow';
 import { EmptyState } from '@/components/EmptyState';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
+import { ShopModifiedBadge } from '@/components/ShopModifiedBadge';
 import { StatusBadge } from '@/components/StatusBadge';
+import { orderIdsWithUnacknowledgedAdminMods } from '@/order-modifications/mod-seen';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { cancelMyOrder, getMyOrdersWithItems } from '@/services/orders';
+import { getLatestAdminModificationsByOrderId, getMyOrdersWithItems } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import { canCancelOrder, canModifyOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
+import { type OrderWithItems } from '@/types/order';
 import { formatOrderListDate, formatOrderNumber, formatPrice, orderStatusTone } from '@/utils/format';
 
 function itemSummary(order: OrderWithItems) {
@@ -37,7 +37,7 @@ export default function MyOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
-  const { beginEditOrder, forgetOpenOrder } = useCart();
+  const [shopModifiedOrderIds, setShopModifiedOrderIds] = useState<Set<string>>(() => new Set());
   const { offline } = useNetworkStatus();
 
   const load = useCallback(async (isRefresh = false) => {
@@ -51,7 +51,10 @@ export default function MyOrdersScreen() {
         setOrders([]);
         return;
       }
-      setOrders(await getMyOrdersWithItems());
+      const rows = await getMyOrdersWithItems();
+      setOrders(rows);
+      const adminMods = await getLatestAdminModificationsByOrderId(rows.map((row) => row.id));
+      setShopModifiedOrderIds(await orderIdsWithUnacknowledgedAdminMods(adminMods));
     } catch {
       setSignedIn(false);
       setOrders([]);
@@ -125,7 +128,6 @@ export default function MyOrdersScreen() {
         orders.map((order) => {
           const tone = orderStatusTone(order.status);
           const qty = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
-          const open = isOpenOrderStatus(order.status);
           return (
             <View key={order.id} style={styles.card}>
               <View style={[styles.rail, { backgroundColor: tone.fg }]} />
@@ -147,6 +149,7 @@ export default function MyOrdersScreen() {
                 </View>
                 <View style={styles.badges}>
                   <StatusBadge status={order.status} />
+                  {shopModifiedOrderIds.has(order.id) ? <ShopModifiedBadge compact /> : null}
                   <PaymentBadge
                     method={order.payment_method ?? 'pending'}
                     orderStatus={order.status}
@@ -154,53 +157,6 @@ export default function MyOrdersScreen() {
                   />
                 </View>
                 </Pressable>
-                {open ? (
-                  <View style={styles.openActions}>
-                    {canModifyOrder(order) ? (
-                      <Pressable
-                        onPress={() => goModifyOrder(order, beginEditOrder)}
-                        style={styles.actionBtn}
-                      >
-                        <Text style={styles.actionLabel}>Modify</Text>
-                      </Pressable>
-                    ) : (
-                      <View style={styles.limitNote}>
-                        <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
-                        <Text style={styles.limitText}>Modify limit reached</Text>
-                      </View>
-                    )}
-                    {canCancelOrder(order.status) ? (
-                      <Pressable
-                        onPress={() => {
-                          Alert.alert('Cancel order?', `Cancel order #${formatOrderNumber(order.order_number)}?`, [
-                            { text: 'Keep', style: 'cancel' },
-                            {
-                              text: 'Cancel order',
-                              style: 'destructive',
-                              onPress: () => {
-                                cancelMyOrder(order.id)
-                                  .then(() => {
-                                    forgetOpenOrder(order.id);
-                                    return load(true);
-                                  })
-                                  .catch((error) => {
-                                    Alert.alert(
-                                      'Could not cancel',
-                                      error instanceof Error ? error.message : 'Try again in a moment.',
-                                    );
-                                    return load(true);
-                                  });
-                              },
-                            },
-                          ]);
-                        }}
-                        style={styles.actionBtnGhost}
-                      >
-                        <Text style={styles.actionGhost}>Cancel</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                ) : null}
               </View>
             </View>
           );
@@ -318,46 +274,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-  },
-  openActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  actionBtn: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-  },
-  actionLabel: {
-    color: colors.primaryText,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  limitNote: {
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  limitText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  actionBtnGhost: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-  },
-  actionGhost: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '700',
   },
 });

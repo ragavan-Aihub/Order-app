@@ -9,6 +9,7 @@ import type {
   OrderItem,
   OrderPlacedVia,
   OrderStatus,
+  OrderModification,
   OrderStatusEvent,
   OrderWithItems,
 } from '@/types/order';
@@ -18,7 +19,7 @@ const OFFLINE_ORDER =
   'You are not connected to the internet. Please connect to the internet and try again';
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, placed_via, update_count, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, placed_via, update_count, items_revision, created_at, updated_at';
 const ORDER_LOOKUP_COLUMNS =
   'id, order_number, status, customer_address_id, pincode, delivery_address, created_at, total_amount, placed_via, update_count';
 const UNDELIVERED_STATUSES = ['new', 'confirmed', 'out_for_delivery'] as const;
@@ -594,6 +595,7 @@ export async function replaceOpenOrderItems(
     pincode: string;
     addressId: string;
   } | null,
+  expectedItemsRevision?: number | null,
 ): Promise<Order> {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -620,6 +622,7 @@ export async function replaceOpenOrderItems(
           p_address_id: delivery.addressId,
         }
       : {}),
+    ...(expectedItemsRevision != null ? { p_expected_items_revision: expectedItemsRevision } : {}),
   };
   const isMissingRpc = (err: { code?: string; message?: string } | null) =>
     err?.code === 'PGRST202' || /could not find the function|does not exist|42883/i.test(err?.message ?? '');
@@ -952,5 +955,86 @@ export async function getMyOrderById(id: string): Promise<OrderWithItems | null>
     };
   } catch {
     return null;
+  }
+}
+
+function parseModificationRow(row: Record<string, unknown>): OrderModification {
+  return {
+    id: String(row.id),
+    order_id: String(row.order_id),
+    actor_type: row.actor_type === 'admin' ? 'admin' : 'customer',
+    reason: typeof row.reason === 'string' ? row.reason : null,
+    previous_items: Array.isArray(row.previous_items) ? (row.previous_items as OrderModification['previous_items']) : [],
+    new_items: Array.isArray(row.new_items) ? (row.new_items as OrderModification['new_items']) : [],
+    previous_total: Number(row.previous_total) || 0,
+    new_total: Number(row.new_total) || 0,
+    payment_method: (row.payment_method as Order['payment_method']) ?? 'pending',
+    created_at: String(row.created_at),
+  };
+}
+
+export async function getOrderModifications(orderId: string): Promise<OrderModification[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !orderId) {
+    return [];
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('order_modifications')
+        .select(
+          'id, order_id, actor_type, reason, previous_items, new_items, previous_total, new_total, payment_method, created_at',
+        )
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false }),
+      QUERY_MS,
+      'Loading order history is taking too long. Try again.',
+    );
+    if (error || !data) {
+      return [];
+    }
+    return (data as Record<string, unknown>[]).map(parseModificationRow);
+  } catch {
+    return [];
+  }
+}
+
+/** Latest admin modification per order (for My Orders badges). */
+export async function getLatestAdminModificationsByOrderId(
+  orderIds: string[],
+): Promise<Map<string, OrderModification>> {
+  const map = new Map<string, OrderModification>();
+  if (!orderIds.length) {
+    return map;
+  }
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return map;
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('order_modifications')
+        .select(
+          'id, order_id, actor_type, reason, previous_items, new_items, previous_total, new_total, payment_method, created_at',
+        )
+        .in('order_id', orderIds)
+        .eq('actor_type', 'admin')
+        .order('created_at', { ascending: false }),
+      QUERY_MS,
+      'Loading order updates is taking too long. Try again.',
+    );
+    if (error || !data) {
+      return map;
+    }
+    for (const row of data as Record<string, unknown>[]) {
+      const mod = parseModificationRow(row);
+      if (!map.has(mod.order_id)) {
+        map.set(mod.order_id, mod);
+      }
+    }
+    return map;
+  } catch {
+    return map;
   }
 }

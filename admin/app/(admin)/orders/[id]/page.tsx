@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { AdminOrderModifyPanel } from '@/components/AdminOrderModifyPanel';
 import { OrderPaymentForm } from '@/components/OrderPaymentForm';
 import { OrderWorkflow } from '@/components/OrderWorkflow';
 import { StatusBadge } from '@/components/OrderBadges';
-import { TableScroll } from '@/components/TableScroll';
 import { getCustomerById } from '@/services/customers';
 import { getOrderById } from '@/services/orders';
+import { getAllProducts } from '@/services/products';
 import { isCommunitiesEnabled } from '@/services/business';
 import { deliveryTypeLabel } from '@/types/community';
 import { customerSourceLabel } from '@/types/customer';
@@ -23,7 +24,10 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
     notFound();
   }
 
-  const customer = order.customer_id ? await getCustomerById(order.customer_id) : null;
+  const [customer, products] = await Promise.all([
+    order.customer_id ? getCustomerById(order.customer_id) : Promise.resolve(null),
+    getAllProducts(),
+  ]);
   const delivery = splitDeliveryNotes(order.delivery_address);
   const showCommunityType = await isCommunitiesEnabled();
 
@@ -102,31 +106,16 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <TableScroll>
-        <table className="w-full min-w-[28rem] text-left text-sm">
-          <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
-            <tr>
-              <th className="px-3 py-2 font-medium">Item</th>
-              <th className="px-3 py-2 font-medium">Qty</th>
-              <th className="px-3 py-2 font-medium">Price</th>
-              <th className="px-3 py-2 font-medium">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.order_items.map((item) => (
-              <tr key={item.id} className="border-t border-stone-200">
-                <td className="px-3 py-2">{item.product_name}</td>
-                <td className="px-3 py-2">{item.quantity}</td>
-                <td className="px-3 py-2">{formatPrice(item.product_price)}</td>
-                <td className="px-3 py-2">{formatPrice(item.subtotal)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="border-t border-stone-200 px-3 py-3 text-right font-semibold">
-          Total {formatPrice(order.total_amount)}
-        </div>
-      </TableScroll>
+      <AdminOrderModifyPanel
+        key={`${order.id}-${order.items_revision ?? 0}-${order.order_items.length}-${order.total_amount}`}
+        orderId={order.id}
+        status={order.status}
+        paymentMethod={order.payment_method ?? 'pending'}
+        originalTotal={order.total_amount}
+        originalItems={order.order_items}
+        itemsRevision={order.items_revision ?? 0}
+        products={products}
+      />
     </div>
   );
 }

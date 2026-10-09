@@ -24,12 +24,31 @@ h4 {
 }
 
 h2 {
-  page-break-before: always;
-  break-before: page;
   border-bottom: 2px solid #16a34a;
   padding-bottom: 6px;
-  margin-top: 0;
+  margin-top: 1.6em;
   font-size: 1.6em;
+}
+
+/* Start major sections on a new page, but not the table-of-contents block. */
+h2[id^="1-"],
+h2[id^="2-"],
+h2[id^="3-"],
+h2[id^="4-"],
+h2[id^="5-"],
+h2[id^="6-"],
+h2[id^="7-"],
+h2[id^="8-"],
+h2[id^="9-"],
+h2[id^="10-"],
+h2[id^="11-"],
+h2[id^="12-"],
+h2[id^="13-"],
+h2[id^="14-"],
+h2[id^="15-"] {
+  page-break-before: always;
+  break-before: page;
+  margin-top: 0;
 }
 
 h3 {

@@ -5,6 +5,12 @@
   "scripts": {
     "admin": "npm run dev --prefix admin",
     "mobile": "npm start --prefix mobile",
-    "docs:pdf": "npx --yes md-to-pdf docs/business-guide.md docs/technical-guide.md --stylesheet docs/pdf-style.css"
+    "docs:pdf": "node scripts/generate-docs-pdf.mjs && node scripts/generate-docs-html.mjs",
+    "docs:html": "node scripts/generate-docs-html.mjs"
+  },
+  "devDependencies": {
+    "marked": "^15.0.12",
+    "md-to-pdf": "^5.2.4",
+    "puppeteer": "^24.9.0"
   }
 }

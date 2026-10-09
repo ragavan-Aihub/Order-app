@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 4 Oct 2026.
+Last updated: 10 Oct 2026.
 
 ## Must do before go-live
 
@@ -88,6 +88,14 @@ Last updated: 4 Oct 2026.
 - **What:** The same next-step button on the "Recent orders" table on the admin dashboard.
 - **Files:** `admin/app/(admin)/page.tsx`
 
+### Admin Test mode and Go live wizard
+
+- **Status:** Phase 2 (designed, **not built** — do after QA)
+- **Why:** During testing the database fills with orders, customers, and test products. Before real launch, the shop needs a one-click **Go live** flow that shows progress, wipes that data, resets order numbers to 100001, and switches the shop from **test** to **live** mode—without running SQL by hand.
+- **What:** Test mode banner in admin; Settings → Go live with confirmation and steps (database wipe, product images in Storage, delete customer auth accounts, finalize). Keeps the business row and admin login. Manual checklist afterward: remove Supabase Test OTP, re-import catalog and communities, clear app data on test phones.
+- **Spec:** `docs/go-live-wizard-plan.md`
+- **Until built:** Use Supabase SQL editor / dashboard for cleanup, or add `supabase/scripts/go-live-reset.sql` when implementing the wizard.
+
 ## Known issues and tech debt
 
 - **Development timing logs.** `mobile/src/services/supabase.ts` logs every request as `[supabase] METHOD path status ms`. These logs only appear in development builds, but can be removed once performance is settled.
@@ -105,7 +113,7 @@ Last updated: 4 Oct 2026.
 - **Voice:** recognition that keeps working without internet or in the background, and better Tamil recognition.
 - **Hands-free conversation mode:** after the assistant replies, reopen the mic automatically for the follow-up, until the customer taps X or stays quiet.
 - **Wake word:** a "Hey …" wake word was tried and removed. Android speech recognition has to listen all the time for it, which costs battery and data, sends everything said near the phone for transcription, and only works on Android 13 or newer. If it comes back, use an on-device wake-word engine (for example Picovoice Porcupine) instead.
-- **Status notifications:** tell customers by push notification or WhatsApp when their order status changes.
+- **Status notifications (WhatsApp):** optional channel in addition to push (push for confirmed / out for delivery / delivered is implemented — see `supabase/documentation/push-notifications.md`; deploy migration, Edge Function, admin service role, new APK).
 - **Help and contact screen** in the app (call or WhatsApp the shop). The business phone and email are already stored.
 - **Delivery instructions** typed by the customer in the app.
 - **Better voice:** a natural cloud voice, "your usual order" and product tips.

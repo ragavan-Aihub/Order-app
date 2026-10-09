@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ordering App Business Guide</title>
+  <style>
+    body { max-width: 820px; margin: 24px auto; padding: 0 16px 48px; }
+    html {
+  font-size: 11pt;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  color: #1f2937;
+  line-height: 1.55;
+}
+
+.markdown-body {
+  max-width: none;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: #14532d;
+  line-height: 1.25;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h2 {
+  border-bottom: 2px solid #16a34a;
+  padding-bottom: 6px;
+  margin-top: 1.6em;
+  font-size: 1.6em;
+}
+
+/* Start major sections on a new page, but not the table-of-contents block. */
+h2[id^="1-"],
+h2[id^="2-"],
+h2[id^="3-"],
+h2[id^="4-"],
+h2[id^="5-"],
+h2[id^="6-"],
+h2[id^="7-"],
+h2[id^="8-"],
+h2[id^="9-"],
+h2[id^="10-"],
+h2[id^="11-"],
+h2[id^="12-"],
+h2[id^="13-"],
+h2[id^="14-"],
+h2[id^="15-"] {
+  page-break-before: always;
+  break-before: page;
+  margin-top: 0;
+}
+
+h3 {
+  font-size: 1.2em;
+  margin-top: 1.4em;
+}
+
+h4 {
+  font-size: 1.05em;
+  margin-top: 1.2em;
+}
+
+.cover {
+  text-align: center;
+  padding-top: 220px;
+}
+
+.cover h1 {
+  font-size: 2.4em;
+  border: none;
+  color: #14532d;
+}
+
+.cover .subtitle {
+  font-size: 1.15em;
+  color: #374151;
+  max-width: 480px;
+  margin: 16px auto;
+}
+
+.cover .meta {
+  color: #6b7280;
+  margin-top: 40px;
+}
+
+a {
+  color: #15803d;
+  text-decoration: none;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 18px;
+  font-size: 0.92em;
+  page-break-inside: auto;
+}
+
+tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+thead {
+  display: table-header-group;
+}
+
+th,
+td {
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f0fdf4;
+  color: #14532d;
+  font-weight: 600;
+}
+
+tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+code {
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+pre {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.8em;
+  line-height: 1.4;
+  overflow: hidden;
+  white-space: pre;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 1em;
+}
+
+ul,
+ol {
+  padding-left: 1.4em;
+}
+
+li {
+  margin: 2px 0;
+}
+
+.page-break {
+  page-break-after: always;
+  break-after: page;
+}
+
+    @media print { body { max-width: none; margin: 0; } }
+  </style>
+</head>
+<body class="markdown-body"><div class="cover">
+
+<h1>Ordering App: Business Guide</h1>
+<p class="subtitle">How the customer app and the admin panel work, written for the business owner, staff and product managers.</p>
+
+<p class="meta">Version 1 &middot; Last updated 5 October 2026</p>
+
+</div>
+
+<h2>Contents</h2>
+<ol>
+<li><a href="#1-about-the-ordering-app">About the ordering app</a></li>
+<li><a href="#2-important-words">Important words</a></li>
+<li><a href="#3-the-customer-app">The customer app</a></li>
+<li><a href="#4-the-admin-panel">The admin panel</a></li>
+<li><a href="#5-all-business-rules-in-one-place">All business rules in one place</a></li>
+<li><a href="#6-frequently-asked-questions">Frequently asked questions</a></li>
+</ol>
+<h3>Who this guide is for</h3>
+<ul>
+<li><strong>Business owner:</strong> to understand everything the product can do today.</li>
+<li><strong>Shop staff:</strong> to handle orders, payments, products and customers every day.</li>
+<li><strong>Product managers:</strong> to see the rules and the limits.</li>
+</ul>
+<p>You do not need any technical knowledge to read this guide. For technical details, see the separate <strong>Technical Guide</strong>.</p>
+<h2>1. About the ordering app</h2>
+<p>This is an online ordering system for a small business that takes orders and delivers them to the customer&#39;s home, for example a food, grocery or home products business. It has two parts:</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Who uses it</th>
+<th>Where it runs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Customer app</strong></td>
+<td>Customers</td>
+<td>Android phone (installed as an app)</td>
+</tr>
+<tr>
+<td><strong>Admin panel</strong></td>
+<td>Business owner and staff</td>
+<td>Web browser on a laptop or phone</td>
+</tr>
+</tbody></table>
+<p>The app carries <strong>your</strong> business name, logo, home banner, products and prices, so the same system can serve any business. You manage products, prices, orders and customers in the admin panel.</p>
+<p>Both parts share one online database. When a customer places an order in the app, it appears in the admin panel at once. When the shop changes the order status in the admin panel, the customer sees it in the app.</p>
+<p><strong>How an order flows:</strong></p>
+<pre><code> Customer app                      Admin panel
+ ------------                      -----------
+ 1. Browse products
+ 2. Add to cart
+ 3. Place order  ---------------&gt;  4. New order appears (status: Placed)
+                                   5. Shop confirms        (Confirmed)
+                                   6. Shop sends it out    (Out for delivery)
+                                   7. Shop delivers it     (Delivered)
+                                   8. Shop records payment (Cash or UPI)
+ Customer sees every step  &lt;-----
+ with date and time
+</code></pre>
+<p><strong>Payment:</strong> customers pay on delivery, by cash or UPI. There is no online payment inside the app.</p>
+<h2>2. Important words</h2>
+<table>
+<thead>
+<tr>
+<th>Word</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Order number</strong></td>
+<td>A 6-digit number for each order, for example #100058. It starts at 100001 and goes up by one.</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Where the order is now: Placed, Confirmed, Out for delivery, Delivered or Cancelled.</td>
+</tr>
+<tr>
+<td><strong>Open order</strong></td>
+<td>An order that is still <strong>Placed</strong> or <strong>Confirmed</strong>. Customers can modify open orders. They can cancel only while the order is Placed.</td>
+</tr>
+<tr>
+<td><strong>Modify</strong></td>
+<td>The customer changes an open order: adds items, removes items or changes quantities.</td>
+</tr>
+<tr>
+<td><strong>Modify limit</strong></td>
+<td>A customer can modify one order at most 5 times. Shop edits to items do not count toward this limit.</td>
+</tr>
+<tr>
+<td><strong>Shop modified</strong></td>
+<td>The shop changed items on an open order. The customer sees a tag until they review what changed.</td>
+</tr>
+<tr>
+<td><strong>Coming soon</strong></td>
+<td>A product that customers can see, but cannot buy yet. It shows dimmed with &quot;Coming soon&quot;.</td>
+</tr>
+<tr>
+<td><strong>Active / Inactive</strong></td>
+<td>Active products show in the app. Inactive products are hidden from the app.</td>
+</tr>
+<tr>
+<td><strong>Outstanding</strong></td>
+<td>An order that is delivered but not yet paid.</td>
+</tr>
+<tr>
+<td><strong>Refund pending / Refunded</strong></td>
+<td>For a paid order that was later cancelled: the money still has to be returned, or it has been returned.</td>
+</tr>
+<tr>
+<td><strong>Channel</strong></td>
+<td>How an order came in, for example from the App or entered by the shop as Phone / Offline.</td>
+</tr>
+<tr>
+<td><strong>Source</strong></td>
+<td>How a customer first reached you, for example App or Phone / Offline.</td>
+</tr>
+<tr>
+<td><strong>Community</strong></td>
+<td>An optional group of delivery addresses (for example, one apartment complex). Only the shop sees it. Customers never see communities.</td>
+</tr>
+<tr>
+<td><strong>Category</strong></td>
+<td>An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home.</td>
+</tr>
+<tr>
+<td><strong>OTP</strong></td>
+<td>One Time Password. A 6-digit code sent by SMS to sign in.</td>
+</tr>
+<tr>
+<td><strong>IST</strong></td>
+<td>India Standard Time. All &quot;today&quot; figures in the admin panel use IST.</td>
+</tr>
+</tbody></table>
+<h2>3. The customer app</h2>
+<h3>3.1 Signing in</h3>
+<p><strong>What it does:</strong> customers sign in with their mobile number. There is no password.</p>
+<p><strong>Steps for the customer:</strong></p>
+<ol>
+<li>Open the app. The welcome screen shows your logo, business name and description.</li>
+<li>Enter the 10-digit mobile number (the +91 is already shown).</li>
+<li>Tap <strong>Continue</strong>. An SMS with a 6-digit OTP arrives.</li>
+<li>Enter the OTP and tap <strong>Verify</strong>. If the SMS does not come, tap <strong>Resend OTP</strong>.</li>
+</ol>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>A customer can tap <strong>Skip</strong> on the first screen and browse products without signing in. Sign-in is needed later, when they add an address, open My orders or Buy again, or place an order.</li>
+<li>When a customer signs in for the first time, they are added automatically to your <strong>Customers</strong> list in the admin panel, with the source <strong>App</strong>.</li>
+<li>If OTPs are requested too often, the app says: &quot;Wait about a minute, then request a new OTP.&quot;</li>
+</ul>
+<h3>3.2 Delivery addresses</h3>
+<p><strong>What it does:</strong> customers save up to 3 delivery addresses and choose one for each order.</p>
+<p><strong>Address details the customer enters:</strong></p>
+<ul>
+<li>Flat / House No. / Building / Block No. (required)</li>
+<li>Area / Street / Village (required)</li>
+<li>Landmark (optional)</li>
+<li>Pincode (6 digits, required). <strong>City</strong> and <strong>State</strong> fill in automatically from the pincode.</li>
+<li>Label: <strong>Home</strong>, <strong>Work</strong> or <strong>Other</strong></li>
+<li>Receiver&#39;s name and receiver&#39;s phone number (required)</li>
+</ul>
+<p><strong>How to switch the delivery address:</strong> tap the address at the top of the Home screen or the Cart screen. A sheet called <strong>Deliver to</strong> opens. Tap an address. The sheet closes and the new address is used straight away.</p>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Maximum 3 saved addresses per customer. To add a fourth, delete one first.</li>
+<li>The chosen address becomes the customer&#39;s <strong>default address</strong>. It is remembered for the next time.</li>
+<li>Addresses can be edited or deleted from <strong>Saved addresses</strong> (open it from the address sheet with <strong>Manage saved addresses</strong>, or from Account).</li>
+<li>Delivery instructions cannot be typed by the customer in this version. The shop can add delivery instructions to a customer&#39;s address in the admin panel.</li>
+</ul>
+<h3>3.3 Shopping</h3>
+<p><strong>Home screen</strong> (top to bottom):</p>
+<ol>
+<li>The delivery address, and the customer&#39;s initial (tap it to open <strong>Account</strong>).</li>
+<li>The <strong>Modifying order</strong> bar, only when the customer is changing an existing order (see 3.6).</li>
+<li>A search box: <strong>Search products</strong> (searches names and descriptions).</li>
+<li>Category chips (<strong>All</strong>, then each category with its picture), only if you use categories.</li>
+<li>Your home banner picture, if you set one.</li>
+<li>All products in a grid of <strong>3 per row</strong>. Each card shows the picture, name, price and an <strong>Add</strong> button. After adding, the button becomes a <strong>- / +</strong> stepper.</li>
+</ol>
+<p><strong>Coming soon products</strong> show dimmed with the words &quot;Coming soon&quot; and have no Add button. They appear at the end of the list.</p>
+<p><strong>Tapping a product</strong> does nothing in this version.</p>
+<p><strong>Buy again tab:</strong> shows products from the customer&#39;s last 10 orders (cancelled orders are not counted). It uses the same 3-per-row grid and has its own search box. It is a quick way to repeat a usual order.</p>
+<p><strong>View cart bar:</strong> when the cart has items, a green <strong>View cart</strong> bar floats at the bottom with the item count.</p>
+<h3>3.4 The cart</h3>
+<p><strong>What the customer sees:</strong></p>
+<ul>
+<li><strong>Deliver to</strong> with the chosen address at the top. Tap it to change the address.</li>
+<li>Each item with picture, name, price per piece, line total and a <strong>- / +</strong> stepper.</li>
+<li><strong>Clear cart</strong> button (asks first: &quot;This will remove all items from your cart. This cannot be undone.&quot;).</li>
+<li><strong>Add more items</strong>, which goes back to Home.</li>
+<li><strong>Bill summary</strong> with the item total and <strong>To pay</strong>.</li>
+<li>The note <strong>Pay on delivery · Cash or UPI</strong>.</li>
+<li>The <strong>Place order</strong> button.</li>
+</ul>
+<p><strong>How to remove an item:</strong> swipe the item to the left and tap the red bin, or reduce the quantity below 1.</p>
+<p><strong>Limits:</strong></p>
+<ul>
+<li>Up to <strong>15 different products</strong> in one order. Message: &quot;You can add up to 15 items in one order. Remove an item to add another.&quot;</li>
+<li>Up to <strong>10 of each product</strong>. Message: &quot;You can order a maximum of 10 of each product.&quot;</li>
+</ul>
+<h3>3.5 Placing an order</h3>
+<p><strong>Steps:</strong></p>
+<ol>
+<li>Check the address at the top of the cart.</li>
+<li>Tap <strong>Place order</strong>.</li>
+<li>The <strong>Order status</strong> screen opens with the order number, &quot;Thank you! Your order is placed.&quot;, the total to pay, where it will be delivered (for example &quot;Delivering to · Home&quot;) and the order progress.</li>
+</ol>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>The customer must be signed in and have an address.</li>
+<li>The customer must be online to place an order.</li>
+<li>If a product became &quot;Coming soon&quot; after it was added, the app asks the customer to remove it first.</li>
+</ul>
+<h3>3.6 One open order per address</h3>
+<p><strong>The rule:</strong> each address can have only <strong>one open order</strong> (Placed or Confirmed) at a time. This avoids two separate deliveries to the same house on the same day.</p>
+<p><strong>What happens when a customer tries to start a second order for the same address:</strong></p>
+<ul>
+<li>When they tap <strong>Add</strong> on a product, or open the cart, the app shows the <strong>New order</strong> screen: &quot;Where should we deliver your new order?&quot;</li>
+<li>For the address that already has an open order, it shows &quot;Active order #N · Placed/Confirmed&quot; and a <strong>View / Modify order</strong> button, with the hint &quot;You can modify this order until it goes out for delivery.&quot;</li>
+<li>Other addresses show <strong>Deliver here</strong>. The customer can also <strong>Add new address</strong>.</li>
+</ul>
+<p><strong>Customers with two addresses</strong> can have two open orders, one for each address. When they tap Modify on an order, the app switches to that order&#39;s address automatically.</p>
+<p><strong>Orders that are out for delivery do not block a new order.</strong> For that address the screen shows &quot;An order is on its way to this address&quot; with a <strong>View order</strong> button and a <strong>Deliver a new order here</strong> link.</p>
+<h3>3.7 Modifying an order</h3>
+<p><strong>What it does:</strong> the customer can change an open order: add products, remove products or change quantities.</p>
+<p><strong>How to start:</strong> tap <strong>Modify</strong> on the order in <strong>My orders</strong>, or <strong>Modify order</strong> on the order details screen or the Order status screen.</p>
+<p><strong>What the customer sees:</strong></p>
+<ul>
+<li>The cart opens and scrolls down to <strong>Add more items</strong>, so they can add more straight away.</li>
+<li>A fixed bar at the top says <strong>Modifying order #N</strong>. It does not scroll away, so the customer always knows they are changing an existing order.</li>
+<li>On Home and Buy again, the same bar shows &quot;Items you add go into this order&quot;.</li>
+<li><strong>New</strong> items have a light green background and a <strong>New</strong> tag.</li>
+<li>Items with a changed quantity show a <strong>Was 2</strong> tag (the old quantity).</li>
+<li>Removing an item asks first: &quot;Remove {name}? It will be taken off this order when you tap Update order.&quot;</li>
+<li>The button at the bottom says <strong>Update order</strong>. It stays disabled until something changes.</li>
+</ul>
+<p><strong>Buttons in the Modifying order bar:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Discard</strong> (shown only after a change)</td>
+<td>Asks &quot;Discard changes?&quot;, then puts the order back to how it was saved. The customer stays in the cart and can continue.</td>
+</tr>
+<tr>
+<td><strong>Exit</strong></td>
+<td>Leaves modify mode. If there are unsaved changes, it asks &quot;Leave without saving? Your order stays as it was.&quot;</td>
+</tr>
+</tbody></table>
+<p><strong>After tapping Update order:</strong> the Order status screen shows &quot;Order updated successfully&quot;.</p>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Modify is allowed only while the order is <strong>Placed</strong> or <strong>Confirmed</strong>. Once it is <strong>Out for delivery</strong>, it is locked.</li>
+<li>Each order can be modified at most <strong>5 times</strong>. After that the app shows &quot;Modify limit reached for this order.&quot; While the order is still Placed, it adds &quot;You can still cancel it.&quot;</li>
+<li>If the shop marks the order Out for delivery (or cancels or delivers it) while the customer is still modifying, the app discards the changes and explains why, for example: &quot;Order #N is out for delivery. Your changes were not saved. The order will arrive as originally placed.&quot;</li>
+<li>If the customer closes the app in the middle of modifying:<ul>
+<li>with changes, the app reopens the modify cart next time;</li>
+<li>with no changes, the app forgets the modify cart.</li>
+</ul>
+</li>
+</ul>
+<h3>3.8 Cancelling an order</h3>
+<p><strong>Steps:</strong> in <strong>My orders</strong>, tap <strong>Cancel</strong> on the order. Or open the order and choose <strong>Cancel order</strong> from the &quot;...&quot; menu. Confirm with <strong>Cancel order</strong>.</p>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Customers can cancel only while the order is <strong>Placed</strong>. Once the shop confirms it, the Cancel option disappears. The customer can still modify the order until it is Out for delivery, or call the shop to cancel.</li>
+<li>A customer can cancel at most <strong>3 orders in 24 hours</strong>. After that the app says &quot;Cancel limit reached for today. Please contact the shop to cancel this order.&quot; Cancellations done by the shop do not count.</li>
+<li>These limits apply only to customers. The admin panel can cancel or change any order at any time.</li>
+<li>The reason is saved as &quot;Customer requested&quot;. The customer is not asked to type a reason.</li>
+<li>Cancelling cannot be undone by the customer.</li>
+</ul>
+<h3>3.9 My orders and order tracking</h3>
+<p><strong>My orders tab</strong> shows the latest 40 orders. Each card shows:</p>
+<ul>
+<li>order number and total;</li>
+<li>item count and the first item names;</li>
+<li>date;</li>
+<li>status badge (coloured) and payment badge (for example &quot;Payment pending&quot;, &quot;Paid · Cash&quot;, &quot;Paid · UPI&quot;, &quot;Refund pending&quot;, &quot;Refunded&quot;);</li>
+<li><strong>Shop modified</strong> tag when the shop changed that order and the customer has not yet opened <strong>View changes</strong> (tap the order for details).</li>
+</ul>
+<p><strong>Order details</strong> (tap an order) shows <strong>Modify order</strong> and <strong>Cancel order</strong> (while Placed) when those actions are allowed:</p>
+<ul>
+<li>order number, status, placed date and time, payment status;</li>
+<li><strong>Progress</strong> with the four steps <strong>Placed, Confirmed, Out for delivery, Delivered</strong>. Each completed step shows its <strong>date and time</strong>, for example &quot;4 Oct, 3:15 pm&quot;;</li>
+<li>for cancelled orders: the reason and &quot;Cancelled on {date and time}&quot;;</li>
+<li>delivery name, mobile, address and pincode;</li>
+<li>all items with quantities and the total.</li>
+<li>If the shop edited the order, a short banner with <strong>View changes</strong> (added/removed items, quantity changes, old and new total). Payment status stays as it was; collect or refund any difference manually.</li>
+</ul>
+<p>Note: older orders may show only the Placed time, because step times were not recorded for them at the time.</p>
+<p>If the customer tries to update their cart while the shop changed the same order, the app asks them to refresh and review.</p>
+<h3>3.10 Account</h3>
+<p>The Account screen (tap the round initial on Home) shows:</p>
+<ul>
+<li>the customer&#39;s name and mobile number;</li>
+<li>the default delivery address, with <strong>Change</strong>;</li>
+<li>a link to <strong>My orders</strong>;</li>
+<li><strong>Sign out</strong>.</li>
+</ul>
+<h3>3.11 When there is no internet</h3>
+<ul>
+<li>If the customer has opened the app before, products are saved on the phone. They can still browse, and the app shows &quot;You&#39;re offline. Saved products stay in your cart.&quot;</li>
+<li>If there is no saved product list (first use with no internet), a full &quot;You are Offline&quot; screen appears with a <strong>Reload</strong> button.</li>
+<li>Placing an order, signing in and loading My orders need the internet.</li>
+</ul>
+<h2>4. The admin panel</h2>
+<h3>4.1 Signing in</h3>
+<ul>
+<li>Open the admin website and sign in with the <strong>email and password</strong> given by the developer.</li>
+<li>Only accounts set up as admin for this business can sign in. Customer accounts see &quot;Not authorized&quot;.</li>
+<li>Use <strong>Sign out</strong> at the bottom of the menu when you finish on a shared computer.</li>
+</ul>
+<p><strong>Menu (left side):</strong> Dashboard, Orders, Reports, Products, Customers. <strong>Categories</strong> opens from the Products page. <strong>Communities</strong> opens from the Customers page. On a phone, tap <strong>Menu</strong> at the top.</p>
+<h3>4.2 Dashboard</h3>
+<p>The page opens with a greeting (Good morning, afternoon or evening) and today&#39;s date, then &quot;What needs your attention today&quot;. &quot;Today&quot; means today in IST.</p>
+<p>If any orders are still <strong>Placed</strong>, a teal banner at the top says how many are waiting to be confirmed. Tap it to open the Orders list already showing the <strong>Placed</strong> tab. It disappears when nothing is waiting.</p>
+<table>
+<thead>
+<tr>
+<th>Card</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Orders today</strong></td>
+<td>Number of orders placed today, with an arrow showing how many more or fewer than yesterday, and yesterday&#39;s number.</td>
+</tr>
+<tr>
+<td><strong>Sales today</strong></td>
+<td>Value of today&#39;s orders, not counting cancelled orders.</td>
+</tr>
+<tr>
+<td><strong>Delivered today</strong></td>
+<td>Orders marked Delivered today.</td>
+</tr>
+<tr>
+<td><strong>Outstanding</strong></td>
+<td>Total amount of delivered orders that are not paid yet. Turns amber when above zero. Tap it to open the full list in Reports.</td>
+</tr>
+</tbody></table>
+<p>Below the cards there is a one-line summary (for example &quot;3 delivered orders are still unpaid, ₹1,250 outstanding&quot;). It is amber when money is outstanding and green otherwise. Under it is the <strong>Recent orders</strong> table with the latest 8 orders.</p>
+<h3>4.3 Orders</h3>
+<h4>Orders list</h4>
+<ul>
+<li><strong>Status tabs</strong> at the top: All, Placed, Confirmed, Out for delivery, Delivered, Cancelled, each with a count.</li>
+<li><strong>Search</strong> by order number, customer name or phone.</li>
+<li><strong>Filters:</strong> order status, payment status, payment method, channel, date From and To. If communities are on, also Type (Community or Individual) and Community.</li>
+<li><strong>Clear</strong> removes all filters. <strong>Export</strong> downloads the filtered orders as a CSV file (opens in Excel or Google Sheets).</li>
+<li>25 orders per page, with Previous and Next.</li>
+</ul>
+<h4>Order details</h4>
+<p>Open an order to see:</p>
+<ol>
+<li>Order number, status, customer, item count, total, placed date and channel.</li>
+<li><strong>Order status</strong> panel (see below).</li>
+<li><strong>Payment</strong> panel (see below).</li>
+<li><strong>Customer</strong>: name, mobile, source, and a link to the customer&#39;s history.</li>
+<li><strong>Delivery</strong>: address, pincode and any order notes.</li>
+<li><strong>Items</strong> with quantity, price, subtotal and total.</li>
+</ol>
+<h4>Changing items on an open order</h4>
+<p>While the order is <strong>Placed</strong> or <strong>Confirmed</strong>, open the order and use <strong>Modify order</strong> on the Items section when a customer asks for a change (same rules as the customer app: not after Out for delivery or Delivered). Most orders are left as placed.</p>
+<ol>
+<li>Tap <strong>Modify order</strong>. The items table switches to an editable list with product search.</li>
+<li>Add, remove or change quantities.</li>
+<li>Tap <strong>Review &amp; update</strong>, check the totals, optionally add a short reason for the customer, then confirm <strong>Update order</strong>.</li>
+<li>Tap <strong>Cancel</strong> to leave without saving.</li>
+</ol>
+<p>Payment method and whether the order is paid do not change automatically. If the total went up or down, use the payment panel or collect/refund manually. The customer sees a <strong>Shop modified</strong> notice in the app with a before/after summary. These edits do not use up the customer&#39;s 5 self-service modifications.</p>
+<h4>Moving an order to the next status</h4>
+<p>The <strong>Order status</strong> panel shows the four steps with the date and time under each completed step. Use the green button for the next step:</p>
+<table>
+<thead>
+<tr>
+<th>Current status</th>
+<th>Button</th>
+<th>Confirmation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Placed</td>
+<td><strong>Confirm order</strong></td>
+<td>&quot;Confirm order #N?&quot;</td>
+</tr>
+<tr>
+<td>Confirmed</td>
+<td><strong>Mark out for delivery</strong></td>
+<td>&quot;Mark order #N as Out for delivery?&quot;</td>
+</tr>
+<tr>
+<td>Out for delivery</td>
+<td><strong>Mark as delivered</strong></td>
+<td>&quot;Mark order #N as Delivered?&quot;</td>
+</tr>
+</tbody></table>
+<ul>
+<li>When you mark an unpaid order as Delivered, the app asks <strong>Payment collected?</strong> with <strong>Cash</strong>, <strong>UPI</strong> or <strong>Not yet</strong>. If you choose Not yet, the order shows as <strong>Outstanding</strong> until you record the payment.</li>
+<li>A delivered order shows &quot;Order completed&quot;.</li>
+<li>The customer sees every status change in the app.</li>
+</ul>
+<h4>Fixing a status mistake</h4>
+<p>If you pressed the wrong button, open the <strong>...</strong> (More) menu and choose <strong>Fix a status mistake</strong>. Pick the correct status and tap <strong>Save correction</strong>. Use this only for mistakes, not for the normal next step.</p>
+<h4>Cancelling an order</h4>
+<p>Open the <strong>...</strong> menu and choose <strong>Cancel order</strong>. A reason is required:</p>
+<ul>
+<li>Customer requested</li>
+<li>Item unavailable</li>
+<li>Could not deliver</li>
+<li>Duplicate order</li>
+<li>Other (type a short note for the customer)</li>
+</ul>
+<p>The customer sees the order as cancelled, with the reason. If the order was already paid, it becomes <strong>Refund pending</strong>.</p>
+<h4>Payment and refunds</h4>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What you see</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Not paid yet</td>
+<td><strong>Collect ₹X</strong></td>
+<td>Tap it, choose Cash or UPI, then <strong>Mark paid</strong>.</td>
+</tr>
+<tr>
+<td>Delivered but not paid</td>
+<td>Amber note: &quot;Delivered but not paid yet. ₹X is outstanding.&quot;</td>
+<td>Collect the money, then <strong>Collect ₹X</strong>.</td>
+</tr>
+<tr>
+<td>Paid</td>
+<td>&quot;Paid ₹X by Cash/UPI&quot;</td>
+<td>If it was saved by mistake, use <strong>...</strong>, then <strong>Change payment method</strong>. You can switch Cash and UPI, or choose <strong>Not yet</strong> to mark it unpaid again.</td>
+</tr>
+<tr>
+<td>Paid, then cancelled</td>
+<td><strong>Mark ₹X refunded</strong></td>
+<td>Return the money first, then tap it.</td>
+</tr>
+<tr>
+<td>Refunded</td>
+<td>&quot;Refunded ₹X&quot;</td>
+<td>Nothing more to do.</td>
+</tr>
+<tr>
+<td>Cancelled and never paid</td>
+<td>Payment shows &quot;Not Applicable&quot;</td>
+<td>Nothing to do.</td>
+</tr>
+</tbody></table>
+<h4>Creating an order for a customer (phone or in-person orders)</h4>
+<p>Use this when a customer orders by phone or in person.</p>
+<ol>
+<li>Go to <strong>Orders</strong>, then <strong>Create order</strong>. Or open a customer and tap <strong>Place order</strong>.</li>
+<li><strong>Customer:</strong> search by name or phone (press space to see everyone), or choose <strong>New customer</strong> and enter name and 10-digit phone.<ul>
+<li>If the phone number already exists, a message says &quot;Mobile number already exists&quot; and offers <strong>Load this customer</strong>.</li>
+<li>For a new customer, fill in the address and tap <strong>Deliver to this address</strong>. The form then shows the customer and address in the same compact style as an existing customer, with <strong>Change</strong> and <strong>Discard</strong>. The customer is not stored until you tap <strong>Create order</strong>. If the order cannot be created, the new customer is removed again.</li>
+</ul>
+</li>
+<li><strong>Delivery address:</strong> use a saved address, or tap <strong>Change / add address</strong> to type one. A typed address is used for this order only. It is saved to the address book only for a brand-new customer.</li>
+<li><strong>Products:</strong> search by name (press space to list all), tap <strong>Add</strong>, set quantities. Inactive and Coming soon products cannot be added.</li>
+<li><strong>Payment:</strong> Cash, UPI or <strong>Not yet</strong> (default).</li>
+<li><strong>Notes (optional):</strong> shown with the delivery details.</li>
+<li>Tap <strong>Create order</strong>.</li>
+</ol>
+<p>Orders created here have the channel <strong>Phone / Offline</strong>. Prices always come from your product list.</p>
+<h3>4.4 Products</h3>
+<h4>Products list</h4>
+<ul>
+<li>Shows all products, <strong>sorted by name (A to Z)</strong>.</li>
+<li><strong>Search</strong> by name, description or category.</li>
+<li><strong>Filters:</strong> category (if categories are on) and status (All statuses, Active, Inactive).</li>
+<li>Each product has two controls:<ul>
+<li><strong>Active / Inactive / Delete</strong> menu. Inactive hides the product from the app. <strong>Delete</strong> appears only for products that were never ordered. Products that are in old orders cannot be deleted; set them Inactive.</li>
+<li><strong>Available / Coming soon</strong> switch. Coming soon still shows the product in the app, dimmed, with no Add button.</li>
+</ul>
+</li>
+</ul>
+<h4>Adding or editing a product</h4>
+<p>Tap <strong>Add product</strong>, or <strong>Edit</strong> on a product.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product image</td>
+<td>Required for new products. JPG, PNG, WebP or GIF, up to 5 MB.</td>
+</tr>
+<tr>
+<td>Product name</td>
+<td>Required, up to 120 characters.</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>Optional, up to 500 characters.</td>
+</tr>
+<tr>
+<td>Ingredients</td>
+<td>Optional, up to 500 characters.</td>
+</tr>
+<tr>
+<td>Price (₹)</td>
+<td>Required.</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>Optional, only if categories are on.</td>
+</tr>
+</tbody></table>
+<p>New products start as <strong>Active</strong> and <strong>Available</strong>. Change those from the products list.</p>
+<h4>Importing many products from a spreadsheet (CSV)</h4>
+<ol>
+<li>On the Products page, tap <strong>Export template</strong> to download a sample file.</li>
+<li>Fill one product per row. Columns: <code>name</code>, <code>description</code>, <code>price</code>, <code>image_path</code> (required), and <code>available</code>, <code>active</code>, <code>category</code> (optional, Yes or No for the first two).</li>
+<li>Tap <strong>Choose CSV</strong>, then <strong>Import CSV</strong>.</li>
+<li>The result shows &quot;Imported N. Skipped M.&quot; Use <strong>Download error log</strong> to see which rows failed and why.</li>
+</ol>
+<p>Rules: up to 250 products per file. The image file must be on the same computer where the admin panel is running, inside the user&#39;s home folder.</p>
+<h4>Categories (optional)</h4>
+<ul>
+<li>Open from <strong>Products</strong>, then <strong>Categories</strong>.</li>
+<li>Categories are off by default. Tap <strong>Enable Categories</strong> to start using them.</li>
+<li>Each category needs a name (unique) and a picture. The picture is shown to customers.</li>
+<li>Each category can be Active or Inactive. Products can stay without a category.</li>
+<li>Customers see active categories as chips on the Home screen.</li>
+</ul>
+<h3>4.5 Customers</h3>
+<h4>Customers list</h4>
+<ul>
+<li>Shows app sign-ups and customers you added.</li>
+<li><strong>Search</strong> by name, phone or address.</li>
+<li>Columns: customer, source, default address, number of saved addresses (out of 3), number of orders, last order.</li>
+</ul>
+<h4>Adding a customer</h4>
+<p>Tap <strong>Add customer</strong>. Enter name, 10-digit mobile, optional notes and optional address. Customers you add are saved with the source <strong>Phone / Offline</strong>. If the mobile number already exists, you are offered <strong>Load this customer</strong> instead.</p>
+<h4>Customer details</h4>
+<ul>
+<li><strong>Place order</strong>, <strong>Edit</strong> and <strong>Delete customer</strong> buttons. A customer with orders cannot be deleted.</li>
+<li><strong>Address book:</strong> up to 3 addresses. You can <strong>Edit</strong>, <strong>Remove</strong>, <strong>Set as Default</strong> and add <strong>delivery instructions</strong> to each address.</li>
+<li><strong>Recent orders</strong> for this customer.</li>
+<li><strong>Edit</strong> lets you change the name, mobile, source and notes.</li>
+</ul>
+<h3>4.6 Communities (optional)</h3>
+<p><strong>What it is:</strong> a way to group delivery addresses, for example all customers in one apartment complex. This helps you plan deliveries. <strong>Customers never see communities.</strong></p>
+<p><strong>How to use it:</strong></p>
+<ol>
+<li>Go to <strong>Customers</strong>, then <strong>Communities</strong>, and tap <strong>Enable Communities</strong>.</li>
+<li>Type a community name and tap <strong>Create and manage customers</strong>.</li>
+<li>Search for a customer and tap <strong>Map this address</strong> on the right address. A customer with two addresses can have each address in a different community.</li>
+<li>To move an address, tap <strong>Move from {other community}</strong>. To remove it, tap <strong>Unmap</strong>.</li>
+</ol>
+<p><strong>Effects:</strong></p>
+<ul>
+<li>Orders show <strong>Type</strong> (Community or Individual) and the community name in lists, filters, exports and reports.</li>
+<li>Mapping an address also updates that customer&#39;s existing orders for the same pincode.</li>
+<li>An inactive community cannot receive new addresses.</li>
+</ul>
+<h3>4.7 Reports</h3>
+<p>Title: &quot;Sales, collections, and outstanding payments for this period&quot;.</p>
+<p><strong>Filters</strong> (changes apply straight away, with &quot;Applying filter...&quot; while it loads):</p>
+<ul>
+<li>Date range: Today, Yesterday, Last 7 days, <strong>Last 30 days</strong> (default) or Custom From and To.</li>
+<li>Order status, payment status, payment method, channel and community.</li>
+<li>Customer name or phone.</li>
+<li><strong>Reset filters</strong> goes back to the default.</li>
+</ul>
+<p><strong>Summary cards:</strong> Total orders, Total sales (without cancelled), Delivered sales, Amount collected, Outstanding amount.</p>
+<p><strong>Outstanding section:</strong> every delivered order that is not paid, with customer, phone, delivery time and amount. Use this list to follow up on payments.</p>
+<p><strong>Orders section:</strong> all matching orders, 25 per page.</p>
+<p>Notes:</p>
+<ul>
+<li>Reports read up to 3,000 orders for one view. For longer periods, use smaller date ranges.</li>
+<li>To download data, use <strong>Export</strong> on the Orders list.</li>
+</ul>
+<h2>5. All business rules in one place</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Sign in</td>
+<td>Customers sign in with mobile number and SMS OTP. Admins sign in with email and password.</td>
+</tr>
+<tr>
+<td>Addresses</td>
+<td>Up to 3 saved addresses per customer. The chosen one becomes the default.</td>
+</tr>
+<tr>
+<td>Cart</td>
+<td>Up to 15 different products, up to 10 of each.</td>
+</tr>
+<tr>
+<td>Payment</td>
+<td>Pay on delivery only, by cash or UPI.</td>
+</tr>
+<tr>
+<td>Order number</td>
+<td>6 digits, starting at 100001, one series per business.</td>
+</tr>
+<tr>
+<td>Open order</td>
+<td>Placed or Confirmed.</td>
+</tr>
+<tr>
+<td>One open order per address</td>
+<td>A customer cannot place a second order to the same address while the first is still open.</td>
+</tr>
+<tr>
+<td>Modify</td>
+<td>Only open orders. At most 5 modifications per order.</td>
+</tr>
+<tr>
+<td>Customer cancel</td>
+<td>Only while Placed. At most 3 customer cancellations in 24 hours. Reason always saved as &quot;Customer requested&quot;.</td>
+</tr>
+<tr>
+<td>Shop cancel</td>
+<td>Allowed from Placed, Confirmed or Out for delivery, with no daily limit. A reason is required.</td>
+</tr>
+<tr>
+<td>Status steps</td>
+<td>Placed, then Confirmed, then Out for delivery, then Delivered. Mistakes can be fixed with &quot;Fix a status mistake&quot;.</td>
+</tr>
+<tr>
+<td>Delivered and unpaid</td>
+<td>Shows as Outstanding until payment is recorded.</td>
+</tr>
+<tr>
+<td>Paid and cancelled</td>
+<td>Becomes Refund pending. Mark refunded after returning the money.</td>
+</tr>
+<tr>
+<td>Products</td>
+<td>Inactive hides from the app. Coming soon shows dimmed, cannot be bought. Products in old orders cannot be deleted.</td>
+</tr>
+<tr>
+<td>Images</td>
+<td>JPG, PNG, WebP or GIF, up to 5 MB.</td>
+</tr>
+<tr>
+<td>CSV import</td>
+<td>Up to 250 products per file.</td>
+</tr>
+<tr>
+<td>Customers</td>
+<td>Mobile number must be unique. Customers with orders cannot be deleted.</td>
+</tr>
+<tr>
+<td>Communities</td>
+<td>Optional. Never shown to customers.</td>
+</tr>
+<tr>
+<td>Categories</td>
+<td>Optional. Shown to customers as filters on Home.</td>
+</tr>
+<tr>
+<td>Times</td>
+<td>All &quot;today&quot; and date filters use India Standard Time.</td>
+</tr>
+</tbody></table>
+<h2>6. Frequently asked questions</h2>
+<p><strong>Why can&#39;t a customer modify their order?</strong>
+The order is no longer open (it is Out for delivery, Delivered or Cancelled), or it has already been modified 5 times. If the order is still Placed, the customer can cancel it instead.</p>
+<p><strong>Why can&#39;t a customer cancel their order?</strong>
+Either the shop has already confirmed it (customers can cancel only while it is Placed), or the customer has cancelled 3 orders in the last 24 hours. The shop can cancel it from the admin panel.</p>
+<p><strong>Why does the app say an order is already open for this address?</strong>
+Each address can have only one open order. The customer can modify that order, or choose or add another address.</p>
+<p><strong>Why is a step time missing in the app?</strong>
+Older orders did not record step times. Also, the database update that lets customers see step times must be applied (the developer handles this).</p>
+<p><strong>A customer paid, but the order shows Outstanding. What do I do?</strong>
+Open the order and use <strong>Collect ₹X</strong> to record Cash or UPI.</p>
+<p><strong>I recorded a payment by mistake. Can I undo it?</strong>
+Yes. In the Payment panel, open <strong>...</strong>, then <strong>Change payment method</strong>, and choose the right method or <strong>Not yet</strong>.</p>
+<p><strong>I moved an order to the wrong status. Can I fix it?</strong>
+Yes. Use <strong>...</strong>, then <strong>Fix a status mistake</strong>.</p>
+<p><strong>Why can&#39;t I delete a product?</strong>
+It is part of at least one order. Set it to <strong>Inactive</strong> to hide it from the app.</p>
+<p><strong>Why can&#39;t I delete a customer?</strong>
+The customer has orders. Keep the record for your history.</p>
+<p><strong>A customer cannot get the OTP SMS. What can I do?</strong>
+Ask them to wait a minute and tap <strong>Resend OTP</strong>, and check that the number is correct. If many customers have this problem, tell the developer, because the SMS provider may need attention.</p>
+<p><strong>Do customers see communities?</strong>
+No. Communities are only for the shop.</p>
+<p><strong>What happens to a customer&#39;s cart if they lose internet?</strong>
+The cart stays on the phone. They can place the order when the internet is back.</p>
+</body>
+</html>

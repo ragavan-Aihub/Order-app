@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
+import { OrderPushRegistration } from '@/components/OrderPushRegistration';
 import { colors } from '@/config/theme';
 
 export const unstable_settings = {
@@ -105,6 +106,7 @@ function ShopTabs() {
 export default function ShopTabsLayout() {
   return (
     <ShopCatalogProvider>
+      <OrderPushRegistration />
       <ShopTabs />
     </ShopCatalogProvider>
   );

@@ -31,7 +31,7 @@ export function ModifyOrderBar({
         style: 'destructive',
         onPress: () => {
           if (!revertEditChanges()) {
-            goModifyOrder(order, beginEditOrder);
+            goModifyOrder(order, beginEditOrder, { skipConfirm: true });
           }
         },
       },

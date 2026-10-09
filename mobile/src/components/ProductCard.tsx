@@ -1,6 +1,6 @@
-import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import type { Product } from '@/types/product';
@@ -40,15 +40,12 @@ export function ProductCard({
   const content = (
     <>
       <View style={styles.imageFrame}>
-        <Image
-          source={product.image_url ? { uri: product.image_url } : undefined}
-          style={[styles.image, comingSoon && styles.dimmed]}
-          contentFit="cover"
-          contentPosition="center"
-          transition={180}
-          cachePolicy="memory-disk"
+        <ProductImage
+          uri={product.image_url}
+          style={styles.image}
+          dimmed={comingSoon}
           recyclingKey={product.id}
-          accessibilityIgnoresInvertColors
+          accessibilityLabel={product.name}
         />
         {comingSoon ? (
           <View style={styles.soonWrap} pointerEvents="none">
@@ -121,7 +118,7 @@ const styles = StyleSheet.create({
     aspectRatio: IMAGE_ASPECT,
     width: '100%',
     overflow: 'hidden',
-    backgroundColor: '#F7FAF9',
+    backgroundColor: '#E4E4E7',
   },
   image: {
     width: '100%',
@@ -193,7 +190,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     minWidth: 56,
-    height: 32,
+    height: 30,
     paddingHorizontal: 14,
     borderRadius: radius.sm,
     backgroundColor: colors.primary,
@@ -202,7 +199,7 @@ const styles = StyleSheet.create({
   },
   addButtonCompact: {
     minWidth: 48,
-    height: 28,
+    height: 30,
   },
   addLabel: {
     color: colors.primaryText,

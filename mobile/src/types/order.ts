@@ -54,8 +54,32 @@ export type Order = {
   refund_status: RefundStatus | null;
   placed_via?: OrderPlacedVia;
   update_count?: number;
+  items_revision?: number;
   created_at: string;
   updated_at: string;
+};
+
+export type OrderModificationActor = 'customer' | 'admin';
+
+export type OrderModificationItemSnapshot = {
+  product_id: string | null;
+  product_name: string;
+  product_price: number;
+  quantity: number;
+  subtotal: number;
+};
+
+export type OrderModification = {
+  id: string;
+  order_id: string;
+  actor_type: OrderModificationActor;
+  reason: string | null;
+  previous_items: OrderModificationItemSnapshot[];
+  new_items: OrderModificationItemSnapshot[];
+  previous_total: number;
+  new_total: number;
+  payment_method: PaymentMethod;
+  created_at: string;
 };
 
 export type OrderItem = {

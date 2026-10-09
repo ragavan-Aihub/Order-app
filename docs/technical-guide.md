@@ -317,7 +317,8 @@ Every table has RLS on. The pattern is:
 | `get_available_products`, `get_shop_categories`, `get_business_public` | Customer app | Public shop data |
 | `find_open_customer_order` | Customer app | Finds the open order for an address |
 | `customer_cancel_order` | Customer app | Cancels the customer's own order only while `new`, at most 3 customer cancellations in 24 hours (a per-customer lock stops parallel cancels from beating the limit). Ignores the reason sent by the app and saves "Customer requested". |
-| `customer_replace_order_items` | Customer app | Replaces the items of an open order in one transaction. Checks owner, status, 1 to 15 lines, 1 to 10 each, the 5-modification limit, and that the address belongs to the customer. Prices come from `products`; a product the shop stopped selling keeps the price already on the order. Increases `update_count`. |
+| `customer_replace_order_items` | Customer app | Replaces the items of an open order in one transaction. Checks owner, status, 1 to 15 lines, 1 to 10 each, the 5-modification limit, and that the address belongs to the customer. Optional `p_expected_items_revision` raises `ORDER_STALE` on conflict. Prices come from shared SQL with the admin path. Writes an `order_modifications` audit row, increments `items_revision` and `update_count`. |
+| `admin_replace_order_items` | Admin panel | Same open-order item rules as the customer replace RPC (status `new` or `confirmed`, server-side pricing). Optional revision check. Writes `order_modifications` with `actor_type = admin`. Increments `items_revision` only (does not touch customer `update_count`, payment, or refund fields). |
 | `partner_auth`, `partner_shop`, `partner_products`, `partner_product`, `partner_place_order`, `partner_get_order`, `partner_list_orders`, `partner_order_payload` | Admin `/api/v1` routes | Partner API (see section 9) |
 | `ensure_order_channels` | Migrations | Seeds channel values |
 
@@ -363,6 +364,7 @@ Run every file in `supabase/migrations/` in name order, in the Supabase SQL edit
 | 34 | `order_status_events_customer_read` | Customers can read their own status history |
 | 35 | `customer_cancel_rules` | `cancelled_by`; customers cancel only while `new`, max 3 per 24 hours; status-aware modify limit message |
 | 36 | `security_hardening` | Server-side prices and totals, locked customer order fields, verified-phone customer linking, no customer read of `customers`, address and item rules, cancel lock, partner `active` check and input caps, function revokes, image bucket limits |
+| 37 | `order_modifications` | `orders.items_revision`, `order_modifications` audit table, shared pricing helpers, `admin_replace_order_items`, customer replace extended with audit + optimistic locking, RLS for customers and admins to read history |
 
 **Note:** `supabase/documentation/admin-setup.md` lists migrations only up to `admin_customers`. Use the folder as the source of truth.
 
@@ -423,6 +425,7 @@ _layout.tsx  (providers: Network, ShopCatalog, Cart)
 |---|---|
 | `items` | Current cart lines |
 | `editingOrderId` | Set while modifying an order |
+| `editingItemsRevision` | `items_revision` captured when modify mode starts; sent as `p_expected_items_revision` on update |
 | `originalItems` | Items as last saved on the server (for Discard and "Was N" tags) |
 | `savedFingerprint` | Fingerprint of `originalItems`, to detect changes |
 | `openOrder` | Open order for the selected address, if any |
@@ -436,9 +439,13 @@ _layout.tsx  (providers: Network, ShopCatalog, Cart)
 selectAddressForOrder(order)        switch to the order's address
   -> beginEditOrder(id, items, order)  load items, set openOrder
   -> navigate('/cart', { focus: 'add' })  cart scrolls to "Add more items"
-  -> Update order -> customer_replace_order_items RPC
+  -> Update order -> customer_replace_order_items RPC (optional revision token)
   -> navigate to confirmation, then clearCart()
 ```
+
+**Shop-side item edits:** admins change lines on the order detail page while the order is still Placed or Confirmed (`admin_replace_order_items`). Each successful replace appends a row to `order_modifications`. The customer app loads the latest unacknowledged admin change and shows a **Shop modified** tag until they tap **View changes** (ack stored in `AsyncStorage` per order and modification id).
+
+**Order status push:** when status becomes **Confirmed**, **Out for delivery**, or **Delivered**, the Edge Function `send-order-status-push` sends Expo push to tokens in `push_tokens`. The admin server invokes it after `updateOrderStatus` when `SUPABASE_SERVICE_ROLE_KEY` is set. Setup: `supabase/documentation/push-notifications.md`.
 
 **Rules in code:**
 

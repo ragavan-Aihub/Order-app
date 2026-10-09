@@ -60,10 +60,10 @@ const styles = StyleSheet.create({
   },
   rowCompact: {
     gap: 0,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.primarySoft,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: 'rgba(15, 118, 110, 0.28)',
     overflow: 'hidden',
   },
   button: {
@@ -81,11 +81,11 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 0,
     borderWidth: 0,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: 'transparent',
   },
   buttonDense: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
   },
   buttonLabel: {
     fontSize: 22,
@@ -107,7 +107,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   valueCompact: {
-    minWidth: 26,
+    minWidth: 24,
+    paddingHorizontal: 2,
     fontSize: 14,
     fontWeight: '800',
     color: colors.primaryDark,
@@ -115,6 +116,7 @@ const styles = StyleSheet.create({
   valueDense: {
     minWidth: 22,
     fontSize: 13,
+    fontWeight: '800',
   },
   rowStretch: {
     alignSelf: 'stretch',

@@ -15,7 +15,9 @@ Pending work, phase 2 items and future scope are tracked in [docs/pending-and-fu
 - [Business Guide](docs/business-guide.md): customer app and admin panel features, business rules, FAQ. For owners, staff and product managers.
 - [Technical Guide](docs/technical-guide.md): architecture, database, app internals, build, troubleshooting and tech debt. For developers and architects.
 
-Both guides are written without a brand name, so they can be shared with any business that uses this product. To download them as PDF, run `npm run docs:pdf` from the repo root. The files are written to `docs/pdf/`.
+Both guides are written without a brand name, so they can be shared with any business that uses this product. To generate PDF and HTML copies, run `npm run docs:pdf` from the repo root. Outputs go to `docs/pdf/`.
+
+**To download and read:** open [`docs/pdf/index.html`](docs/pdf/index.html) in Safari or Chrome (Finder → double-click), then use **Download PDF** or **Read in browser**. PDFs must be opened in Preview, Adobe, or a browser — not in a code editor (they are binary files).
 
 ## Setup
 

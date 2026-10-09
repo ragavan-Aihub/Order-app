@@ -75,7 +75,8 @@ Both parts share one online database. When a customer places an order in the app
 | **Status** | Where the order is now: Placed, Confirmed, Out for delivery, Delivered or Cancelled. |
 | **Open order** | An order that is still **Placed** or **Confirmed**. Customers can modify open orders. They can cancel only while the order is Placed. |
 | **Modify** | The customer changes an open order: adds items, removes items or changes quantities. |
-| **Modify limit** | A customer can modify one order at most 5 times. |
+| **Modify limit** | A customer can modify one order at most 5 times. Shop edits to items do not count toward this limit. |
+| **Shop modified** | The shop changed items on an open order. The customer sees a tag until they review what changed. |
 | **Coming soon** | A product that customers can see, but cannot buy yet. It shows dimmed with "Coming soon". |
 | **Active / Inactive** | Active products show in the app. Inactive products are hidden from the app. |
 | **Outstanding** | An order that is delivered but not yet paid. |
@@ -248,17 +249,20 @@ Both parts share one online database. When a customer places an order in the app
 - item count and the first item names;
 - date;
 - status badge (coloured) and payment badge (for example "Payment pending", "Paid · Cash", "Paid · UPI", "Refund pending", "Refunded");
-- **Modify** button for open orders, and **Cancel** for orders that are still Placed.
+- **Shop modified** tag when the shop changed that order and the customer has not yet opened **View changes** (tap the order for details).
 
-**Order details** (tap an order) shows:
+**Order details** (tap an order) shows **Modify order** and **Cancel order** (while Placed) when those actions are allowed:
 
 - order number, status, placed date and time, payment status;
 - **Progress** with the four steps **Placed, Confirmed, Out for delivery, Delivered**. Each completed step shows its **date and time**, for example "4 Oct, 3:15 pm";
 - for cancelled orders: the reason and "Cancelled on {date and time}";
 - delivery name, mobile, address and pincode;
 - all items with quantities and the total.
+- If the shop edited the order, a short banner with **View changes** (added/removed items, quantity changes, old and new total). Payment status stays as it was; collect or refund any difference manually.
 
 Note: older orders may show only the Placed time, because step times were not recorded for them at the time.
+
+If the customer tries to update their cart while the shop changed the same order, the app asks them to refresh and review.
 
 ### 3.10 Account
 
@@ -320,6 +324,17 @@ Open an order to see:
 4. **Customer**: name, mobile, source, and a link to the customer's history.
 5. **Delivery**: address, pincode and any order notes.
 6. **Items** with quantity, price, subtotal and total.
+
+#### Changing items on an open order
+
+While the order is **Placed** or **Confirmed**, open the order and use **Modify order** on the Items section when a customer asks for a change (same rules as the customer app: not after Out for delivery or Delivered). Most orders are left as placed.
+
+1. Tap **Modify order**. The items table switches to an editable list with product search.
+2. Add, remove or change quantities.
+3. Tap **Review & update**, check the totals, optionally add a short reason for the customer, then confirm **Update order**.
+4. Tap **Cancel** to leave without saving.
+
+Payment method and whether the order is paid do not change automatically. If the total went up or down, use the payment panel or collect/refund manually. The customer sees a **Shop modified** notice in the app with a before/after summary. These edits do not use up the customer's 5 self-service modifications.
 
 #### Moving an order to the next status
 

@@ -181,6 +181,7 @@ function SamChat() {
     replaceItems,
     clearCart,
     editingOrderId,
+    editingItemsRevision,
     beginEditOrder,
     markOrderSaved,
     forgetOpenOrder,
@@ -708,7 +709,13 @@ function SamChat() {
     setBusyKind(editingOrderId ? 'save' : 'place');
     try {
       Speech.stop();
-      const result = await submitShopOrder(items, selected, editingOrderId, 'voice');
+      const result = await submitShopOrder(
+        items,
+        selected,
+        editingOrderId,
+        'voice',
+        editingOrderId ? editingItemsRevision : undefined,
+      );
       if (!result.ok) {
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'sam' } });

@@ -1,19 +1,23 @@
 'use client';
 
 import {
+  ClipboardPaste,
   ImagePlus,
   Info,
   Plus,
-  RefreshCw,
-  Trash2,
   Upload,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react';
 
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
+import {
+  fileFromClipboardEvent,
+  readImageFromNavigatorClipboard,
+  readImageFromNextPaste,
+} from '@/lib/pasted-image';
 import { saveProduct } from '@/services/product-actions';
 import { ProductDeleteButton } from '@/components/ProductDeleteButton';
 
@@ -31,7 +35,6 @@ type ProductFormProps = {
     id: string;
     name: string;
     description: string;
-    ingredients?: string | null;
     price: number;
     image_url: string | null;
     category_id?: string | null;
@@ -65,7 +68,6 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   const isEdit = Boolean(product);
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
-  const [ingredients, setIngredients] = useState(product?.ingredients ?? '');
   const [price, setPrice] = useState(product?.price != null ? product.price.toFixed(2) : '');
   const [categoryId, setCategoryId] = useState(product?.category_id ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -76,6 +78,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const dragCount = useRef(0);
   const previewRef = useRef(imagePreview);
   previewRef.current = imagePreview;
@@ -144,15 +147,40 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     }
   }
 
+  function onPasteImage(event: ClipboardEvent<HTMLDivElement>) {
+    const file = fileFromClipboardEvent(event.nativeEvent);
+    if (!file) {
+      return;
+    }
+    event.preventDefault();
+    applyImage(file);
+  }
+
+  function onPasteImageButton() {
+    setImageError(null);
+    const readPromise =
+      typeof navigator !== 'undefined' && navigator.clipboard?.read
+        ? navigator.clipboard.read()
+        : null;
+    void readImageFromNavigatorClipboard(readPromise).then(async (file) => {
+      if (file) {
+        applyImage(file);
+        return;
+      }
+      dropZoneRef.current?.focus();
+      const pasted = await readImageFromNextPaste();
+      if (pasted) {
+        applyImage(pasted);
+        return;
+      }
+      setImageError('Could not read clipboard. Click the dashed box, then paste (⌘V / Ctrl+V), or choose a file.');
+    });
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setImageError(null);
-
-    if (!product && !imageFile) {
-      setImageError('Add a product image.');
-      return;
-    }
 
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > PRICE_MAX) {
@@ -167,7 +195,6 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     }
     formData.set('name', name.trim());
     formData.set('description', description.trim().slice(0, DESCRIPTION_MAX));
-    formData.set('ingredients', ingredients.trim().slice(0, DESCRIPTION_MAX));
     formData.set('price', price);
     if (categoriesEnabled) {
       formData.set('category_id', categoryId);
@@ -196,10 +223,10 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   return (
     <form onSubmit={onSubmit} autoComplete="off" className="max-w-3xl space-y-5">
       <section className="rounded-2xl border border-stone-200 bg-white p-5 md:p-6">
-        <h2 className="text-base font-semibold">
-          Product image {isEdit ? null : <span className="text-red-500">*</span>}
-        </h2>
-        <p className="mt-1 text-sm text-stone-500">Shown in the customer app. JPG, PNG, WebP, or GIF, up to 5 MB.</p>
+        <h2 className="text-base font-semibold">Product image</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          Optional. Shown in the customer app when set. JPG, PNG, WebP, or GIF, up to 5 MB.
+        </p>
 
         <input
           ref={fileInputRef}
@@ -216,11 +243,16 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
 
         <div className={`mt-4 grid gap-5 ${hasPreview ? 'md:grid-cols-[minmax(0,1fr)_16rem]' : ''}`}>
           <div
+            ref={dropZoneRef}
+            role="group"
+            aria-label="Product image"
+            tabIndex={0}
             onDragEnter={onDragEnter}
             onDragOver={(event) => event.preventDefault()}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
-            className={`flex min-h-[11.5rem] flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
+            onPaste={onPasteImage}
+            className={`flex min-h-[11.5rem] flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
               dragging
                 ? 'border-emerald-500 bg-emerald-100/80'
                 : 'border-emerald-200 bg-emerald-50/70'
@@ -229,15 +261,28 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
             <Upload className="h-8 w-8 text-emerald-600" strokeWidth={1.75} aria-hidden />
             <p className="mt-3 text-sm font-medium text-stone-800">Drag and drop an image here</p>
             <p className="mt-1 text-xs text-stone-400">or</p>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-emerald-600 bg-white px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
-            >
-              <ImagePlus className="h-4 w-4" aria-hidden />
-              Choose image
-            </button>
-            <p className="mt-3 text-xs text-stone-400">JPG, PNG, WebP, or GIF · Max 5 MB</p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-emerald-600 bg-white px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+              >
+                <ImagePlus className="h-4 w-4" aria-hidden />
+                Choose image
+              </button>
+              <button
+                type="button"
+                onClick={() => void onPasteImageButton()}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+              >
+                <ClipboardPaste className="h-4 w-4" aria-hidden />
+                Paste image
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-stone-500">
+              Click this box, then paste (⌘V / Ctrl+V), or use Paste image.
+            </p>
+            <p className="mt-1 text-xs text-stone-400">JPG, PNG, WebP, or GIF · Max 5 MB</p>
           </div>
 
           {hasPreview ? (
@@ -253,24 +298,6 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
                   className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-stone-600 shadow-sm hover:bg-white"
                 >
                   <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                  Replace
-                </button>
-                <button
-                  type="button"
-                  onClick={clearImage}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-sm font-medium text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  Remove
                 </button>
               </div>
             </div>
@@ -309,23 +336,6 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
             />
             <span className="pointer-events-none absolute bottom-2 right-3 text-xs text-stone-400">
               {description.length}/{DESCRIPTION_MAX}
-            </span>
-          </div>
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-stone-700">Ingredients (for voice ordering)</span>
-          <div className="relative">
-            <textarea
-              value={ingredients}
-              maxLength={DESCRIPTION_MAX}
-              onChange={(event) => setIngredients(event.target.value.slice(0, DESCRIPTION_MAX))}
-              placeholder="e.g. mango, chilli powder, salt, mustard, fenugreek, sesame oil"
-              rows={3}
-              className={`${fieldClass} min-h-[6.5rem] resize-y pb-7`}
-            />
-            <span className="pointer-events-none absolute bottom-2 right-3 text-xs text-stone-400">
-              {ingredients.length}/{DESCRIPTION_MAX}
             </span>
           </div>
         </label>

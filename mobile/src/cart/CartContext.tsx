@@ -25,6 +25,7 @@ type CartContextValue = {
   itemCount: number;
   totalAmount: number;
   editingOrderId: string | null;
+  editingItemsRevision: number | null;
   openOrder: Order | null;
   openOrderBlock: Order | null;
   openOrderReady: boolean;
@@ -37,6 +38,7 @@ type CartContextValue = {
   beginEditOrder: (orderId: string, next: CartItem[], order?: Order) => void;
   markOrderSaved: (next: CartItem[]) => void;
   clearEditOrder: () => void;
+  syncEditingItemsRevision: (revision: number) => void;
   forgetOpenOrder: (orderId: string) => void;
   refreshOpenOrder: () => void;
   resumeEdit: boolean;
@@ -73,6 +75,7 @@ function notifyLimit(kind: 'items' | 'qty') {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editingItemsRevision, setEditingItemsRevision] = useState<number | null>(null);
   const [openOrder, setOpenOrder] = useState<Order | null>(null);
   const [ready, setReady] = useState(false);
   const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
@@ -90,6 +93,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setOpenOrder(order);
     }
     setEditingOrderId(orderId);
+    setEditingItemsRevision(order?.items_revision ?? 0);
     setItems(clamped);
     setSavedFingerprint(cartFingerprint(clamped));
     setOriginalItems(clamped);
@@ -97,6 +101,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => {
     setEditingOrderId(null);
+    setEditingItemsRevision(null);
     setItems([]);
     setSavedFingerprint(null);
     setOriginalItems(null);
@@ -162,7 +167,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 current.status === open.status &&
                 current.total_amount === open.total_amount &&
                 current.customer_address_id === open.customer_address_id &&
-                current.update_count === open.update_count
+                current.update_count === open.update_count &&
+                (current.items_revision ?? 0) === (open.items_revision ?? 0)
               ) {
                 return current;
               }
@@ -188,6 +194,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, [editingOrderId, openOrderCheck]);
+
+  useEffect(() => {
+    if (editingOrderId && editingItemsRevision === null && openOrder?.id === editingOrderId) {
+      setEditingItemsRevision(openOrder.items_revision ?? 0);
+    }
+  }, [editingItemsRevision, editingOrderId, openOrder]);
 
   useEffect(() => {
     if (!openOrderReady || !editingOrderId) {
@@ -220,6 +232,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       itemCount,
       totalAmount,
       editingOrderId,
+      editingItemsRevision,
       openOrder,
       openOrderBlock: editing ? null : openOrder,
       openOrderReady,
@@ -323,14 +336,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
       takeResumeEdit,
       clearEditOrder() {
         setEditingOrderId(null);
+        setEditingItemsRevision(null);
         setSavedFingerprint(null);
         setOriginalItems(null);
+      },
+      syncEditingItemsRevision(revision: number) {
+        setEditingItemsRevision(revision);
       },
       forgetOpenOrder(orderId: string) {
         setOpenOrder((current) => (current?.id === orderId ? null : current));
         setEditingOrderId((current) => (current === orderId ? null : current));
         setItems((current) => (editingOrderId === orderId ? [] : current));
         if (editingOrderId === orderId) {
+          setEditingItemsRevision(null);
           setSavedFingerprint(null);
           setOriginalItems(null);
         }
@@ -340,6 +358,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     beginEditOrder,
     clearCart,
     editingOrderId,
+    editingItemsRevision,
     items,
     markOrderSaved,
     openOrder,

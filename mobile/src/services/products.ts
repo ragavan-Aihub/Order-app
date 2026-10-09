@@ -3,6 +3,7 @@ import { MOCK_PRODUCTS } from '@/data/mock-products';
 import { readCachedProducts, writeCachedProducts } from '@/services/catalog-cache';
 import { getSupabaseClient } from '@/services/supabase';
 import type { Product } from '@/types/product';
+import { sortProductsForDisplay } from '@/utils/product-list-sort';
 
 let memoryProducts: Product[] | null = null;
 let inflight: Promise<Product[]> | null = null;
@@ -13,7 +14,7 @@ async function fetchLiveProducts(): Promise<Product[]> {
   }
   inflight = (async () => {
     if (!isSupabaseConfigured || !env.businessId) {
-      const mock = MOCK_PRODUCTS.filter((product) => product.active !== false);
+      const mock = sortProductsForDisplay(MOCK_PRODUCTS.filter((product) => product.active !== false));
       memoryProducts = mock;
       return mock;
     }
@@ -28,15 +29,15 @@ async function fetchLiveProducts(): Promise<Product[]> {
         p_business_id: env.businessId,
       });
       if (error || !data) {
-        memoryProducts = cached ?? [];
+        memoryProducts = sortProductsForDisplay(cached ?? []);
         return memoryProducts;
       }
-      const products = data as Product[];
+      const products = sortProductsForDisplay(data as Product[]);
       memoryProducts = products;
       void writeCachedProducts(products);
       return products;
     } catch {
-      memoryProducts = cached ?? [];
+      memoryProducts = sortProductsForDisplay(cached ?? []);
       return memoryProducts;
     }
   })().finally(() => {
