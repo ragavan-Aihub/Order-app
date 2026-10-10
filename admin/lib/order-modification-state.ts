@@ -1,3 +1,7 @@
+import {
+  buildOrderDiffTableRowsFromSnapshots,
+  orderDiffHasChanges,
+} from '@/lib/order-modification-diff';
 import type { OrderItem, OrderModificationItemSnapshot } from '@/types/order';
 
 export function normalizeModificationItems(raw: unknown): OrderModificationItemSnapshot[] {
@@ -13,84 +17,107 @@ export function normalizeModificationItems(raw: unknown): OrderModificationItemS
 export type OrderModificationSummary = {
   placedItems: OrderModificationItemSnapshot[];
   placedTotal: number;
+  /** Snapshot after all shop edits (ignores later customer-only edits). */
+  adminCompareItems: OrderModificationItemSnapshot[];
+  adminCompareTotal: number | null;
+  /** Lines to restore when reverting shop changes (before first admin edit). */
+  revertTargetItems: OrderModificationItemSnapshot[];
+  revertTargetTotal: number | null;
   hasAdminModification: boolean;
+  /** True only when the shop changed the order vs as placed — not customer self-serve edits alone. */
   modifiedFromPlaced: boolean;
   canRevertToPlaced: boolean;
 };
 
-function snapshotFromItems(items: OrderItem[]): OrderModificationItemSnapshot[] {
-  return items.map((item) => ({
-    product_id: item.product_id,
-    product_name: item.product_name,
-    product_price: Number(item.product_price),
-    quantity: item.quantity,
-    subtotal: Number(item.subtotal),
-  }));
+type ModInput = {
+  actor_type: string;
+  reason?: string | null;
+  previous_items: OrderModificationItemSnapshot[] | unknown;
+  new_items?: OrderModificationItemSnapshot[] | unknown;
+  previous_total: number;
+  new_total?: number;
+  created_at: string;
+};
+
+function getAdminEndSnapshot(mods: ModInput[]): OrderModificationItemSnapshot[] | null {
+  const adminMods = mods
+    .filter((mod) => mod.actor_type === 'admin' && mod.reason !== 'reverted_to_placed')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  if (!adminMods.length) {
+    return null;
+  }
+  const last = adminMods[adminMods.length - 1];
+  return normalizeModificationItems(last.new_items);
 }
 
-function productKey(item: OrderModificationItemSnapshot | OrderItem): string {
-  const id =
-    'product_id' in item && item.product_id
-      ? item.product_id
-      : item.product_name.trim().toLowerCase();
-  return id;
+function getPreAdminSnapshot(mods: ModInput[]): {
+  items: OrderModificationItemSnapshot[];
+  total: number;
+} | null {
+  const firstAdmin = mods
+    .filter((mod) => mod.actor_type === 'admin')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+  if (!firstAdmin) {
+    return null;
+  }
+  const items = normalizeModificationItems(firstAdmin.previous_items);
+  if (!items.length) {
+    return null;
+  }
+  return { items, total: Number(firstAdmin.previous_total) };
 }
 
-function quantityByProduct(
-  items: OrderModificationItemSnapshot[] | OrderItem[],
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const item of items) {
-    const key = productKey(item as OrderModificationItemSnapshot);
-    map.set(key, (map.get(key) ?? 0) + item.quantity);
-  }
-  return map;
-}
-
-export function orderItemsMatchPlaced(
-  current: OrderItem[],
-  placed: OrderModificationItemSnapshot[],
-): boolean {
-  if (placed.length === 0) {
-    return true;
-  }
-  const a = quantityByProduct(current);
-  const b = quantityByProduct(placed);
-  if (a.size !== b.size) {
-    return false;
-  }
-  for (const [key, qty] of a) {
-    if (b.get(key) !== qty) {
-      return false;
-    }
-  }
-  return true;
+function latestAdminMod(mods: ModInput[]): ModInput | null {
+  const adminMods = mods
+    .filter((mod) => mod.actor_type === 'admin')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return adminMods[adminMods.length - 1] ?? null;
 }
 
 export function buildOrderModificationSummary(
-  currentItems: OrderItem[],
-  mods: Array<{
-    actor_type: string;
-    previous_items: OrderModificationItemSnapshot[] | unknown;
-    previous_total: number;
-    created_at: string;
-  }>,
+  _currentItems: OrderItem[],
+  mods: ModInput[],
 ): OrderModificationSummary {
   const sorted = [...mods].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
   const first = sorted[0];
   const placedItems = normalizeModificationItems(first?.previous_items);
-  const placedTotal = first ? Number(first.previous_total) : currentItems.reduce((s, i) => s + Number(i.subtotal), 0);
+  const placedTotal = first ? Number(first.previous_total) : 0;
   const hasAdminModification = sorted.some((row) => row.actor_type === 'admin');
-  const modifiedFromPlaced =
-    placedItems.length > 0 ? !orderItemsMatchPlaced(currentItems, placedItems) : false;
+  const adminCompareItems = getAdminEndSnapshot(sorted) ?? [];
+  const adminCompareTotal =
+    adminCompareItems.length > 0
+      ? adminCompareItems.reduce((sum, line) => sum + Number(line.subtotal), 0)
+      : null;
+  const preAdmin = getPreAdminSnapshot(sorted);
+  const revertTargetItems = preAdmin?.items ?? [];
+  const revertTargetTotal = preAdmin?.total ?? null;
+
+  const latestAdmin = latestAdminMod(sorted);
+  let modifiedFromPlaced = false;
+  if (
+    placedItems.length > 0 &&
+    adminCompareItems.length > 0 &&
+    latestAdmin?.reason !== 'reverted_to_placed'
+  ) {
+    modifiedFromPlaced = orderDiffHasChanges(
+      buildOrderDiffTableRowsFromSnapshots(placedItems, adminCompareItems),
+    );
+  }
+
+  const canRevertToPlaced =
+    modifiedFromPlaced && revertTargetItems.length > 0 && latestAdmin?.reason !== 'reverted_to_placed';
 
   return {
     placedItems,
     placedTotal,
+    adminCompareItems,
+    adminCompareTotal,
+    revertTargetItems,
+    revertTargetTotal,
     hasAdminModification,
     modifiedFromPlaced,
-    canRevertToPlaced: hasAdminModification && modifiedFromPlaced && placedItems.length > 0,
+    canRevertToPlaced,
   };
 }

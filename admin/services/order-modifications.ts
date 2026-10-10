@@ -6,8 +6,11 @@ import type { OrderItem, OrderModificationItemSnapshot } from '@/types/order';
 type ModRow = {
   order_id: string;
   actor_type: string;
+  reason: string | null;
   previous_items: OrderModificationItemSnapshot[];
+  new_items: OrderModificationItemSnapshot[];
   previous_total: number;
+  new_total: number;
   created_at: string;
 };
 
@@ -36,7 +39,7 @@ async function loadModificationRowsForOrders(
   }
   const { data, error } = await supabase
     .from('order_modifications')
-    .select('order_id, actor_type, previous_items, previous_total, created_at')
+    .select('order_id, actor_type, reason, previous_items, new_items, previous_total, new_total, created_at')
     .eq('business_id', businessId)
     .in('order_id', orderIds)
     .order('created_at', { ascending: true });

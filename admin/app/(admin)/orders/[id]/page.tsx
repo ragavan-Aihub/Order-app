@@ -42,7 +42,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           <StatusBadge status={order.status} size="lg" />
           {order.modification_summary?.modifiedFromPlaced ? (
             <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-950">
-              Modified from placed
+              Shop modified
             </span>
           ) : null}
         </div>
@@ -124,6 +124,9 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         canRevertToPlaced={Boolean(order.modification_summary?.canRevertToPlaced)}
         placedTotal={order.modification_summary?.placedTotal}
         placedItems={order.modification_summary?.placedItems ?? []}
+        shopDiffBaselineItems={order.modification_summary?.revertTargetItems ?? []}
+        adminCompareItems={order.modification_summary?.adminCompareItems ?? []}
+        revertTargetTotal={order.modification_summary?.revertTargetTotal ?? undefined}
         relaxProductValidation={Boolean(order.modification_summary?.hasAdminModification)}
       />
     </div>

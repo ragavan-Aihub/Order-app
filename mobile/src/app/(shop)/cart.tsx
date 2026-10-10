@@ -161,10 +161,7 @@ export default function CartScreen() {
       if (!editingOrderId) {
         return;
       }
-      const timer = setTimeout(() => {
-        discardIfClosed(editingOrderId).catch(() => undefined);
-      }, 500);
-      return () => clearTimeout(timer);
+      void discardIfClosed(editingOrderId);
     }, [discardIfClosed, editingOrderId]),
   );
 

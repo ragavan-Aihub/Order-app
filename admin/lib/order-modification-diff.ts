@@ -66,12 +66,12 @@ export type OrderDiffTableRow = {
   placedSubtotal: number | null;
 };
 
-export function buildOrderDiffTableRows(
+export function buildOrderDiffTableRowsFromSnapshots(
   placed: OrderModificationItemSnapshot[],
-  current: OrderItem[],
+  compare: OrderModificationItemSnapshot[],
 ): OrderDiffTableRow[] {
   if (!placed.length) {
-    return snapshotsFromOrderItems(current).map((line) => ({
+    return compare.map((line) => ({
       rowKey: lineKey(line),
       kind: 'unchanged' as const,
       productName: line.product_name,
@@ -84,19 +84,19 @@ export function buildOrderDiffTableRows(
   }
 
   const placedMap = qtyMap(placed);
-  const currentMap = qtyMap(snapshotsFromOrderItems(current));
-  const keys = new Set([...placedMap.keys(), ...currentMap.keys()]);
+  const compareMap = qtyMap(compare);
+  const keys = new Set([...placedMap.keys(), ...compareMap.keys()]);
 
   const sortedKeys = [...keys].sort((a, b) => {
-    const nameA = placedMap.get(a)?.product_name ?? currentMap.get(a)?.product_name ?? '';
-    const nameB = placedMap.get(b)?.product_name ?? currentMap.get(b)?.product_name ?? '';
+    const nameA = placedMap.get(a)?.product_name ?? compareMap.get(a)?.product_name ?? '';
+    const nameB = placedMap.get(b)?.product_name ?? compareMap.get(b)?.product_name ?? '';
     return nameA.localeCompare(nameB);
   });
 
   const rows: OrderDiffTableRow[] = [];
   for (const key of sortedKeys) {
     const before = placedMap.get(key);
-    const after = currentMap.get(key);
+    const after = compareMap.get(key);
     if (before && !after) {
       rows.push({
         rowKey: key,
@@ -139,6 +139,13 @@ export function buildOrderDiffTableRows(
     }
   }
   return rows;
+}
+
+export function buildOrderDiffTableRows(
+  placed: OrderModificationItemSnapshot[],
+  current: OrderItem[],
+): OrderDiffTableRow[] {
+  return buildOrderDiffTableRowsFromSnapshots(placed, snapshotsFromOrderItems(current));
 }
 
 export function orderDiffHasChanges(rows: OrderDiffTableRow[]): boolean {

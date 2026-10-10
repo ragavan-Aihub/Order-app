@@ -1,8 +1,10 @@
 import { TableScroll } from '@/components/TableScroll';
 import {
-  buildOrderDiffTableRows,
+  buildOrderDiffTableRowsFromSnapshots,
   orderDiffHasChanges,
+  snapshotsFromOrderItems,
   type OrderDiffRowKind,
+  type OrderDiffTableRow,
 } from '@/lib/order-modification-diff';
 import type { OrderItem, OrderModificationItemSnapshot } from '@/types/order';
 import { formatPrice } from '@/utils/format';
@@ -40,21 +42,77 @@ function statusBadgeClass(kind: OrderDiffRowKind): string {
   }
 }
 
+function lineKey(line: OrderModificationItemSnapshot): string {
+  return line.product_id ?? line.product_name.trim().toLowerCase();
+}
+
+function expandDiffWithCurrentLines(diffRows: OrderDiffTableRow[], items: OrderItem[]): OrderDiffTableRow[] {
+  const byKey = new Map(diffRows.map((row) => [row.rowKey, row]));
+  for (const line of snapshotsFromOrderItems(items)) {
+    const key = lineKey(line);
+    if (byKey.has(key)) {
+      continue;
+    }
+    byKey.set(key, {
+      rowKey: key,
+      kind: 'unchanged',
+      productName: line.product_name,
+      quantity: line.quantity,
+      placedQuantity: null,
+      unitPrice: line.product_price,
+      subtotal: line.subtotal,
+      placedSubtotal: null,
+    });
+  }
+  return [...byKey.values()].sort((a, b) => a.productName.localeCompare(b.productName));
+}
+
+function mergeDiffWithLiveItems(
+  diffRows: OrderDiffTableRow[],
+  items: OrderItem[],
+): Array<OrderDiffTableRow & { displayQty: number; displaySubtotal: number }> {
+  const liveByKey = new Map(snapshotsFromOrderItems(items).map((line) => [lineKey(line), line]));
+  return diffRows.map((row) => {
+    const live = liveByKey.get(row.rowKey);
+    const removed = row.kind === 'removed';
+    return {
+      ...row,
+      displayQty: removed ? row.quantity : (live?.quantity ?? row.quantity),
+      displaySubtotal: removed ? (row.placedSubtotal ?? row.subtotal) : (live?.subtotal ?? row.subtotal),
+    };
+  });
+}
+
 export function AdminOrderItemsTable({
   items,
   placedItems = [],
+  shopDiffBaselineItems = [],
+  adminCompareItems = [],
   total,
   placedTotal,
   showDiff = false,
 }: {
   items: OrderItem[];
   placedItems?: OrderModificationItemSnapshot[];
+  /** Order lines immediately before the first shop edit (includes prior customer edits). */
+  shopDiffBaselineItems?: OrderModificationItemSnapshot[];
+  /** Lines after all shop edits (customer edits after shop are not part of this snapshot). */
+  adminCompareItems?: OrderModificationItemSnapshot[];
   total: number;
   placedTotal?: number;
   showDiff?: boolean;
 }) {
-  const diffRows = buildOrderDiffTableRows(placedItems, items);
-  const useDiff = showDiff && placedItems.length > 0 && orderDiffHasChanges(diffRows);
+  const diffBaseline =
+    shopDiffBaselineItems.length > 0 ? shopDiffBaselineItems : placedItems;
+  const diffRows = buildOrderDiffTableRowsFromSnapshots(diffBaseline, adminCompareItems);
+  const useDiff =
+    showDiff &&
+    diffBaseline.length > 0 &&
+    adminCompareItems.length > 0 &&
+    orderDiffHasChanges(diffRows);
+  const rows = useDiff
+    ? mergeDiffWithLiveItems(expandDiffWithCurrentLines(diffRows, items), items)
+    : [];
 
   return (
     <div className="space-y-3">
@@ -64,7 +122,7 @@ export function AdminOrderItemsTable({
           role="note"
           aria-label="Change legend"
         >
-          <span className="font-semibold text-stone-800">Changes vs placed order</span>
+          <span className="font-semibold text-stone-800">Shop changes only</span>
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" aria-hidden />
             New line
@@ -79,7 +137,7 @@ export function AdminOrderItemsTable({
           </span>
           {typeof placedTotal === 'number' && placedTotal !== total ? (
             <span className="ml-auto font-medium text-stone-800">
-              Total {formatPrice(placedTotal)} → {formatPrice(total)}
+              Placed total {formatPrice(placedTotal)} · Current {formatPrice(total)}
             </span>
           ) : null}
         </div>
@@ -98,7 +156,7 @@ export function AdminOrderItemsTable({
           </thead>
           <tbody>
             {useDiff
-              ? diffRows.map((row) => {
+              ? rows.map((row) => {
                   const removed = row.kind === 'removed';
                   const removedRowClass =
                     'text-stone-500 line-through decoration-stone-400 decoration-2 [&_*]:line-through [&_*]:decoration-stone-400';
@@ -123,19 +181,19 @@ export function AdminOrderItemsTable({
                       <td className={`px-3 py-2 tabular-nums ${cellClass}`}>
                         {row.kind === 'qty_changed' && row.placedQuantity != null ? (
                           <span className="inline-flex flex-wrap items-baseline gap-1.5">
-                            <span className="font-semibold text-stone-900">{row.quantity}</span>
+                            <span className="font-semibold text-stone-900">{row.displayQty}</span>
                             <span className="text-xs font-normal text-stone-500">
-                              was{' '}
-                              <span className="line-through decoration-stone-400">{row.placedQuantity}</span>
+                              before shop {row.placedQuantity}
+                              {row.displayQty !== row.quantity ? ` · now ${row.displayQty}` : null}
                             </span>
                           </span>
                         ) : (
-                          row.quantity
+                          row.displayQty
                         )}
                       </td>
                       <td className={`px-3 py-2 tabular-nums ${cellClass}`}>{formatPrice(row.unitPrice)}</td>
                       <td className={`px-3 py-2 tabular-nums font-medium ${cellClass}`}>
-                        {formatPrice(removed ? (row.placedSubtotal ?? row.subtotal) : row.subtotal)}
+                        {formatPrice(row.displaySubtotal)}
                       </td>
                     </tr>
                   );

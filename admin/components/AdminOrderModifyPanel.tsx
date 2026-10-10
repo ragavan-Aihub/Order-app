@@ -56,6 +56,9 @@ export function AdminOrderModifyPanel({
   canRevertToPlaced = false,
   placedTotal,
   placedItems = [],
+  shopDiffBaselineItems = [],
+  adminCompareItems = [],
+  revertTargetTotal,
   relaxProductValidation = false,
 }: {
   orderId: string;
@@ -69,6 +72,9 @@ export function AdminOrderModifyPanel({
   canRevertToPlaced?: boolean;
   placedTotal?: number;
   placedItems?: OrderModificationItemSnapshot[];
+  shopDiffBaselineItems?: OrderModificationItemSnapshot[];
+  adminCompareItems?: OrderModificationItemSnapshot[];
+  revertTargetTotal?: number;
   relaxProductValidation?: boolean;
 }) {
   const router = useRouter();
@@ -261,7 +267,7 @@ export function AdminOrderModifyPanel({
             <h2 className="text-base font-semibold text-stone-900">Items</h2>
             {adminModifiedFromPlaced ? (
               <p className="mt-0.5 text-sm text-amber-900">
-                Modified from original
+                Shop changed this order vs as placed
                 {typeof placedTotal === 'number' ? ` · Placed total ${formatPrice(placedTotal)}` : ''}
               </p>
             ) : null}
@@ -274,7 +280,7 @@ export function AdminOrderModifyPanel({
                 onClick={() => setRevertOpen(true)}
                 className="min-h-10 rounded-lg border border-amber-400 bg-white px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50"
               >
-                Revert to original
+                Undo shop changes
               </button>
             ) : null}
             {canModify ? (
@@ -296,15 +302,17 @@ export function AdminOrderModifyPanel({
         <AdminOrderItemsTable
           items={originalItems}
           placedItems={placedItems}
+          shopDiffBaselineItems={shopDiffBaselineItems}
+          adminCompareItems={adminCompareItems}
           total={originalTotal}
           placedTotal={placedTotal}
           showDiff={adminModifiedFromPlaced}
         />
         {revertOpen ? (
           <ConfirmDialog
-            title="Revert to original order?"
-            body="This restores the lines and total from when the customer first placed the order."
-            confirmLabel="Revert to original"
+            title="Undo shop changes?"
+            body="Restores the order to how it was before the shop edited it. Customer changes made before the shop edit are kept."
+            confirmLabel="Undo shop changes"
             busy={busy}
             onCancel={() => {
               if (!busy) {
@@ -318,10 +326,10 @@ export function AdminOrderModifyPanel({
                 <span>Current total</span>
                 <span>{formatPrice(originalTotal)}</span>
               </div>
-              {typeof placedTotal === 'number' ? (
+              {typeof revertTargetTotal === 'number' ? (
                 <div className="flex justify-between font-semibold text-stone-900">
-                  <span>Original total</span>
-                  <span>{formatPrice(placedTotal)}</span>
+                  <span>After undo (preview)</span>
+                  <span>{formatPrice(revertTargetTotal)}</span>
                 </div>
               ) : null}
             </div>

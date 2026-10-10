@@ -10,8 +10,8 @@ import {
 } from '@/cart/limits';
 import { findOpenOrderForSelectedAddress } from '@/cart/open-cart-guard';
 import { getSelectedAddress, subscribeAddressBook } from '@/cart/address-book';
-import { getMyOrderById } from '@/services/orders';
-import type { Order } from '@/types/order';
+import { checkOrderEditable, getMyOrderById } from '@/services/orders';
+import { isOpenOrderStatus, type Order } from '@/types/order';
 import type { Product } from '@/types/product';
 
 export type CartItem = {
@@ -87,6 +87,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const takeResumeEdit = useCallback(() => setResumeEdit(false), []);
   const refreshOpenOrder = useCallback(() => setOpenOrderCheck((count) => count + 1), []);
 
+  const clearEditSession = useCallback(() => {
+    setEditingOrderId(null);
+    setEditingItemsRevision(null);
+    setSavedFingerprint(null);
+    setOriginalItems(null);
+    setItems([]);
+    setResumeEdit(false);
+  }, []);
+
   const beginEditOrder = useCallback((orderId: string, next: CartItem[], order?: Order) => {
     const clamped = clampCart(next);
     setOpenOrderReady(false);
@@ -130,19 +139,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
           edit?.fingerprint && restored.length && cartFingerprint(restored) !== edit.fingerprint,
         );
         if (edit && changed) {
-          setItems(restored);
-          setEditingOrderId(edit.orderId);
-          setEditingItemsRevision(edit.itemsRevision ?? null);
-          setSavedFingerprint(edit.fingerprint);
-          setOriginalItems(edit.items ? clampCart(edit.items) : null);
-          setResumeEdit(true);
-          void getMyOrderById(edit.orderId)
-            .then((fresh) => {
-              if (fresh?.items_revision != null) {
-                setEditingItemsRevision(fresh.items_revision);
+          void checkOrderEditable(edit.orderId)
+            .then((check) => {
+              if (check.state === 'closed') {
+                setItems([]);
+                void saveEditingOrderId(null);
+                return;
               }
+              setItems(restored);
+              setEditingOrderId(edit.orderId);
+              setEditingItemsRevision(edit.itemsRevision ?? null);
+              setSavedFingerprint(edit.fingerprint);
+              setOriginalItems(edit.items ? clampCart(edit.items) : null);
+              setResumeEdit(true);
+              void getMyOrderById(edit.orderId)
+                .then((fresh) => {
+                  if (!fresh || !isOpenOrderStatus(fresh.status)) {
+                    setItems([]);
+                    setEditingOrderId(null);
+                    setEditingItemsRevision(null);
+                    setSavedFingerprint(null);
+                    setOriginalItems(null);
+                    setResumeEdit(false);
+                    void saveEditingOrderId(null);
+                    return;
+                  }
+                  if (fresh.items_revision != null) {
+                    setEditingItemsRevision(fresh.items_revision);
+                  }
+                })
+                .catch(() => undefined);
             })
-            .catch(() => undefined);
+            .catch(() => {
+              setItems([]);
+              void saveEditingOrderId(null);
+            });
           return;
         }
         if (edit) {
@@ -171,48 +202,60 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     setOpenOrderReady(false);
-    const refresh = (reload: boolean) => {
-      findOpenOrderForSelectedAddress(reload)
-        .then((open) => {
-          if (!cancelled) {
-            setOpenOrder((current) => {
-              if (editingOrderId && current?.id === editingOrderId) {
-                return current;
-              }
-              if (
-                current &&
-                open &&
-                current.id === open.id &&
-                current.status === open.status &&
-                current.total_amount === open.total_amount &&
-                current.customer_address_id === open.customer_address_id &&
-                current.update_count === open.update_count &&
-                (current.items_revision ?? 0) === (open.items_revision ?? 0)
-              ) {
-                return current;
-              }
-              return open;
-            });
-            setOpenOrderReady(true);
+    const refresh = async (reload: boolean) => {
+      try {
+        if (editingOrderId) {
+          const check = await checkOrderEditable(editingOrderId);
+          if (cancelled) {
+            return;
           }
-        })
-        .catch(() => {
-          if (!cancelled) {
+          if (check.state === 'closed') {
+            clearEditSession();
             setOpenOrder(null);
             setOpenOrderReady(true);
+            void saveEditingOrderId(null);
+            return;
           }
+        }
+
+        const open = await findOpenOrderForSelectedAddress(reload);
+        if (cancelled) {
+          return;
+        }
+
+        setOpenOrder((current) => {
+          if (
+            current &&
+            open &&
+            current.id === open.id &&
+            current.status === open.status &&
+            current.total_amount === open.total_amount &&
+            current.customer_address_id === open.customer_address_id &&
+            current.update_count === open.update_count &&
+            (current.items_revision ?? 0) === (open.items_revision ?? 0)
+          ) {
+            return current;
+          }
+          return open;
         });
+        setOpenOrderReady(true);
+      } catch {
+        if (!cancelled) {
+          setOpenOrder(null);
+          setOpenOrderReady(true);
+        }
+      }
     };
-    refresh(openOrderCheck === 0 || !getSelectedAddress());
+    void refresh(openOrderCheck === 0 || !getSelectedAddress());
     const unsubscribe = subscribeAddressBook(() => {
       setOpenOrderReady(false);
-      refresh(false);
+      void refresh(false);
     });
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [editingOrderId, openOrderCheck]);
+  }, [clearEditSession, editingOrderId, openOrderCheck]);
 
   useEffect(() => {
     if (editingOrderId && editingItemsRevision === null && openOrder?.id === editingOrderId) {
@@ -224,14 +267,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!openOrderReady || !editingOrderId) {
       return;
     }
-    if (!openOrder || editingOrderId === openOrder.id) {
+    if (openOrder && editingOrderId === openOrder.id && isOpenOrderStatus(openOrder.status)) {
       return;
     }
-    setEditingOrderId(null);
-    setSavedFingerprint(null);
-    setOriginalItems(null);
-    setItems([]);
-  }, [editingOrderId, openOrder, openOrderReady]);
+    clearEditSession();
+    void saveEditingOrderId(null);
+  }, [clearEditSession, editingOrderId, openOrder, openOrderReady]);
 
   useEffect(() => {
     if (!ready) {
@@ -253,7 +294,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       editingOrderId,
       editingItemsRevision,
       openOrder,
-      openOrderBlock: editing ? null : openOrder,
+      openOrderBlock:
+        editing || !openOrder || !isOpenOrderStatus(openOrder.status) ? null : openOrder,
       openOrderReady,
       hasOrderChanges: Boolean(
         editing &&
@@ -364,18 +406,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       forgetOpenOrder(orderId: string) {
         setOpenOrder((current) => (current?.id === orderId ? null : current));
-        setEditingOrderId((current) => (current === orderId ? null : current));
-        setItems((current) => (editingOrderId === orderId ? [] : current));
         if (editingOrderId === orderId) {
-          setEditingItemsRevision(null);
-          setSavedFingerprint(null);
-          setOriginalItems(null);
+          clearEditSession();
+          void saveEditingOrderId(null);
         }
       },
     };
   }, [
     beginEditOrder,
     clearCart,
+    clearEditSession,
     editingOrderId,
     editingItemsRevision,
     items,
