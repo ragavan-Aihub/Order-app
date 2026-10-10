@@ -40,6 +40,11 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">Order {formatOrderNumber(order.order_number)}</h1>
           <StatusBadge status={order.status} size="lg" />
+          {order.modification_summary?.modifiedFromPlaced ? (
+            <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-950">
+              Modified from placed
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-sm font-medium text-stone-800">
           {order.customer_name} · {order.order_items.length}{' '}
@@ -115,6 +120,11 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         originalItems={order.order_items}
         itemsRevision={order.items_revision ?? 0}
         products={products}
+        adminModifiedFromPlaced={Boolean(order.modification_summary?.modifiedFromPlaced)}
+        canRevertToPlaced={Boolean(order.modification_summary?.canRevertToPlaced)}
+        placedTotal={order.modification_summary?.placedTotal}
+        placedItems={order.modification_summary?.placedItems ?? []}
+        relaxProductValidation={Boolean(order.modification_summary?.hasAdminModification)}
       />
     </div>
   );

@@ -247,7 +247,11 @@ export async function updateOrderRefund(orderId: string): Promise<{ error: strin
 export async function replaceAdminOrderItems(
   orderId: string,
   items: Array<{ productId: string; quantity: number }>,
-  options?: { reason?: string | null; expectedRevision?: number | null },
+  options?: {
+    reason?: string | null;
+    expectedRevision?: number | null;
+    relaxedValidation?: boolean;
+  },
 ): Promise<{ error: string | null; conflict?: boolean }> {
   if (!items.length) {
     return { error: 'Add at least one item.' };
@@ -296,6 +300,57 @@ export async function replaceAdminOrderItems(
     p_items: payload,
     p_reason: options?.reason?.trim() || null,
     p_expected_items_revision: options?.expectedRevision ?? null,
+    p_relaxed_validation: options?.relaxedValidation ?? false,
+  });
+
+  if (error) {
+    if (/ORDER_STALE/i.test(error.message)) {
+      return {
+        error: 'This order was updated elsewhere. Reload the page and try again.',
+        conflict: true,
+      };
+    }
+    return { error: error.message };
+  }
+
+  revalidateOrder(orderId);
+  return { error: null };
+}
+
+export async function revertAdminOrderToPlaced(
+  orderId: string,
+  expectedRevision?: number | null,
+): Promise<{ error: string | null; conflict?: boolean }> {
+  if (!isSupabaseConfigured) {
+    return { error: 'Supabase is not configured.' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return { error: 'Supabase is not configured.' };
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) {
+    return { error: 'You are not signed in as an admin.' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, business_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile || profile.role !== 'admin' || !profile.business_id) {
+    return { error: 'You are not signed in as an admin.' };
+  }
+
+  const { error } = await supabase.rpc('admin_revert_order_to_placed', {
+    p_order_id: orderId,
+    p_expected_items_revision: expectedRevision ?? null,
   });
 
   if (error) {

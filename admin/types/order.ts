@@ -1,3 +1,5 @@
+import type { OrderModificationSummary } from '@/lib/order-modification-state';
+
 export type OrderStatus =
   | 'new'
   | 'confirmed'
@@ -31,6 +33,8 @@ export type Order = {
   community_name?: string | null;
   item_count?: number;
   items_revision?: number;
+  /** Admin changed lines away from the originally placed snapshot. */
+  admin_modified_from_placed?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -74,6 +78,7 @@ export type OrderItem = {
 export type OrderWithItems = Order & {
   order_items: OrderItem[];
   status_events: OrderStatusEvent[];
+  modification_summary?: OrderModificationSummary;
 };
 
 export type OrderStatusEvent = {

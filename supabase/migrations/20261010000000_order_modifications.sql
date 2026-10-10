@@ -33,6 +33,9 @@ create index if not exists order_modifications_business_id_created_at_idx
 
 alter table public.order_modifications enable row level security;
 
+drop policy if exists order_modifications_customer_select on public.order_modifications;
+drop policy if exists order_modifications_admin_select on public.order_modifications;
+
 create policy order_modifications_customer_select
 on public.order_modifications for select
 to authenticated
@@ -50,6 +53,8 @@ create policy order_modifications_admin_select
 on public.order_modifications for select
 to authenticated
 using (business_id = public.current_admin_business_id());
+
+grant select on public.order_modifications to authenticated;
 
 -- Snapshot current order_items as JSON for audit.
 create or replace function public.order_items_snapshot(p_order_id uuid)

@@ -8,10 +8,13 @@ import {
   loadOrderItemsForEdit,
 } from '@/cart/modify-order';
 import { openOrderCartMessage, selectAddressForOrder } from '@/cart/open-cart-guard';
+import { isOrderShopModified } from '@/order-modifications/shop-modified';
+import { getMyOrderById, getOrderModifications } from '@/services/orders';
 import {
   canModifyOrder,
   isOpenOrderStatus,
   orderLockedMessage,
+  orderShopModifiedMessage,
   type Order,
   type OrderStatus,
   type OrderWithItems,
@@ -38,6 +41,10 @@ export function unlockModify() {
 
 export function alertUpdateLimit(status: string) {
   Alert.alert('Modify limit reached', orderLockedMessage(status));
+}
+
+export function alertShopModified() {
+  Alert.alert('Cannot modify', orderShopModifiedMessage());
 }
 
 export function alertModifyDiscarded(status: OrderStatus | null, orderNumber: number | null) {
@@ -77,10 +84,14 @@ function backgroundEnrichEdit(
   order: OrderWithItems,
   beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
 ) {
-  void Promise.all([selectAddressForOrder(order).catch(() => undefined), enrichCartItemsForEdit(order)])
-    .then(([, enriched]) => {
+  void Promise.all([
+    selectAddressForOrder(order).catch(() => undefined),
+    enrichCartItemsForEdit(order),
+    getMyOrderById(order.id),
+  ])
+    .then(([, enriched, fresh]) => {
       if (enriched.length) {
-        beginEditOrder(order.id, enriched, order);
+        beginEditOrder(order.id, enriched, fresh ?? order);
       }
     })
     .catch(() => undefined);
@@ -98,9 +109,16 @@ function enterModifyOrder(
   if (snapshot) {
     const instant = instantCartItemsForEdit(snapshot);
     if (instant.length) {
-      openCartForEdit(order, instant, beginEditOrder);
-      backgroundEnrichEdit(snapshot, beginEditOrder);
-      unlockModify();
+      void getMyOrderById(order.id)
+        .then((fresh) => {
+          openCartForEdit(fresh ?? order, instant, beginEditOrder);
+          backgroundEnrichEdit(snapshot, beginEditOrder);
+        })
+        .catch(() => {
+          openCartForEdit(order, instant, beginEditOrder);
+          backgroundEnrichEdit(snapshot, beginEditOrder);
+        })
+        .finally(unlockModify);
       return;
     }
   }
@@ -111,7 +129,8 @@ function enterModifyOrder(
         throw new Error('Could not load that order.');
       }
       await selectAddressForOrder(order).catch(() => undefined);
-      openCartForEdit(order, next, beginEditOrder);
+      const fresh = (await getMyOrderById(order.id)) ?? order;
+      openCartForEdit(fresh, next, beginEditOrder);
     })
     .catch((error) => {
       Alert.alert('Could not load', error instanceof Error ? error.message : 'Could not load that order.');
@@ -119,34 +138,55 @@ function enterModifyOrder(
     .finally(unlockModify);
 }
 
-export function goModifyOrder(
-  order: Order | OrderWithItems,
-  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
-  options?: { skipConfirm?: boolean },
-) {
+async function canEnterCustomerModify(order: Order | OrderWithItems): Promise<boolean> {
   if (!canModifyOrder(order)) {
     if (isOpenOrderStatus(order.status)) {
       alertUpdateLimit(order.status);
     } else {
       Alert.alert('Cannot modify', 'This order can no longer be changed.');
     }
-    return;
+    return false;
   }
 
-  if (options?.skipConfirm) {
-    enterModifyOrder(order, beginEditOrder);
-    return;
+  try {
+    const mods = await getOrderModifications(order.id);
+    if (isOrderShopModified(mods)) {
+      alertShopModified();
+      return false;
+    }
+  } catch {
+    Alert.alert('Cannot modify', 'Could not verify this order. Try again in a moment.');
+    return false;
   }
 
-  Alert.alert('Modify this order?', 'Open the cart to change items on this order?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Modify order',
-      onPress: () => {
-        setTimeout(() => enterModifyOrder(order, beginEditOrder), 200);
+  return true;
+}
+
+export function goModifyOrder(
+  order: Order | OrderWithItems,
+  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
+  options?: { skipConfirm?: boolean },
+) {
+  void canEnterCustomerModify(order).then((allowed) => {
+    if (!allowed) {
+      return;
+    }
+
+    if (options?.skipConfirm) {
+      enterModifyOrder(order, beginEditOrder);
+      return;
+    }
+
+    Alert.alert('Modify this order?', 'Open the cart to change items on this order?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Modify order',
+        onPress: () => {
+          setTimeout(() => enterModifyOrder(order, beginEditOrder), 200);
+        },
       },
-    },
-  ]);
+    ]);
+  });
 }
 
 export function promptOpenOrderModify(

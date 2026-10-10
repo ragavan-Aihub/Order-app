@@ -73,7 +73,8 @@ import { speakSam } from '@/sam/speak';
 import { getPendingNoteProductId, setPendingNoteProductId, setSamDraftItems } from '@/sam/session';
 import type { DraftViewLine } from '@/sam/types';
 import { useSamSpeech } from '@/sam/useSamSpeech';
-import { cancelMyOrder, findOpenOrderForAddress, listMyOrderItems } from '@/services/orders';
+import { isOrderShopModified } from '@/order-modifications/shop-modified';
+import { cancelMyOrder, findOpenOrderForAddress, getOrderModifications, listMyOrderItems } from '@/services/orders';
 import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import type { Product } from '@/types/product';
@@ -82,6 +83,7 @@ import {
   canModifyOrder,
   isUndeliveredOrder,
   orderLockedMessage,
+  orderShopModifiedMessage,
   type Order,
 } from '@/types/order';
 import { formatOrderNumber, formatOrderStatus, formatPrice } from '@/utils/format';
@@ -510,6 +512,18 @@ function SamChat() {
         const msg = orderLockedMessage(target.status);
         pushTurn('sam', msg);
         speakReply(msg, 'en');
+        return;
+      }
+      try {
+        const mods = await getOrderModifications(orderId);
+        if (isOrderShopModified(mods)) {
+          const msg = orderShopModifiedMessage();
+          pushTurn('sam', msg);
+          speakReply(msg, 'en');
+          return;
+        }
+      } catch {
+        pushTurn('sam', 'Could not verify this order. Try again in a moment.');
         return;
       }
       const already = editingOrderId === orderId && items.length > 0;

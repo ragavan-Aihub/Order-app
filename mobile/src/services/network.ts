@@ -22,30 +22,43 @@ export function isDefinitelyOffline(state: Network.NetworkState): boolean {
     return true;
   }
 
-  // Android: isInternetReachable is null/undefined while the OS validates — avoid a startup flash.
-  if (state.isInternetReachable === false) {
-    return true;
-  }
-  if (state.isInternetReachable === null || state.isInternetReachable === undefined) {
-    const unknown =
-      !state.type || state.type === Network.NetworkStateType.UNKNOWN;
-    if (unknown) {
-      return false;
-    }
-  }
-
   const unknown =
     !state.type || state.type === Network.NetworkStateType.UNKNOWN;
+
+  // Definite disconnect when the OS reports no link (and type is known).
   if (state.isConnected === false && !unknown) {
     return true;
   }
+
+  // While the link is up, do not block the app on isInternetReachable alone — Android often
+  // reports false briefly at cold start before reachability is validated.
+  if (state.isConnected === true) {
+    return false;
+  }
+
+  // No explicit connected=true: only treat unreachable as offline when type is known.
+  if (state.isInternetReachable === false && !unknown) {
+    return true;
+  }
+
   return false;
 }
 
-export async function getIsOffline(): Promise<boolean> {
+/** Stricter check for place-order / save actions (includes unreachable while connected). */
+export function isStrictlyOffline(state: Network.NetworkState): boolean {
+  if (isEmptyNetworkState(state)) {
+    return false;
+  }
+  if (isDefinitelyOffline(state)) {
+    return true;
+  }
+  return state.isConnected === true && state.isInternetReachable === false;
+}
+
+export async function getIsOffline(strict = false): Promise<boolean> {
   try {
     const state = await Network.getNetworkStateAsync();
-    return isDefinitelyOffline(state);
+    return strict ? isStrictlyOffline(state) : isDefinitelyOffline(state);
   } catch {
     return false;
   }

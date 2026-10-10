@@ -4,10 +4,16 @@ import { Minus, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { AdminOrderItemsTable } from '@/components/AdminOrderItemsTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { TableScroll } from '@/components/TableScroll';
-import { replaceAdminOrderItems } from '@/services/order-actions';
-import { isPaymentCollected, type OrderItem, type OrderStatus, type PaymentMethod } from '@/types/order';
+import { replaceAdminOrderItems, revertAdminOrderToPlaced } from '@/services/order-actions';
+import {
+  isPaymentCollected,
+  type OrderItem,
+  type OrderModificationItemSnapshot,
+  type OrderStatus,
+  type PaymentMethod,
+} from '@/types/order';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
@@ -46,6 +52,11 @@ export function AdminOrderModifyPanel({
   originalItems,
   itemsRevision,
   products,
+  adminModifiedFromPlaced = false,
+  canRevertToPlaced = false,
+  placedTotal,
+  placedItems = [],
+  relaxProductValidation = false,
 }: {
   orderId: string;
   status: OrderStatus;
@@ -54,6 +65,11 @@ export function AdminOrderModifyPanel({
   originalItems: OrderItem[];
   itemsRevision: number;
   products: Product[];
+  adminModifiedFromPlaced?: boolean;
+  canRevertToPlaced?: boolean;
+  placedTotal?: number;
+  placedItems?: OrderModificationItemSnapshot[];
+  relaxProductValidation?: boolean;
 }) {
   const router = useRouter();
   const canModify = status === 'new' || status === 'confirmed';
@@ -63,30 +79,63 @@ export function AdminOrderModifyPanel({
   const [query, setQuery] = useState('');
   const [reason, setReason] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [revertOpen, setRevertOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(itemsRevision);
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const orderItemByProductId = useMemo(() => {
+    const map = new Map<string, OrderItem>();
+    for (const item of originalItems) {
+      if (item.product_id) {
+        map.set(item.product_id, item);
+      }
+    }
+    return map;
+  }, [originalItems]);
 
   const resolved = useMemo(() => {
     return lines
       .map((line) => {
         const product = productById.get(line.productId);
-        if (!product) {
+        const onOrder = orderItemByProductId.get(line.productId);
+        if (!product && !onOrder) {
           return null;
         }
-        const unit = product.price;
+        const unit = product?.price ?? Number(onOrder?.product_price ?? 0);
+        const name = product?.name ?? onOrder?.product_name ?? 'Item';
+        const catalogAvailable = product ? product.available !== false && product.active !== false : false;
+        const available = relaxProductValidation ? Boolean(product ?? onOrder) : catalogAvailable;
         return {
           ...line,
-          name: product.name,
+          name,
           unit,
           subtotal: unit * line.quantity,
-          available: product.available !== false && product.active !== false,
+          available,
         };
       })
       .filter(Boolean) as Array<Line & { name: string; unit: number; subtotal: number; available: boolean }>;
-  }, [lines, productById]);
+  }, [lines, orderItemByProductId, productById, relaxProductValidation]);
+
+  const removedLines = useMemo(() => {
+    const active = new Set(lines.map((line) => line.productId));
+    return baseline
+      .filter((line) => !active.has(line.productId))
+      .map((line) => {
+        const onOrder = orderItemByProductId.get(line.productId);
+        const product = productById.get(line.productId);
+        const name = product?.name ?? onOrder?.product_name ?? 'Item';
+        const unit = product?.price ?? Number(onOrder?.product_price ?? 0);
+        return {
+          productId: line.productId,
+          name,
+          quantity: line.quantity,
+          unit,
+          subtotal: unit * line.quantity,
+        };
+      });
+  }, [baseline, lines, orderItemByProductId, productById]);
 
   const previewTotal = resolved.reduce((sum, line) => sum + line.subtotal, 0);
   const hasChanges = !linesEqual(lines, baseline);
@@ -163,7 +212,7 @@ export function AdminOrderModifyPanel({
     const result = await replaceAdminOrderItems(
       orderId,
       lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
-      { reason, expectedRevision: revision },
+      { reason, expectedRevision: revision, relaxedValidation: relaxProductValidation },
     );
     setBusy(false);
     if (result.error) {
@@ -182,46 +231,102 @@ export function AdminOrderModifyPanel({
     router.refresh();
   }
 
+  async function applyRevert() {
+    setBusy(true);
+    setError(null);
+    const result = await revertAdminOrderToPlaced(orderId, revision);
+    setBusy(false);
+    if (result.error) {
+      setError(result.error);
+      if (result.conflict) {
+        setRevertOpen(false);
+        router.refresh();
+      }
+      return;
+    }
+    setRevertOpen(false);
+    setRevision((value) => value + 1);
+    router.refresh();
+  }
+
+  const panelClass = adminModifiedFromPlaced
+    ? 'rounded-xl border border-amber-300 bg-amber-50/40 p-4 ring-1 ring-amber-100'
+    : 'rounded-xl border border-stone-200 bg-white p-4';
+
   if (!editing) {
     return (
-      <div className="rounded-xl border border-stone-200 bg-white p-4">
+      <div className={panelClass}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-stone-900">Items</h2>
-          {canModify ? (
-            <button
-              type="button"
-              onClick={startEditing}
-              className="min-h-10 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
-            >
-              Modify order
-            </button>
-          ) : null}
-        </div>
-        <TableScroll>
-          <table className="w-full min-w-[28rem] text-left text-sm">
-            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
-              <tr>
-                <th className="px-3 py-2 font-medium">Item</th>
-                <th className="px-3 py-2 font-medium">Qty</th>
-                <th className="px-3 py-2 font-medium">Price</th>
-                <th className="px-3 py-2 font-medium">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {originalItems.map((item) => (
-                <tr key={item.id} className="border-t border-stone-200">
-                  <td className="px-3 py-2">{item.product_name}</td>
-                  <td className="px-3 py-2">{item.quantity}</td>
-                  <td className="px-3 py-2">{formatPrice(item.product_price)}</td>
-                  <td className="px-3 py-2">{formatPrice(item.subtotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="border-t border-stone-200 px-3 py-3 text-right font-semibold">
-            Total {formatPrice(originalTotal)}
+          <div>
+            <h2 className="text-base font-semibold text-stone-900">Items</h2>
+            {adminModifiedFromPlaced ? (
+              <p className="mt-0.5 text-sm text-amber-900">
+                Modified from original
+                {typeof placedTotal === 'number' ? ` · Placed total ${formatPrice(placedTotal)}` : ''}
+              </p>
+            ) : null}
           </div>
-        </TableScroll>
+          <div className="flex flex-wrap gap-2">
+            {canModify && canRevertToPlaced ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setRevertOpen(true)}
+                className="min-h-10 rounded-lg border border-amber-400 bg-white px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50"
+              >
+                Revert to original
+              </button>
+            ) : null}
+            {canModify ? (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="min-h-10 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
+              >
+                Modify order
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {error ? (
+          <p className="mb-3 text-sm font-medium text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <AdminOrderItemsTable
+          items={originalItems}
+          placedItems={placedItems}
+          total={originalTotal}
+          placedTotal={placedTotal}
+          showDiff={adminModifiedFromPlaced}
+        />
+        {revertOpen ? (
+          <ConfirmDialog
+            title="Revert to original order?"
+            body="This restores the lines and total from when the customer first placed the order."
+            confirmLabel="Revert to original"
+            busy={busy}
+            onCancel={() => {
+              if (!busy) {
+                setRevertOpen(false);
+              }
+            }}
+            onConfirm={() => void applyRevert()}
+          >
+            <div className="space-y-2 text-sm text-stone-700">
+              <div className="flex justify-between">
+                <span>Current total</span>
+                <span>{formatPrice(originalTotal)}</span>
+              </div>
+              {typeof placedTotal === 'number' ? (
+                <div className="flex justify-between font-semibold text-stone-900">
+                  <span>Original total</span>
+                  <span>{formatPrice(placedTotal)}</span>
+                </div>
+              ) : null}
+            </div>
+          </ConfirmDialog>
+        ) : null}
       </div>
     );
   }
@@ -263,6 +368,37 @@ export function AdminOrderModifyPanel({
       ) : null}
 
       <ul className="mt-4 space-y-2">
+        {removedLines.map((line) => {
+          const struck = 'text-stone-500 line-through decoration-stone-400 decoration-2';
+          return (
+            <li
+              key={`removed-${line.productId}`}
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-100/90 px-3 py-2 text-sm"
+            >
+              <span className={`min-w-0 flex-1 font-medium ${struck}`}>{line.name}</span>
+              <span
+                className={`rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-stone-600 ${struck}`}
+              >
+                Removed
+              </span>
+              <span className={`min-w-[1.5rem] text-center font-semibold tabular-nums ${struck}`}>
+                × {line.quantity}
+              </span>
+              <span className={`w-20 text-right font-semibold tabular-nums ${struck}`}>
+                {formatPrice(line.subtotal)}
+              </span>
+              <button
+                type="button"
+                aria-label={`Restore ${line.name}`}
+                onClick={() => setQty(line.productId, line.quantity)}
+                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-stone-600 hover:bg-stone-200/80"
+                title="Restore line"
+              >
+                <Plus size={16} />
+              </button>
+            </li>
+          );
+        })}
         {resolved.map((line) => (
           <li
             key={line.productId}

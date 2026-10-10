@@ -8,16 +8,18 @@ import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { colors, radius, spacing } from '@/config/theme';
-import { OrderChangesSheet } from '@/components/OrderChangesSheet';
-import { ShopModifiedBadge } from '@/components/ShopModifiedBadge';
-import { acknowledgeModification, isModificationAcknowledged } from '@/order-modifications/mod-seen';
+import { OrderItemsWithPlacedDiff } from '@/components/OrderItemsWithPlacedDiff';
+import {
+  pickCustomerAdminOrderDiff,
+  type CustomerAdminOrderDiff,
+} from '@/order-modifications/shop-modified';
 import { cancelMyOrder, getMyOrderById, getOrderModifications } from '@/services/orders';
-import type { OrderModification } from '@/types/order';
 import {
   canCancelOrder,
   canModifyOrder,
   isOpenOrderStatus,
   orderLockedMessage,
+  orderShopModifiedMessage,
   type OrderWithItems,
 } from '@/types/order';
 import {
@@ -38,21 +40,15 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<OrderWithItems | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [pendingAdminMod, setPendingAdminMod] = useState<OrderModification | null>(null);
-  const [changesOpen, setChangesOpen] = useState(false);
+  const [adminOrderDiff, setAdminOrderDiff] = useState<CustomerAdminOrderDiff | null>(null);
 
-  const refreshAdminModNotice = useCallback(async (orderId: string) => {
+  const refreshAdminModNotice = useCallback(async (orderId: string, items: OrderWithItems['order_items']) => {
     try {
       const mods = await getOrderModifications(orderId);
-      const latestAdmin = mods.find((mod) => mod.actor_type === 'admin');
-      if (!latestAdmin) {
-        setPendingAdminMod(null);
-        return;
-      }
-      const seen = await isModificationAcknowledged(orderId, latestAdmin.id);
-      setPendingAdminMod(seen ? null : latestAdmin);
+      const diff = pickCustomerAdminOrderDiff(mods, items);
+      setAdminOrderDiff(diff);
     } catch {
-      setPendingAdminMod(null);
+      setAdminOrderDiff(null);
     }
   }, []);
 
@@ -69,7 +65,7 @@ export default function OrderDetailScreen() {
         const row = await getMyOrderById(id);
         setOrder(row);
         if (row) {
-          await refreshAdminModNotice(row.id);
+          await refreshAdminModNotice(row.id, row.order_items);
         }
       } catch {
         if (!isRefresh) {
@@ -138,9 +134,12 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const showModify = isOpenOrderStatus(order.status) && canModifyOrder(order);
+  const shopModified = adminOrderDiff !== null;
+  const showModify = isOpenOrderStatus(order.status) && canModifyOrder(order) && !shopModified;
   const showCancel = canCancelOrder(order.status);
-  const showOpenActions = showModify || (isOpenOrderStatus(order.status) && !canModifyOrder(order)) || showCancel;
+  const showModifyBlocked =
+    isOpenOrderStatus(order.status) && !showModify && (shopModified || !canModifyOrder(order));
+  const showOpenActions = showModify || showModifyBlocked || showCancel;
 
   return (
     <>
@@ -155,26 +154,10 @@ export default function OrderDetailScreen() {
         }
       >
         <View style={styles.summary}>
-          <View style={styles.summaryTopRow}>
-            <Text style={[styles.summaryStatus, { color: statusTone.fg }]}>{formatOrderStatus(order.status)}</Text>
-            {pendingAdminMod ? <ShopModifiedBadge compact /> : null}
-          </View>
+          <Text style={[styles.summaryStatus, { color: statusTone.fg }]}>{formatOrderStatus(order.status)}</Text>
           <Text style={styles.summaryMeta}>{formatPlacedAt(order.created_at)}</Text>
           {paymentLine ? <Text style={styles.summaryMeta}>{paymentLine}</Text> : null}
         </View>
-
-        {pendingAdminMod ? (
-          <View style={styles.shopModBanner}>
-            <Text style={styles.shopModText}>The shop updated this order.</Text>
-            <Pressable
-              onPress={() => setChangesOpen(true)}
-              style={({ pressed }) => [styles.shopModLink, pressed && styles.modifyPressed]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.shopModLinkLabel}>View changes</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         {showOpenActions ? (
           <View style={styles.actions}>
@@ -186,6 +169,8 @@ export default function OrderDetailScreen() {
               >
                 <Text style={styles.modifyLabel}>Modify order</Text>
               </Pressable>
+            ) : shopModified ? (
+              <Text style={styles.limitText}>{orderShopModifiedMessage()}</Text>
             ) : isOpenOrderStatus(order.status) ? (
               <Text style={styles.limitText}>{orderLockedMessage(order.status)}</Text>
             ) : null}
@@ -230,33 +215,29 @@ export default function OrderDetailScreen() {
 
         <View style={styles.block}>
           <Text style={styles.blockTitle}>Items</Text>
-          {order.order_items.map((item) => (
-            <View key={item.id} style={styles.itemRow}>
-              <View style={styles.itemCopy}>
-                <Text style={styles.itemName} numberOfLines={2}>
-                  {item.product_name}
-                </Text>
-                <Text style={styles.itemQty}>× {item.quantity}</Text>
+          {adminOrderDiff ? (
+            <OrderItemsWithPlacedDiff diff={adminOrderDiff} />
+          ) : (
+            <>
+              {order.order_items.map((item) => (
+                <View key={item.id} style={styles.itemRow}>
+                  <View style={styles.itemCopy}>
+                    <Text style={styles.itemName} numberOfLines={2}>
+                      {item.product_name}
+                    </Text>
+                    <Text style={styles.itemQty}>× {item.quantity}</Text>
+                  </View>
+                  <Text style={styles.itemPrice}>{formatPrice(item.subtotal)}</Text>
+                </View>
+              ))}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
               </View>
-              <Text style={styles.itemPrice}>{formatPrice(item.subtotal)}</Text>
-            </View>
-          ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
-          </View>
+            </>
+          )}
         </View>
       </ScrollView>
-      <OrderChangesSheet
-        visible={changesOpen}
-        modification={pendingAdminMod}
-        onClose={() => {
-          setChangesOpen(false);
-          if (pendingAdminMod && id) {
-            acknowledgeModification(id, pendingAdminMod.id).then(() => setPendingAdminMod(null));
-          }
-        }}
-      />
     </>
   );
 }
@@ -278,39 +259,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     gap: spacing.xs,
     backgroundColor: colors.background,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  shopModBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    backgroundColor: '#FFEDD5',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.warning,
-    borderRadius: radius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  shopModText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  shopModLink: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  shopModLinkLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.primaryDark,
   },
   summary: {
     backgroundColor: colors.surface,

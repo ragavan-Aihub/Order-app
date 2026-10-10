@@ -999,6 +999,42 @@ export async function getOrderModifications(orderId: string): Promise<OrderModif
   }
 }
 
+/** First modification snapshot per order (= originally placed lines when mods exist). */
+export async function getPlacedSnapshotsByOrderId(
+  orderIds: string[],
+): Promise<Map<string, OrderModification['previous_items']>> {
+  const map = new Map<string, OrderModification['previous_items']>();
+  if (!orderIds.length) {
+    return map;
+  }
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return map;
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('order_modifications')
+        .select('order_id, previous_items, created_at')
+        .in('order_id', orderIds)
+        .order('created_at', { ascending: true }),
+      QUERY_MS,
+      'Loading order history is taking too long. Try again.',
+    );
+    if (error || !data) {
+      return map;
+    }
+    for (const row of data as { order_id: string; previous_items: OrderModification['previous_items'] }[]) {
+      if (!map.has(row.order_id)) {
+        map.set(row.order_id, Array.isArray(row.previous_items) ? row.previous_items : []);
+      }
+    }
+    return map;
+  } catch {
+    return map;
+  }
+}
+
 /** Latest admin modification per order (for My Orders badges). */
 export async function getLatestAdminModificationsByOrderId(
   orderIds: string[],

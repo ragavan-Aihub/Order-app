@@ -328,10 +328,7 @@ export default function CartScreen() {
           ]);
           return;
         }
-        if (
-          updateId &&
-          /updated by the shop|ORDER_STALE/i.test(result.message)
-        ) {
+        if (updateId && /ORDER_STALE|changed while you were editing/i.test(result.message)) {
           refreshOpenOrder();
           const fresh = await getMyOrderById(updateId);
           if (fresh?.items_revision != null) {

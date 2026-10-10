@@ -359,12 +359,19 @@ export function OrdersBoard({
         <div>
           <div className="space-y-3 md:hidden">
             {paged.map((order) => {
-              const cardClass = 'block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm';
+              const cardClass = order.admin_modified_from_placed
+                ? 'block rounded-2xl border border-amber-300 bg-amber-50/50 p-4 shadow-sm ring-1 ring-amber-100'
+                : 'block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm';
               const summary = (
                 <>
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-base font-semibold text-stone-900">
                       Order #{formatOrderNumber(order.order_number)}
+                      {order.admin_modified_from_placed ? (
+                        <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950">
+                          Modified
+                        </span>
+                      ) : null}
                     </p>
                     <p className="text-base font-semibold text-stone-900">{formatPrice(order.total_amount)}</p>
                   </div>
@@ -440,10 +447,22 @@ export function OrdersBoard({
                 </thead>
                 <tbody>
                   {paged.map((order) => (
-                    <tr key={order.id} className="border-t border-stone-200">
+                    <tr
+                      key={order.id}
+                      className={
+                        order.admin_modified_from_placed
+                          ? 'border-t border-amber-200 bg-amber-50/60'
+                          : 'border-t border-stone-200'
+                      }
+                    >
                       <td className="px-3 py-2 font-semibold">
                         <Link href={`/orders/${order.id}`} className="text-stone-900 hover:text-emerald-800 hover:underline">
                           {formatOrderNumber(order.order_number)}
+                          {order.admin_modified_from_placed ? (
+                            <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950">
+                              Modified
+                            </span>
+                          ) : null}
                         </Link>
                       </td>
                       <td className="px-3 py-2">

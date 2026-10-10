@@ -9,14 +9,17 @@ import { useTopInset } from '@/utils/safe-area';
 import { EmptyState } from '@/components/EmptyState';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
-import { ShopModifiedBadge } from '@/components/ShopModifiedBadge';
 import { StatusBadge } from '@/components/StatusBadge';
-import { orderIdsWithUnacknowledgedAdminMods } from '@/order-modifications/mod-seen';
+import { buildOrderDiffTableRows, orderDiffHasChanges } from '@/order-modifications/diff';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { getLatestAdminModificationsByOrderId, getMyOrdersWithItems } from '@/services/orders';
+import {
+  getLatestAdminModificationsByOrderId,
+  getMyOrdersWithItems,
+  getPlacedSnapshotsByOrderId,
+} from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import { type OrderWithItems } from '@/types/order';
+import { type OrderModification, type OrderWithItems } from '@/types/order';
 import { formatOrderListDate, formatOrderNumber, formatPrice, orderStatusTone } from '@/utils/format';
 
 function itemSummary(order: OrderWithItems) {
@@ -53,8 +56,24 @@ export default function MyOrdersScreen() {
       }
       const rows = await getMyOrdersWithItems();
       setOrders(rows);
-      const adminMods = await getLatestAdminModificationsByOrderId(rows.map((row) => row.id));
-      setShopModifiedOrderIds(await orderIdsWithUnacknowledgedAdminMods(adminMods));
+      const orderIds = rows.map((row) => row.id);
+      const [adminMods, placedByOrder] = await Promise.all([
+        getLatestAdminModificationsByOrderId(orderIds),
+        getPlacedSnapshotsByOrderId(orderIds),
+      ]);
+      const filteredMods = new Map<string, OrderModification>();
+      for (const order of rows) {
+        const mod = adminMods.get(order.id);
+        const placed = placedByOrder.get(order.id) ?? [];
+        if (!mod || mod.reason === 'reverted_to_placed') {
+          continue;
+        }
+        if (!orderDiffHasChanges(buildOrderDiffTableRows(placed, mod.new_items))) {
+          continue;
+        }
+        filteredMods.set(order.id, mod);
+      }
+      setShopModifiedOrderIds(new Set(filteredMods.keys()));
     } catch {
       setSignedIn(false);
       setOrders([]);
@@ -136,26 +155,32 @@ export default function MyOrdersScreen() {
                   onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
                   accessibilityRole="button"
                 >
-                <View style={styles.cardTop}>
-                  <Text style={styles.number}>#{formatOrderNumber(order.order_number)}</Text>
-                  <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
-                </View>
-                <Text style={styles.items} numberOfLines={2}>
-                  {qty > 0 ? `${qty} ${qty === 1 ? 'item' : 'items'} · ${itemSummary(order)}` : itemSummary(order)}
-                </Text>
-                <View style={styles.metaRow}>
-                  <Text style={styles.meta}>{formatOrderListDate(order.created_at)}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                </View>
-                <View style={styles.badges}>
-                  <StatusBadge status={order.status} />
-                  {shopModifiedOrderIds.has(order.id) ? <ShopModifiedBadge compact /> : null}
-                  <PaymentBadge
-                    method={order.payment_method ?? 'pending'}
-                    orderStatus={order.status}
-                    refundStatus={order.refund_status}
-                  />
-                </View>
+                  <View style={styles.cardTop}>
+                    <Text style={styles.number} numberOfLines={2}>
+                      # {formatOrderNumber(order.order_number)}
+                      {shopModifiedOrderIds.has(order.id) ? (
+                        <Text style={styles.shopModifiedInline}> (Shop modified)</Text>
+                      ) : null}
+                    </Text>
+                    <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+                  </View>
+                  <Text style={styles.items} numberOfLines={2}>
+                    {qty > 0
+                      ? `${qty} ${qty === 1 ? 'item' : 'items'} · ${itemSummary(order)}`
+                      : itemSummary(order)}
+                  </Text>
+                  <View style={styles.metaRow}>
+                    <Text style={styles.meta}>{formatOrderListDate(order.created_at)}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  </View>
+                  <View style={styles.badges}>
+                    <StatusBadge status={order.status} />
+                    <PaymentBadge
+                      method={order.payment_method ?? 'pending'}
+                      orderStatus={order.status}
+                      refundStatus={order.refund_status}
+                    />
+                  </View>
                 </Pressable>
               </View>
             </View>
@@ -247,9 +272,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   number: {
+    flex: 1,
     fontSize: 18,
     fontWeight: '800',
     color: colors.text,
+  },
+  shopModifiedInline: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.warning,
   },
   total: {
     fontSize: 17,

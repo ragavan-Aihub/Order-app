@@ -10,6 +10,7 @@ import {
 } from '@/cart/limits';
 import { findOpenOrderForSelectedAddress } from '@/cart/open-cart-guard';
 import { getSelectedAddress, subscribeAddressBook } from '@/cart/address-book';
+import { getMyOrderById } from '@/services/orders';
 import type { Order } from '@/types/order';
 import type { Product } from '@/types/product';
 
@@ -97,6 +98,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems(clamped);
     setSavedFingerprint(cartFingerprint(clamped));
     setOriginalItems(clamped);
+    void getMyOrderById(orderId)
+      .then((fresh) => {
+        if (fresh?.items_revision != null) {
+          setEditingItemsRevision(fresh.items_revision);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   const clearCart = useCallback(() => {
@@ -124,9 +132,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (edit && changed) {
           setItems(restored);
           setEditingOrderId(edit.orderId);
+          setEditingItemsRevision(edit.itemsRevision ?? null);
           setSavedFingerprint(edit.fingerprint);
           setOriginalItems(edit.items ? clampCart(edit.items) : null);
           setResumeEdit(true);
+          void getMyOrderById(edit.orderId)
+            .then((fresh) => {
+              if (fresh?.items_revision != null) {
+                setEditingItemsRevision(fresh.items_revision);
+              }
+            })
+            .catch(() => undefined);
           return;
         }
         if (edit) {
@@ -144,10 +160,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!ready) {
       return;
     }
-    saveEditingOrderId(editingOrderId, savedFingerprint, editingOrderId ? originalItems : null).catch(
-      () => undefined,
-    );
-  }, [editingOrderId, originalItems, ready, savedFingerprint]);
+    saveEditingOrderId(
+      editingOrderId,
+      savedFingerprint,
+      editingOrderId ? originalItems : null,
+      editingOrderId ? editingItemsRevision : null,
+    ).catch(() => undefined);
+  }, [editingItemsRevision, editingOrderId, originalItems, ready, savedFingerprint]);
 
   useEffect(() => {
     let cancelled = false;

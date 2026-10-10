@@ -3,11 +3,12 @@ import { formatAddressForOrder, type SavedAddress } from '@/cart/address-book';
 import { isNetworkFailure } from '@/services/network';
 import {
   findOpenOrderForAddress,
+  getMyOrderById,
   placeOrder,
   replaceOpenOrderItems,
 } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
-import type { Order, OrderPlacedVia } from '@/types/order';
+import { ORDER_SHOP_MODIFIED_MESSAGE, type Order, OrderPlacedVia } from '@/types/order';
 
 export type SubmitOrderResult =
   | { ok: true; order: Order }
@@ -50,7 +51,12 @@ export async function submitShopOrder(
 
   try {
     if (editingOrderId) {
-      const order = await replaceOpenOrderItems(editingOrderId, items, details, expectedItemsRevision);
+      const order = await replaceOpenOrderItemsWithFreshRevision(
+        editingOrderId,
+        items,
+        details,
+        expectedItemsRevision,
+      );
       return { ok: true, order };
     }
 
@@ -67,11 +73,14 @@ export async function submitShopOrder(
       return {
         ok: false,
         reason: 'error',
-        message: 'This order was updated by the shop. Pull to refresh and review your cart.',
+        message: 'This order changed while you were editing. Pull to refresh, review your cart, and try again.',
       };
     }
     if (editingOrderId && /cannot be changed/i.test(message)) {
       return { ok: false, reason: 'locked', message };
+    }
+    if (editingOrderId && message.includes(ORDER_SHOP_MODIFIED_MESSAGE)) {
+      return { ok: false, reason: 'locked', message: ORDER_SHOP_MODIFIED_MESSAGE };
     }
     if (message === 'OPEN_ORDER' || /duplicate key|one_open_per_address/i.test(message)) {
       const open = await findOpenOrderForAddress({
@@ -95,5 +104,35 @@ export async function submitShopOrder(
       return { ok: false, reason: 'network', message };
     }
     return { ok: false, reason: 'error', message };
+  }
+}
+
+async function replaceOpenOrderItemsWithFreshRevision(
+  orderId: string,
+  items: CartItem[],
+  delivery: {
+    name: string;
+    mobile: string;
+    address: string;
+    pincode: string;
+    addressId: string;
+  },
+  hintRevision?: number | null,
+): Promise<Order> {
+  const fresh = await getMyOrderById(orderId);
+  const revision = fresh?.items_revision ?? hintRevision ?? undefined;
+  try {
+    return await replaceOpenOrderItems(orderId, items, delivery, revision);
+  } catch (placeError) {
+    const message = placeError instanceof Error ? placeError.message : '';
+    if (!/ORDER_STALE/i.test(message)) {
+      throw placeError;
+    }
+    const again = await getMyOrderById(orderId);
+    const retryRevision = again?.items_revision;
+    if (retryRevision == null || retryRevision === revision) {
+      throw placeError;
+    }
+    return replaceOpenOrderItems(orderId, items, delivery, retryRevision);
   }
 }

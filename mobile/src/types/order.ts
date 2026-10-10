@@ -27,6 +27,13 @@ export function orderLockedMessage(status: string) {
     : 'Modify limit reached for this order.';
 }
 
+export const ORDER_SHOP_MODIFIED_MESSAGE =
+  'The shop updated this order. Contact the shop if you need changes.';
+
+export function orderShopModifiedMessage() {
+  return ORDER_SHOP_MODIFIED_MESSAGE;
+}
+
 export function canModifyOrder(order: Pick<Order, 'status' | 'update_count'> | null | undefined) {
   return Boolean(order && isOpenOrderStatus(order.status) && (order.update_count ?? 0) < MAX_ORDER_UPDATES);
 }

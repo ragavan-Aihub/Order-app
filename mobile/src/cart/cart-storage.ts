@@ -70,7 +70,12 @@ export async function saveCart(items: StoredCartItem[]) {
 
 const EDIT_KEY = 'farm2flavour.cart.edit.v1';
 
-export type StoredEditState = { orderId: string; fingerprint: string | null; items: StoredCartItem[] | null };
+export type StoredEditState = {
+  orderId: string;
+  fingerprint: string | null;
+  items: StoredCartItem[] | null;
+  itemsRevision?: number | null;
+};
 
 export async function loadEditingOrderId(): Promise<StoredEditState | null> {
   try {
@@ -87,6 +92,10 @@ export async function loadEditingOrderId(): Promise<StoredEditState | null> {
           orderId: parsed.orderId,
           fingerprint: typeof parsed.fingerprint === 'string' ? parsed.fingerprint : null,
           items: Array.isArray(parsed.items) ? parseItems(JSON.stringify(parsed.items)) : null,
+          itemsRevision:
+            typeof parsed.itemsRevision === 'number' && Number.isFinite(parsed.itemsRevision)
+              ? parsed.itemsRevision
+              : null,
         }
       : null;
   } catch {
@@ -98,10 +107,14 @@ export async function saveEditingOrderId(
   orderId: string | null,
   fingerprint: string | null = null,
   items: StoredCartItem[] | null = null,
+  itemsRevision: number | null = null,
 ) {
   try {
     if (orderId) {
-      await AsyncStorage.setItem(EDIT_KEY, JSON.stringify({ orderId, fingerprint, items }));
+      await AsyncStorage.setItem(
+        EDIT_KEY,
+        JSON.stringify({ orderId, fingerprint, items, itemsRevision }),
+      );
     } else {
       await AsyncStorage.removeItem(EDIT_KEY);
     }

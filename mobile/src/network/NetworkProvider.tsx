@@ -11,10 +11,10 @@ import {
 import { StyleSheet, View } from 'react-native';
 
 import { OfflineScreen } from '@/components/OfflineScreen';
-import { hasCatalogCache } from '@/services/catalog-cache';
 import { getIsOffline, isDefinitelyOffline } from '@/services/network';
 
 type NetworkContextValue = {
+  /** True after the device has been offline for a short debounce (same as blocking). */
   offline: boolean;
   blocking: boolean;
   requireConnection: () => Promise<boolean>;
@@ -31,84 +31,64 @@ export function useNetworkStatus(): NetworkContextValue {
   return value;
 }
 
-const OFFLINE_BANNER_DELAY_MS = 900;
+const OFFLINE_SCREEN_DELAY_MS = 1200;
+/** Ignore blocking offline UI right after launch while the OS settles network state. */
+const STARTUP_GRACE_MS = 2800;
 
 export function NetworkProvider({ children }: { children: ReactNode }) {
   const state = Network.useNetworkState();
   const rawOffline = isDefinitelyOffline(state);
   const [offline, setOffline] = useState(false);
-  const [blocking, setBlocking] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const [cacheReady, setCacheReady] = useState(false);
+  const [startupGrace, setStartupGrace] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getIsOffline().then((down) => {
+      if (!cancelled && !down) {
+        setOffline(false);
+      }
+    });
+    const graceTimer = setTimeout(() => setStartupGrace(false), STARTUP_GRACE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(graceTimer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!rawOffline) {
       setOffline(false);
       return;
     }
-    const timer = setTimeout(() => setOffline(true), OFFLINE_BANNER_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [rawOffline]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    hasCatalogCache()
-      .then((cached) => {
-        if (cancelled) {
-          return;
-        }
-        setCacheReady(cached);
-        if (!cached) {
-          timer = setTimeout(() => {
-            getIsOffline().then((down) => {
-              if (!cancelled && down) {
-                setBlocking(true);
-              }
-            });
-          }, OFFLINE_BANNER_DELAY_MS);
-        }
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-      if (timer) {
-        clearTimeout(timer);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!offline) {
-      setBlocking(false);
+    if (startupGrace) {
       return;
     }
-    if (!cacheReady) {
-      setBlocking(true);
-    }
-  }, [cacheReady, offline]);
+    const timer = setTimeout(() => setOffline(true), OFFLINE_SCREEN_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [rawOffline, startupGrace]);
+
+  const blocking = offline;
 
   const refresh = useCallback(async () => {
     setReloading(true);
     const down = await getIsOffline();
     setReloading(false);
     if (!down) {
-      setBlocking(false);
+      setOffline(false);
       return true;
     }
-    setBlocking(true);
+    setOffline(true);
     return false;
   }, []);
 
   const requireConnection = useCallback(async () => {
-    const down = await getIsOffline();
+    const down = await getIsOffline(true);
     if (down) {
-      setBlocking(true);
+      setOffline(true);
       return false;
     }
-    setBlocking(false);
+    setOffline(false);
     return true;
   }, []);
 

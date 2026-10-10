@@ -1,4 +1,8 @@
 import { isCommunitiesEnabled } from '@/services/business';
+import {
+  loadAdminModifiedFromPlacedIds,
+  loadOrderModificationSummaryForOrder,
+} from '@/services/order-modifications';
 import { getAdminSession } from '@/services/supabase/admin-session';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Order, OrderItem, OrderStatusEvent, OrderWithItems } from '@/types/order';
@@ -122,7 +126,8 @@ export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Pr
   const hydrate = options?.hydrateCommunity ?? (await isCommunitiesEnabled());
 
   if (rows) {
-    return hydrate ? hydrateOrderCommunities(supabase, businessId, rows) : rows;
+    const hydrated = hydrate ? await hydrateOrderCommunities(supabase, businessId, rows) : rows;
+    return annotateAdminModifiedOrders(supabase, hydrated);
   }
 
   const fallback = await supabase
@@ -147,7 +152,36 @@ export async function getAllOrders(options?: { hydrateCommunity?: boolean }): Pr
     community_id: null,
     community_name: null,
   }));
-  return hydrate ? hydrateOrderCommunities(supabase, businessId, mapped) : mapped;
+  const hydrated = hydrate ? await hydrateOrderCommunities(supabase, businessId, mapped) : mapped;
+  return annotateAdminModifiedOrders(supabase, hydrated);
+}
+
+async function annotateAdminModifiedOrders(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  orders: Order[],
+): Promise<Order[]> {
+  if (orders.length === 0) {
+    return orders;
+  }
+  const ids = orders.map((order) => order.id);
+  const { data: lineItems } = await supabase
+    .from('order_items')
+    .select('order_id, product_id, product_name, product_price, quantity, subtotal')
+    .in('order_id', ids);
+
+  const itemsByOrder = new Map<string, OrderItem[]>();
+  for (const row of lineItems ?? []) {
+    const list = itemsByOrder.get(row.order_id as string) ?? [];
+    list.push(row as OrderItem);
+    itemsByOrder.set(row.order_id as string, list);
+  }
+
+  const businessId = orders[0]?.business_id;
+  const highlighted = await loadAdminModifiedFromPlacedIds(ids, itemsByOrder, businessId);
+  return orders.map((order) => ({
+    ...order,
+    admin_modified_from_placed: highlighted.has(order.id),
+  }));
 }
 
 export async function getOrderById(id: string): Promise<OrderWithItems | null> {
@@ -198,10 +232,18 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
         community_name: null,
       },
     ]);
+    const orderItems = (fallbackItems ?? []) as OrderItem[];
+    const modification_summary = await loadOrderModificationSummaryForOrder(
+      id,
+      orderItems,
+      businessId,
+    );
     return {
       ...hydrated,
-      order_items: (fallbackItems ?? []) as OrderItem[],
+      admin_modified_from_placed: modification_summary.modifiedFromPlaced,
+      order_items: orderItems,
       status_events: await loadStatusEvents(supabase, id),
+      modification_summary,
     };
   }
 
@@ -215,9 +257,17 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
   ]);
 
   const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [order as Order]);
+  const orderItems = (items ?? []) as OrderItem[];
+  const modification_summary = await loadOrderModificationSummaryForOrder(
+    id,
+    orderItems,
+    businessId,
+  );
   return {
     ...hydrated,
-    order_items: (items ?? []) as OrderItem[],
+    admin_modified_from_placed: modification_summary.modifiedFromPlaced,
+    order_items: orderItems,
     status_events: statusEvents,
+    modification_summary,
   };
 }
