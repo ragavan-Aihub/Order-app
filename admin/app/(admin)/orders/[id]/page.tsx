@@ -45,6 +45,11 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
               Shop modified
             </span>
           ) : null}
+          {order.modification_summary?.customerModifiedAfterConfirm ? (
+            <span className="rounded-full bg-sky-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-sky-950">
+              Customer modified
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-sm font-medium text-stone-800">
           {order.customer_name} · {order.order_items.length}{' '}
@@ -121,11 +126,14 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         itemsRevision={order.items_revision ?? 0}
         products={products}
         adminModifiedFromPlaced={Boolean(order.modification_summary?.modifiedFromPlaced)}
+        customerModifiedAfterConfirm={Boolean(order.modification_summary?.customerModifiedAfterConfirm)}
         canRevertToPlaced={Boolean(order.modification_summary?.canRevertToPlaced)}
         placedTotal={order.modification_summary?.placedTotal}
         placedItems={order.modification_summary?.placedItems ?? []}
         shopDiffBaselineItems={order.modification_summary?.revertTargetItems ?? []}
         adminCompareItems={order.modification_summary?.adminCompareItems ?? []}
+        customerDiffBaselineItems={order.modification_summary?.confirmBaselineItems ?? []}
+        confirmBaselineTotal={order.modification_summary?.confirmBaselineTotal ?? undefined}
         revertTargetTotal={order.modification_summary?.revertTargetTotal ?? undefined}
         relaxProductValidation={Boolean(order.modification_summary?.hasAdminModification)}
       />

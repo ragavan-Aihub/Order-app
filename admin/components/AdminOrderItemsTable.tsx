@@ -83,14 +83,124 @@ function mergeDiffWithLiveItems(
   });
 }
 
+function DiffItemsTable({
+  rows,
+  total,
+  compareTotal,
+  legendTitle,
+  legendCompareLabel,
+}: {
+  rows: Array<OrderDiffTableRow & { displayQty: number; displaySubtotal: number }>;
+  total: number;
+  compareTotal?: number;
+  legendTitle: string;
+  legendCompareLabel: string;
+}) {
+  return (
+    <>
+      <div
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600"
+        role="note"
+        aria-label="Change legend"
+      >
+        <span className="font-semibold text-stone-800">{legendTitle}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" aria-hidden />
+          New line
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" aria-hidden />
+          Qty updated
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-stone-400" aria-hidden />
+          Removed
+        </span>
+        {typeof compareTotal === 'number' && compareTotal !== total ? (
+          <span className="ml-auto font-medium text-stone-800">
+            {legendCompareLabel} {formatPrice(compareTotal)} · Current {formatPrice(total)}
+          </span>
+        ) : null}
+      </div>
+
+      <TableScroll>
+        <table className="w-full min-w-[32rem] text-left text-sm">
+          <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <tr>
+              <th className="w-28 px-3 py-2 font-medium">Change</th>
+              <th className="px-3 py-2 font-medium">Item</th>
+              <th className="px-3 py-2 font-medium">Qty</th>
+              <th className="px-3 py-2 font-medium">Price</th>
+              <th className="px-3 py-2 font-medium">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const removed = row.kind === 'removed';
+              const removedRowClass =
+                'text-stone-500 line-through decoration-stone-400 decoration-2 [&_*]:line-through [&_*]:decoration-stone-400';
+              const cellClass = removed ? removedRowClass : '';
+              return (
+                <tr
+                  key={row.rowKey}
+                  className={`border-t border-stone-200 ${rowTone(row.kind)} ${removed ? removedRowClass : ''}`}
+                >
+                  <td className={`px-3 py-2 ${cellClass}`}>
+                    {row.kind === 'unchanged' ? (
+                      <span className="text-stone-400">—</span>
+                    ) : (
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${statusBadgeClass(row.kind)}`}
+                      >
+                        {STATUS_LABEL[row.kind]}
+                      </span>
+                    )}
+                  </td>
+                  <td className={`px-3 py-2 font-medium ${cellClass}`}>{row.productName}</td>
+                  <td className={`px-3 py-2 tabular-nums ${cellClass}`}>
+                    {row.kind === 'qty_changed' && row.placedQuantity != null ? (
+                      <span className="inline-flex flex-wrap items-baseline gap-1.5">
+                        <span className="font-semibold text-stone-900">{row.displayQty}</span>
+                        <span className="text-xs font-normal text-stone-500">was {row.placedQuantity}</span>
+                      </span>
+                    ) : (
+                      row.displayQty
+                    )}
+                  </td>
+                  <td className={`px-3 py-2 tabular-nums ${cellClass}`}>{formatPrice(row.unitPrice)}</td>
+                  <td className={`px-3 py-2 tabular-nums font-medium ${cellClass}`}>
+                    {formatPrice(row.displaySubtotal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-3">
+          <span className="font-semibold text-stone-900">Total</span>
+          <div className="text-right">
+            {typeof compareTotal === 'number' && compareTotal !== total ? (
+              <p className="text-xs text-stone-500 line-through">{formatPrice(compareTotal)}</p>
+            ) : null}
+            <p className="text-base font-semibold tabular-nums">{formatPrice(total)}</p>
+          </div>
+        </div>
+      </TableScroll>
+    </>
+  );
+}
+
 export function AdminOrderItemsTable({
   items,
   placedItems = [],
   shopDiffBaselineItems = [],
   adminCompareItems = [],
+  customerDiffBaselineItems = [],
   total,
   placedTotal,
+  confirmBaselineTotal,
   showDiff = false,
+  showCustomerDiff = false,
 }: {
   items: OrderItem[];
   placedItems?: OrderModificationItemSnapshot[];
@@ -98,9 +208,13 @@ export function AdminOrderItemsTable({
   shopDiffBaselineItems?: OrderModificationItemSnapshot[];
   /** Lines after all shop edits (customer edits after shop are not part of this snapshot). */
   adminCompareItems?: OrderModificationItemSnapshot[];
+  /** Lines when the shop confirmed — baseline for post-confirm customer edits. */
+  customerDiffBaselineItems?: OrderModificationItemSnapshot[];
   total: number;
   placedTotal?: number;
+  confirmBaselineTotal?: number;
   showDiff?: boolean;
+  showCustomerDiff?: boolean;
 }) {
   const diffBaseline =
     shopDiffBaselineItems.length > 0 ? shopDiffBaselineItems : placedItems;
@@ -110,114 +224,75 @@ export function AdminOrderItemsTable({
     diffBaseline.length > 0 &&
     adminCompareItems.length > 0 &&
     orderDiffHasChanges(diffRows);
-  const rows = useDiff
+  const shopRows = useDiff
     ? mergeDiffWithLiveItems(expandDiffWithCurrentLines(diffRows, items), items)
     : [];
+
+  const customerCompare = snapshotsFromOrderItems(items);
+  const customerDiffRows = buildOrderDiffTableRowsFromSnapshots(
+    customerDiffBaselineItems,
+    customerCompare,
+  );
+  const useCustomerDiff =
+    showCustomerDiff &&
+    customerDiffBaselineItems.length > 0 &&
+    orderDiffHasChanges(customerDiffRows);
+  const customerRows = useCustomerDiff
+    ? mergeDiffWithLiveItems(expandDiffWithCurrentLines(customerDiffRows, items), items)
+    : [];
+
+  const showPlain = !useDiff && !useCustomerDiff;
 
   return (
     <div className="space-y-3">
       {useDiff ? (
-        <div
-          className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600"
-          role="note"
-          aria-label="Change legend"
-        >
-          <span className="font-semibold text-stone-800">Shop changes only</span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" aria-hidden />
-            New line
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" aria-hidden />
-            Qty updated
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-stone-400" aria-hidden />
-            Removed
-          </span>
-          {typeof placedTotal === 'number' && placedTotal !== total ? (
-            <span className="ml-auto font-medium text-stone-800">
-              Placed total {formatPrice(placedTotal)} · Current {formatPrice(total)}
-            </span>
-          ) : null}
-        </div>
+        <DiffItemsTable
+          rows={shopRows}
+          total={total}
+          compareTotal={placedTotal}
+          legendTitle="Shop changes only"
+          legendCompareLabel="Placed total"
+        />
       ) : null}
 
-      <TableScroll>
-        <table className="w-full min-w-[32rem] text-left text-sm">
-          <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
-            <tr>
-              {useDiff ? <th className="w-28 px-3 py-2 font-medium">Change</th> : null}
-              <th className="px-3 py-2 font-medium">Item</th>
-              <th className="px-3 py-2 font-medium">Qty</th>
-              <th className="px-3 py-2 font-medium">Price</th>
-              <th className="px-3 py-2 font-medium">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {useDiff
-              ? rows.map((row) => {
-                  const removed = row.kind === 'removed';
-                  const removedRowClass =
-                    'text-stone-500 line-through decoration-stone-400 decoration-2 [&_*]:line-through [&_*]:decoration-stone-400';
-                  const cellClass = removed ? removedRowClass : '';
-                  return (
-                    <tr
-                      key={row.rowKey}
-                      className={`border-t border-stone-200 ${rowTone(row.kind)} ${removed ? removedRowClass : ''}`}
-                    >
-                      <td className={`px-3 py-2 ${cellClass}`}>
-                        {row.kind === 'unchanged' ? (
-                          <span className="text-stone-400">—</span>
-                        ) : (
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${statusBadgeClass(row.kind)}`}
-                          >
-                            {STATUS_LABEL[row.kind]}
-                          </span>
-                        )}
-                      </td>
-                      <td className={`px-3 py-2 font-medium ${cellClass}`}>{row.productName}</td>
-                      <td className={`px-3 py-2 tabular-nums ${cellClass}`}>
-                        {row.kind === 'qty_changed' && row.placedQuantity != null ? (
-                          <span className="inline-flex flex-wrap items-baseline gap-1.5">
-                            <span className="font-semibold text-stone-900">{row.displayQty}</span>
-                            <span className="text-xs font-normal text-stone-500">
-                              before shop {row.placedQuantity}
-                              {row.displayQty !== row.quantity ? ` · now ${row.displayQty}` : null}
-                            </span>
-                          </span>
-                        ) : (
-                          row.displayQty
-                        )}
-                      </td>
-                      <td className={`px-3 py-2 tabular-nums ${cellClass}`}>{formatPrice(row.unitPrice)}</td>
-                      <td className={`px-3 py-2 tabular-nums font-medium ${cellClass}`}>
-                        {formatPrice(row.displaySubtotal)}
-                      </td>
-                    </tr>
-                  );
-                })
-              : items.map((item) => (
-                  <tr key={item.id} className="border-t border-stone-200">
-                    <td className="px-3 py-2">{item.product_name}</td>
-                    <td className="px-3 py-2 tabular-nums">{item.quantity}</td>
-                    <td className="px-3 py-2 tabular-nums">{formatPrice(item.product_price)}</td>
-                    <td className="px-3 py-2 tabular-nums">{formatPrice(item.subtotal)}</td>
-                  </tr>
-                ))}
-          </tbody>
-        </table>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-3">
-          <span className="font-semibold text-stone-900">Total</span>
-          <div className="text-right">
-            {useDiff && typeof placedTotal === 'number' && placedTotal !== total ? (
-              <p className="text-xs text-stone-500 line-through">{formatPrice(placedTotal)}</p>
-            ) : null}
+      {useCustomerDiff ? (
+        <DiffItemsTable
+          rows={customerRows}
+          total={total}
+          compareTotal={confirmBaselineTotal}
+          legendTitle="Customer changes after confirm"
+          legendCompareLabel="At confirm"
+        />
+      ) : null}
+
+      {showPlain ? (
+        <TableScroll>
+          <table className="w-full min-w-[32rem] text-left text-sm">
+            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+              <tr>
+                <th className="px-3 py-2 font-medium">Item</th>
+                <th className="px-3 py-2 font-medium">Qty</th>
+                <th className="px-3 py-2 font-medium">Price</th>
+                <th className="px-3 py-2 font-medium">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-t border-stone-200">
+                  <td className="px-3 py-2">{item.product_name}</td>
+                  <td className="px-3 py-2 tabular-nums">{item.quantity}</td>
+                  <td className="px-3 py-2 tabular-nums">{formatPrice(item.product_price)}</td>
+                  <td className="px-3 py-2 tabular-nums">{formatPrice(item.subtotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-3">
+            <span className="font-semibold text-stone-900">Total</span>
             <p className="text-base font-semibold tabular-nums">{formatPrice(total)}</p>
           </div>
-        </div>
-      </TableScroll>
+        </TableScroll>
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,45 @@ import {
 import { formatDateTime, formatOrderNumber, formatPrice, splitDeliveryNotes } from '@/utils/format';
 
 const PAGE_SIZE = 25;
+
+export type OrdersBoardTab = 'all' | OrderStatus | 'pending_delivery' | 'customer_modified_after_confirm';
+
+function orderModificationBadges(order: Order) {
+  return (
+    <>
+      {order.admin_modified_from_placed ? (
+        <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950">
+          Shop modified
+        </span>
+      ) : null}
+      {order.customer_modified_after_confirm ? (
+        <span className="ml-2 rounded-full bg-sky-200 px-2 py-0.5 text-xs font-semibold text-sky-950">
+          Customer modified
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+function orderListSurfaceClass(order: Order): string {
+  if (order.admin_modified_from_placed) {
+    return 'block rounded-2xl border border-amber-300 bg-amber-50/50 p-4 shadow-sm ring-1 ring-amber-100';
+  }
+  if (order.customer_modified_after_confirm) {
+    return 'block rounded-2xl border border-sky-300 bg-sky-50/50 p-4 shadow-sm ring-1 ring-sky-100';
+  }
+  return 'block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm';
+}
+
+function orderListRowClass(order: Order): string {
+  if (order.admin_modified_from_placed) {
+    return 'border-t border-amber-200 bg-amber-50/60';
+  }
+  if (order.customer_modified_after_confirm) {
+    return 'border-t border-sky-200 bg-sky-50/60';
+  }
+  return 'border-t border-stone-200';
+}
 // Phase 2: quick status actions on the list. See docs/pending-and-future-scope.md.
 const LIST_QUICK_ACTIONS = false;
 
@@ -47,15 +86,15 @@ export function OrdersBoard({
   orders,
   communities = [],
   communitiesEnabled = false,
-  initialStatus,
+  initialTab,
 }: {
   orders: Order[];
   communities?: CommunityListItem[];
   communitiesEnabled?: boolean;
-  /** Opens on this status tab, for example from a dashboard link. */
-  initialStatus?: OrderStatus;
+  /** Opens on this tab, for example from a dashboard link. */
+  initialTab?: OrdersBoardTab;
 }) {
-  const [tab, setTab] = useState<'all' | OrderStatus>(initialStatus ?? 'all');
+  const [tab, setTab] = useState<OrdersBoardTab>(initialTab ?? 'all');
   const [query, setQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<DisplayPaymentStatus | ''>('');
   const [methodFilter, setMethodFilter] = useState('');
@@ -86,7 +125,16 @@ export function OrdersBoard({
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return orders.filter((order) => {
-      if (tab !== 'all' && normalizeStatus(order.status) !== tab) {
+      const status = normalizeStatus(order.status);
+      if (tab === 'pending_delivery') {
+        if (status !== 'new' && status !== 'confirmed') {
+          return false;
+        }
+      } else if (tab === 'customer_modified_after_confirm') {
+        if (!order.customer_modified_after_confirm) {
+          return false;
+        }
+      } else if (tab !== 'all' && status !== tab) {
         return false;
       }
       if (paymentFilter && displayPaymentStatus(order) !== paymentFilter) {
@@ -188,8 +236,13 @@ export function OrdersBoard({
     URL.revokeObjectURL(url);
   }
 
-  const tabs: { value: 'all' | OrderStatus; label: string; count: number }[] = [
+  const pendingDeliveryCount = counts.new + counts.confirmed;
+  const customerModifiedCount = orders.filter((order) => order.customer_modified_after_confirm).length;
+
+  const tabs: { value: OrdersBoardTab; label: string; count: number }[] = [
     { value: 'all', label: 'All', count: orders.length },
+    { value: 'pending_delivery', label: 'Pending delivery', count: pendingDeliveryCount },
+    { value: 'customer_modified_after_confirm', label: 'Customer modified', count: customerModifiedCount },
     ...ORDER_STATUSES.map((item) => ({
       value: item.value,
       label: item.label,
@@ -246,10 +299,12 @@ export function OrdersBoard({
           <span className="mb-1 block text-xs font-medium text-stone-500">Order status</span>
           <select
             value={tab}
-            onChange={(event) => setTab(event.target.value as 'all' | OrderStatus)}
+            onChange={(event) => setTab(event.target.value as OrdersBoardTab)}
             className={fieldClass}
           >
             <option value="all">All</option>
+            <option value="pending_delivery">Pending delivery</option>
+            <option value="customer_modified_after_confirm">Customer modified</option>
             {ORDER_STATUSES.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -359,19 +414,13 @@ export function OrdersBoard({
         <div>
           <div className="space-y-3 md:hidden">
             {paged.map((order) => {
-              const cardClass = order.admin_modified_from_placed
-                ? 'block rounded-2xl border border-amber-300 bg-amber-50/50 p-4 shadow-sm ring-1 ring-amber-100'
-                : 'block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm';
+              const cardClass = orderListSurfaceClass(order);
               const summary = (
                 <>
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-base font-semibold text-stone-900">
                       Order #{formatOrderNumber(order.order_number)}
-                      {order.admin_modified_from_placed ? (
-                        <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950">
-                          Modified
-                        </span>
-                      ) : null}
+                      {orderModificationBadges(order)}
                     </p>
                     <p className="text-base font-semibold text-stone-900">{formatPrice(order.total_amount)}</p>
                   </div>
@@ -447,22 +496,11 @@ export function OrdersBoard({
                 </thead>
                 <tbody>
                   {paged.map((order) => (
-                    <tr
-                      key={order.id}
-                      className={
-                        order.admin_modified_from_placed
-                          ? 'border-t border-amber-200 bg-amber-50/60'
-                          : 'border-t border-stone-200'
-                      }
-                    >
+                    <tr key={order.id} className={orderListRowClass(order)}>
                       <td className="px-3 py-2 font-semibold">
                         <Link href={`/orders/${order.id}`} className="text-stone-900 hover:text-emerald-800 hover:underline">
                           {formatOrderNumber(order.order_number)}
-                          {order.admin_modified_from_placed ? (
-                            <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950">
-                              Modified
-                            </span>
-                          ) : null}
+                          {orderModificationBadges(order)}
                         </Link>
                       </td>
                       <td className="px-3 py-2">

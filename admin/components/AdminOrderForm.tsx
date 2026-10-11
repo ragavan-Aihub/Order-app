@@ -1049,7 +1049,8 @@ export function AdminOrderForm({
           orderCount={duplicate.orderCount}
           onLoad={() => pickCustomer(duplicate)}
           onDismiss={() => {
-            setIgnoredMobile(normalizeMobile(duplicate.mobile ?? mobile));
+            setIgnoredMobile('');
+            setMobile('');
             setDuplicate(null);
           }}
         />

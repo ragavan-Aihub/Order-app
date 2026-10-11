@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { OrdersBoard } from '@/components/OrdersBoard';
+import { OrdersBoard, type OrdersBoardTab } from '@/components/OrdersBoard';
 import { isCommunitiesEnabled } from '@/services/business';
 import { getCommunities } from '@/services/communities';
 import { getAllOrders } from '@/services/orders';
@@ -13,13 +13,24 @@ function parseInitialStatus(value: string | string[] | undefined): OrderStatus |
   return ORDER_STATUSES.find((item) => item.value === raw)?.value;
 }
 
+function parseInitialTab(params: Record<string, string | string[] | undefined>): OrdersBoardTab {
+  const view = Array.isArray(params.view) ? params.view[0] : params.view;
+  if (view === 'pending_delivery') {
+    return 'pending_delivery';
+  }
+  if (view === 'customer_modified_after_confirm') {
+    return 'customer_modified_after_confirm';
+  }
+  return parseInitialStatus(params.status) ?? 'all';
+}
+
 export default async function OrdersPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const initialStatus = parseInitialStatus(params.status);
+  const initialTab = parseInitialTab(params);
   const enabled = await isCommunitiesEnabled();
   const [orders, communities] = await Promise.all([
     getAllOrders({ hydrateCommunity: enabled }),
@@ -38,11 +49,11 @@ export default async function OrdersPage({
         </Link>
       </div>
       <OrdersBoard
-        key={initialStatus ?? 'all'}
+        key={initialTab}
         orders={orders}
         communities={communities}
         communitiesEnabled={enabled}
-        initialStatus={initialStatus}
+        initialTab={initialTab}
       />
     </div>
   );

@@ -35,6 +35,8 @@ export type Order = {
   items_revision?: number;
   /** Admin changed lines away from the originally placed snapshot. */
   admin_modified_from_placed?: boolean;
+  /** Customer changed lines after the order was confirmed. */
+  customer_modified_after_confirm?: boolean;
   created_at: string;
   updated_at: string;
 };

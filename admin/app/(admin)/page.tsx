@@ -8,6 +8,8 @@ import {
   IndianRupee,
   PackageCheck,
   ShoppingBag,
+  Truck,
+  UserRoundPen,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
@@ -152,6 +154,8 @@ export default async function DashboardPage() {
 
   const data = result.data;
   const outstandingHref = '/reports?range=30d&status=delivered&payment=outstanding&focus=outstanding';
+  const pendingDeliveryHref = '/orders?view=pending_delivery';
+  const customerModifiedHref = '/orders?view=customer_modified_after_confirm';
   const insightWarns = data.outstandingCount > 0;
 
   return (
@@ -185,7 +189,30 @@ export default async function DashboardPage() {
         </Link>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {data.customerModifiedAfterConfirmCount > 0 ? (
+        <Link
+          href={customerModifiedHref}
+          className="group flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800" aria-hidden>
+            <UserRoundPen className="h-[18px] w-[18px]" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-sky-900">
+              {data.customerModifiedAfterConfirmCount}{' '}
+              {data.customerModifiedAfterConfirmCount === 1 ? 'order was' : 'orders were'} changed by the customer after
+              confirm
+            </span>
+            <span className="block text-sm text-sky-800">Review line changes before you send them out.</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-sky-900">
+            <span className="hidden sm:inline">View orders</span>
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </span>
+        </Link>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <KpiCard
           label="Orders today"
           value={String(data.ordersToday)}
@@ -196,6 +223,15 @@ export default async function DashboardPage() {
           }
         />
         <KpiCard label="Sales today" value={formatPrice(data.salesToday)} icon={IndianRupee} tone="emerald" />
+        <KpiCard
+          label="Pending deliveries"
+          value={String(data.pendingDeliveryCount)}
+          hint="Placed + confirmed"
+          href={pendingDeliveryHref}
+          icon={Truck}
+          tone="teal"
+          attention={data.pendingDeliveryCount > 0}
+        />
         <KpiCard label="Delivered today" value={String(data.deliveredToday)} icon={PackageCheck} tone="indigo" />
         <KpiCard
           label="Outstanding"
@@ -260,6 +296,16 @@ export default async function DashboardPage() {
                   <tr key={order.id} className="transition-colors hover:bg-stone-50">
                     <td className="px-3 py-2.5 font-semibold text-emerald-900">
                       {formatOrderNumber(order.order_number)}
+                      {order.admin_modified_from_placed ? (
+                        <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-950">
+                          Shop
+                        </span>
+                      ) : null}
+                      {order.customer_modified_after_confirm ? (
+                        <span className="ml-2 rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-950">
+                          Customer
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="flex items-center gap-2">

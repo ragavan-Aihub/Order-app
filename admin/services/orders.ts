@@ -1,6 +1,6 @@
 import { isCommunitiesEnabled } from '@/services/business';
 import {
-  loadAdminModifiedFromPlacedIds,
+  annotateOrdersWithModificationFlags,
   loadOrderModificationSummaryForOrder,
 } from '@/services/order-modifications';
 import { getAdminSession } from '@/services/supabase/admin-session';
@@ -177,11 +177,7 @@ async function annotateAdminModifiedOrders(
   }
 
   const businessId = orders[0]?.business_id;
-  const highlighted = await loadAdminModifiedFromPlacedIds(ids, itemsByOrder, businessId);
-  return orders.map((order) => ({
-    ...order,
-    admin_modified_from_placed: highlighted.has(order.id),
-  }));
+  return annotateOrdersWithModificationFlags(supabase, orders, itemsByOrder, businessId);
 }
 
 export async function getOrderById(id: string): Promise<OrderWithItems | null> {
@@ -233,16 +229,18 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
       },
     ]);
     const orderItems = (fallbackItems ?? []) as OrderItem[];
-    const modification_summary = await loadOrderModificationSummaryForOrder(
-      id,
-      orderItems,
+    const status_events = await loadStatusEvents(supabase, id);
+    const modification_summary = await loadOrderModificationSummaryForOrder(id, orderItems, {
       businessId,
-    );
+      status: hydrated.status,
+      statusEvents: status_events,
+    });
     return {
       ...hydrated,
       admin_modified_from_placed: modification_summary.modifiedFromPlaced,
+      customer_modified_after_confirm: modification_summary.customerModifiedAfterConfirm,
       order_items: orderItems,
-      status_events: await loadStatusEvents(supabase, id),
+      status_events,
       modification_summary,
     };
   }
@@ -258,14 +256,15 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
 
   const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [order as Order]);
   const orderItems = (items ?? []) as OrderItem[];
-  const modification_summary = await loadOrderModificationSummaryForOrder(
-    id,
-    orderItems,
+  const modification_summary = await loadOrderModificationSummaryForOrder(id, orderItems, {
     businessId,
-  );
+    status: hydrated.status,
+    statusEvents,
+  });
   return {
     ...hydrated,
     admin_modified_from_placed: modification_summary.modifiedFromPlaced,
+    customer_modified_after_confirm: modification_summary.customerModifiedAfterConfirm,
     order_items: orderItems,
     status_events: statusEvents,
     modification_summary,

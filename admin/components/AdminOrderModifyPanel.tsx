@@ -53,11 +53,14 @@ export function AdminOrderModifyPanel({
   itemsRevision,
   products,
   adminModifiedFromPlaced = false,
+  customerModifiedAfterConfirm = false,
   canRevertToPlaced = false,
   placedTotal,
   placedItems = [],
   shopDiffBaselineItems = [],
   adminCompareItems = [],
+  customerDiffBaselineItems = [],
+  confirmBaselineTotal,
   revertTargetTotal,
   relaxProductValidation = false,
 }: {
@@ -69,11 +72,14 @@ export function AdminOrderModifyPanel({
   itemsRevision: number;
   products: Product[];
   adminModifiedFromPlaced?: boolean;
+  customerModifiedAfterConfirm?: boolean;
   canRevertToPlaced?: boolean;
   placedTotal?: number;
   placedItems?: OrderModificationItemSnapshot[];
   shopDiffBaselineItems?: OrderModificationItemSnapshot[];
   adminCompareItems?: OrderModificationItemSnapshot[];
+  customerDiffBaselineItems?: OrderModificationItemSnapshot[];
+  confirmBaselineTotal?: number;
   revertTargetTotal?: number;
   relaxProductValidation?: boolean;
 }) {
@@ -257,7 +263,9 @@ export function AdminOrderModifyPanel({
 
   const panelClass = adminModifiedFromPlaced
     ? 'rounded-xl border border-amber-300 bg-amber-50/40 p-4 ring-1 ring-amber-100'
-    : 'rounded-xl border border-stone-200 bg-white p-4';
+    : customerModifiedAfterConfirm
+      ? 'rounded-xl border border-sky-300 bg-sky-50/40 p-4 ring-1 ring-sky-100'
+      : 'rounded-xl border border-stone-200 bg-white p-4';
 
   if (!editing) {
     return (
@@ -270,6 +278,17 @@ export function AdminOrderModifyPanel({
                 Shop changed this order vs as placed
                 {typeof placedTotal === 'number' ? ` · Placed total ${formatPrice(placedTotal)}` : ''}
               </p>
+            ) : null}
+            {!adminModifiedFromPlaced && customerModifiedAfterConfirm ? (
+              <p className="mt-0.5 text-sm text-sky-900">
+                Customer changed this order after you confirmed it
+                {typeof confirmBaselineTotal === 'number'
+                  ? ` · At confirm ${formatPrice(confirmBaselineTotal)}`
+                  : ''}
+              </p>
+            ) : null}
+            {adminModifiedFromPlaced && customerModifiedAfterConfirm ? (
+              <p className="mt-0.5 text-sm text-sky-900">Customer also changed lines after confirm — see below.</p>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -304,9 +323,12 @@ export function AdminOrderModifyPanel({
           placedItems={placedItems}
           shopDiffBaselineItems={shopDiffBaselineItems}
           adminCompareItems={adminCompareItems}
+          customerDiffBaselineItems={customerDiffBaselineItems}
           total={originalTotal}
           placedTotal={placedTotal}
+          confirmBaselineTotal={confirmBaselineTotal}
           showDiff={adminModifiedFromPlaced}
+          showCustomerDiff={customerModifiedAfterConfirm}
         />
         {revertOpen ? (
           <ConfirmDialog

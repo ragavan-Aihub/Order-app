@@ -206,7 +206,8 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           orderCount={duplicate.orderCount}
           onLoad={() => router.push(`/customers/${duplicate.id}`)}
           onDismiss={() => {
-            setIgnoredMobile(normalizeMobile(duplicate.mobile ?? mobile));
+            setIgnoredMobile('');
+            setMobile('');
             setDuplicate(null);
           }}
         />

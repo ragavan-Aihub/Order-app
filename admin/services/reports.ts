@@ -5,6 +5,10 @@ import {
   summarizeOrders,
   type ReportSummary,
 } from '@/services/report-metrics';
+import {
+  annotateOrderRowsWithModificationFlags,
+  countCustomerModifiedAfterConfirmOrders,
+} from '@/services/order-modifications';
 import { hydrateOrderCommunities } from '@/services/orders';
 import { getAdminSession } from '@/services/supabase/admin-session';
 import { createServerSupabaseClient } from '@/services/supabase/server';
@@ -40,6 +44,10 @@ export type DashboardData = {
   outstandingCount: number;
   /** Orders still Placed (not yet confirmed), across all days. */
   placedCount: number;
+  /** Placed + confirmed — not yet out for delivery. */
+  pendingDeliveryCount: number;
+  /** Confirmed / out for delivery orders the customer changed after confirm. */
+  customerModifiedAfterConfirmCount: number;
   recent: Order[];
   insight: string;
 };
@@ -172,6 +180,8 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
     eventResult,
     fallbackDelivered,
     placedResult,
+    pendingDeliveryResult,
+    customerModifiedAfterConfirmCount,
   ] = await Promise.all([
     fetchMatchingOrders(supabase, businessId, today, {
       status: 'all',
@@ -215,10 +225,20 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
       .select('id', { count: 'exact', head: true })
       .eq('business_id', businessId)
       .eq('status', 'new'),
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .in('status', ['new', 'confirmed']),
+    countCustomerModifiedAfterConfirmOrders(supabase, businessId),
   ]);
 
   const failed =
-    yesterdayResult.error || outstandingResult.error || recentResult.error || placedResult.error;
+    yesterdayResult.error ||
+    outstandingResult.error ||
+    recentResult.error ||
+    placedResult.error ||
+    pendingDeliveryResult.error;
   if (todayFetch.error) {
     return { ok: false, message: todayFetch.error };
   }
@@ -254,7 +274,8 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
 
   const hydrate = await isCommunitiesEnabled();
   const recentRaw = (recentResult.data ?? []) as Order[];
-  const recent = hydrate ? await hydrateOrderCommunities(supabase, businessId, recentRaw) : recentRaw;
+  const recentHydrated = hydrate ? await hydrateOrderCommunities(supabase, businessId, recentRaw) : recentRaw;
+  const recent = await annotateOrderRowsWithModificationFlags(supabase, recentHydrated, businessId);
 
   const ordersToday = todayRows.length;
   const ordersYesterday = yesterdayResult.count ?? 0;
@@ -270,6 +291,8 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
       outstandingAmount,
       outstandingCount: outstanding.length,
       placedCount: placedResult.count ?? 0,
+      pendingDeliveryCount: pendingDeliveryResult.count ?? 0,
+      customerModifiedAfterConfirmCount,
       recent,
       insight: dashboardInsight({
         outstandingCount: outstanding.length,

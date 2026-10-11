@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 10 Oct 2026.
+Last updated: 11 Oct 2026.
 
 ## Must do before go-live
 
@@ -28,17 +28,44 @@ Last updated: 10 Oct 2026.
   8. `supabase/migrations/20261004040000_order_status_events_customer_read.sql` (lets customers read the status history of their own orders, so the app can show the date and time of each step; until it runs, the app shows only the placed time)
   9. `supabase/migrations/20261005000000_customer_cancel_rules.sql` (customers can cancel only while an order is Placed, at most 3 cancellations in 24 hours; the reason is always set on the server. The admin panel is not affected. Until it runs, the app hides Cancel for confirmed orders but the server still allows it)
   10. `supabase/migrations/20261005010000_security_hardening.sql` (run after step 9. Order prices and totals come from the product list instead of the app; customers cannot mark orders as paid or set other internal fields; the customer record links by the verified OTP phone; plus address, cancel, Partner API and storage limits. Works with the current app, no new build needed)
+  11. Order modification stack (admin shop edits, customer block after shop modify, revert): `20261010000000_order_modifications.sql` through `20261014000000_admin_revert_pre_admin_snapshot.sql` — run in filename order on hosted Supabase if not already applied.
 
-### Build a new APK with the latest customer app changes
+### Preview APK for demos
+
+- **Status:** v16 built (Oct 2026 demo). **Pending:** v17 when you want the post-demo mobile fix (clear edit session after admin cancel) from commit `91e3e7c` on device.
+- **How:** Bump `android.versionCode` in `mobile/app.json`, then run `npx eas-cli build -p android --profile preview` from `mobile/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset so voice stays hidden.
+
+## After demo feedback (agreed, not all built)
+
+### Pending deliveries on the dashboard and orders list
+
+- **Status:** Done (admin)
+- **What:** Dashboard KPI **Pending deliveries** (placed + confirmed, not out for delivery) links to `/orders?view=pending_delivery`. Orders list has a **Pending delivery** tab with the same filter.
+- **Files:** `admin/services/reports.ts`, `admin/app/(admin)/page.tsx`, `admin/components/OrdersBoard.tsx`, `admin/app/(admin)/orders/page.tsx`
+
+### Customer modify alerts for admin (after confirm only)
+
+- **Status:** Done (admin)
+- **What:** No alert while **Placed**. After **Confirmed**, dashboard banner + orders filter tab + **Customer modified** badge (sky) vs **Shop modified** (amber). Order detail shows diff vs lines at confirm time.
+- **Files:** `admin/lib/order-modification-state.ts`, `admin/services/order-modifications.ts`, `admin/app/(admin)/page.tsx`, `admin/components/OrdersBoard.tsx`, `admin/components/AdminOrderModifyPanel.tsx`
+
+### App customer vs admin customer (addresses / orders)
+
+- **Status:** Done (migration + admin)
+- **What:** App saved addresses link to `customers` via trigger and `ensure_customer_profile` backfill. Admin customer list/detail counts app addresses and orders by `auth_user_id` when needed.
+- **Migration:** `supabase/migrations/20261015000000_link_app_addresses_to_customer.sql`
+- **Demo tip:** Reusing the same Supabase Test OTP phone reuses the same Auth user and saved receiver names — use a fresh test number or clear app data between demos.
+
+### Create order — duplicate mobile dialog
+
+- **Status:** Done (admin)
+- **What:** **Use a different number** clears the mobile field instead of allowing the same number until save.
+
+### Coming soon → Notify me
 
 - **Status:** Pending
-- **Why:** The last preview APK (version code 10) still shows the "Order by Voice" card, which only works on the developer's Wi-Fi. It also lacks the City field, the new-order screen, Modify opening the cart, the modify limit, and the Preparing status cleanup. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset so voice stays hidden.
-- **How:** Bump `android.versionCode` in `mobile/app.json`, then run `npx eas-cli build -p android --profile preview` from `mobile/`.
-
-### Commit the current work
-
-- **Status:** Pending
-- **Why:** The voice fix and listening orb, the admin order workflow, the Preparing removal, the list quick-actions switch and this document are not committed yet.
+- **What:** On unavailable products (`available === false`), let customers register interest; admin sees demand; optional push when the product is available.
+- **Today:** `ProductCard` shows "Coming soon" with no notify action.
 
 ## Phase 2
 

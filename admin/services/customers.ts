@@ -70,7 +70,7 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
   const [{ data: people }, { data: addresses }, { data: orders }] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, name, mobile, source, created_at')
+      .select('id, name, mobile, source, auth_user_id, created_at')
       .eq('business_id', businessId)
       .order('created_at', { ascending: false }),
     supabase
@@ -84,9 +84,18 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
     return [];
   }
 
+  const customerIdByAuthUser = new Map<string, string>();
+  for (const person of people) {
+    if (person.auth_user_id) {
+      customerIdByAuthUser.set(person.auth_user_id as string, person.id as string);
+    }
+  }
+
   const addressByCustomer = new Map<string, { count: number; defaultLine: string | null }>();
   for (const row of addresses ?? []) {
-    const key = row.customer_id;
+    const key =
+      (row.customer_id as string | null) ??
+      (row.user_id ? (customerIdByAuthUser.get(row.user_id as string) ?? null) : null);
     if (!key) {
       continue;
     }
@@ -100,7 +109,9 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
 
   const orderByCustomer = new Map<string, { count: number; lastAt: string | null }>();
   for (const row of orders ?? []) {
-    const key = row.customer_id;
+    const key =
+      (row.customer_id as string | null) ??
+      (row.user_id ? (customerIdByAuthUser.get(row.user_id as string) ?? null) : null);
     if (!key) {
       continue;
     }
@@ -153,14 +164,18 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
     return null;
   }
 
-  const [{ data: addresses }, { data: orders }] = await Promise.all([
+  const addressFilter = person.auth_user_id
+    ? `customer_id.eq.${id},user_id.eq.${person.auth_user_id}`
+    : `customer_id.eq.${id}`;
+
+  const [{ data: addresses }, { data: ordersByCustomerId }, { data: ordersByUserId }] = await Promise.all([
     supabase
       .from('customer_addresses')
       .select(
         'id, user_id, customer_id, label, name, mobile, alt_mobile, house, locality, address, city, pincode, instructions, is_default, community_id',
       )
-      .eq('customer_id', id)
       .eq('business_id', businessId)
+      .or(addressFilter)
       .order('is_default', { ascending: false }),
     supabase
       .from('orders')
@@ -171,7 +186,27 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
       .eq('business_id', businessId)
       .order('created_at', { ascending: false })
       .limit(20),
+    person.auth_user_id
+      ? supabase
+          .from('orders')
+          .select(
+            'id, order_number, total_amount, status, payment_method, refund_status, delivery_address, pincode, created_at',
+          )
+          .eq('user_id', person.auth_user_id)
+          .eq('business_id', businessId)
+          .is('customer_id', null)
+          .order('created_at', { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const orderMap = new Map<string, CustomerDetail['orders'][number]>();
+  for (const row of [...(ordersByCustomerId ?? []), ...(ordersByUserId ?? [])]) {
+    orderMap.set(row.id as string, row as CustomerDetail['orders'][number]);
+  }
+  const mergedOrders = [...orderMap.values()]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 20);
 
   return {
     id: person.id,
@@ -182,7 +217,7 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
     auth_user_id: person.auth_user_id,
     created_at: person.created_at,
     addresses: (addresses ?? []) as CustomerAddress[],
-    orders: (orders ?? []) as CustomerDetail['orders'],
+    orders: mergedOrders,
   };
 }
 

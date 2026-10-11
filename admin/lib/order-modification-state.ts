@@ -1,8 +1,9 @@
 import {
   buildOrderDiffTableRowsFromSnapshots,
   orderDiffHasChanges,
+  snapshotsFromOrderItems,
 } from '@/lib/order-modification-diff';
-import type { OrderItem, OrderModificationItemSnapshot } from '@/types/order';
+import type { OrderItem, OrderModificationItemSnapshot, OrderStatus, OrderStatusEvent } from '@/types/order';
 
 export function normalizeModificationItems(raw: unknown): OrderModificationItemSnapshot[] {
   if (!Array.isArray(raw)) {
@@ -27,7 +28,45 @@ export type OrderModificationSummary = {
   /** True only when the shop changed the order vs as placed — not customer self-serve edits alone. */
   modifiedFromPlaced: boolean;
   canRevertToPlaced: boolean;
+  /** Customer changed lines after the order was confirmed (not while still placed). */
+  customerModifiedAfterConfirm: boolean;
+  /** Order lines as they were when the shop confirmed (baseline for post-confirm customer diff). */
+  confirmBaselineItems: OrderModificationItemSnapshot[];
+  confirmBaselineTotal: number | null;
 };
+
+export type OrderModificationContext = {
+  status?: OrderStatus;
+  statusEvents?: Pick<OrderStatusEvent, 'status' | 'created_at'>[];
+};
+
+export function getOrderConfirmedAt(
+  events: Pick<OrderStatusEvent, 'status' | 'created_at'>[],
+): string | null {
+  const confirmed = events
+    .filter((event) => event.status === 'confirmed')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return confirmed[0]?.created_at ?? null;
+}
+
+function snapshotAtOrBefore(
+  mods: ModInput[],
+  atIso: string,
+  placedItems: OrderModificationItemSnapshot[],
+): OrderModificationItemSnapshot[] {
+  const at = new Date(atIso).getTime();
+  let snapshot = placedItems;
+  for (const mod of mods) {
+    if (new Date(mod.created_at).getTime() > at) {
+      break;
+    }
+    const next = normalizeModificationItems(mod.new_items);
+    if (next.length) {
+      snapshot = next;
+    }
+  }
+  return snapshot;
+}
 
 type ModInput = {
   actor_type: string;
@@ -75,8 +114,9 @@ function latestAdminMod(mods: ModInput[]): ModInput | null {
 }
 
 export function buildOrderModificationSummary(
-  _currentItems: OrderItem[],
+  currentItems: OrderItem[],
   mods: ModInput[],
+  context?: OrderModificationContext,
 ): OrderModificationSummary {
   const sorted = [...mods].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -109,6 +149,38 @@ export function buildOrderModificationSummary(
   const canRevertToPlaced =
     modifiedFromPlaced && revertTargetItems.length > 0 && latestAdmin?.reason !== 'reverted_to_placed';
 
+  const status = context?.status;
+  const confirmedAt = context?.statusEvents ? getOrderConfirmedAt(context.statusEvents) : null;
+  const confirmBaselineItems =
+    confirmedAt && placedItems.length ? snapshotAtOrBefore(sorted, confirmedAt, placedItems) : [];
+  const confirmBaselineTotal =
+    confirmBaselineItems.length > 0
+      ? confirmBaselineItems.reduce((sum, line) => sum + Number(line.subtotal), 0)
+      : null;
+
+  let customerModifiedAfterConfirm = false;
+  if (
+    status &&
+    status !== 'new' &&
+    status !== 'cancelled' &&
+    confirmedAt &&
+    confirmBaselineItems.length > 0
+  ) {
+    const hadCustomerModAfter = sorted.some(
+      (mod) =>
+        mod.actor_type === 'customer' &&
+        new Date(mod.created_at).getTime() > new Date(confirmedAt).getTime(),
+    );
+    if (hadCustomerModAfter) {
+      customerModifiedAfterConfirm = orderDiffHasChanges(
+        buildOrderDiffTableRowsFromSnapshots(
+          confirmBaselineItems,
+          snapshotsFromOrderItems(currentItems),
+        ),
+      );
+    }
+  }
+
   return {
     placedItems,
     placedTotal,
@@ -119,5 +191,8 @@ export function buildOrderModificationSummary(
     hasAdminModification,
     modifiedFromPlaced,
     canRevertToPlaced,
+    customerModifiedAfterConfirm,
+    confirmBaselineItems,
+    confirmBaselineTotal,
   };
 }
