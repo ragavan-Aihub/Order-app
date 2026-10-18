@@ -4,3 +4,6 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Firebase service account (secret) — do not commit. google-services.json is OK to commit.
+*-firebase-adminsdk-*.json

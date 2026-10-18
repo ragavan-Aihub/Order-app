@@ -30,10 +30,24 @@ async function ensureAndroidChannel() {
   });
 }
 
+export type RegisterPushResult =
+  | { ok: true }
+  | { ok: false; reason: 'simulator' | 'permission_denied' | 'no_project_id' | 'no_supabase' | 'no_session' | 'token' | 'save'; detail?: string };
+
 /** Register this device for order status push (confirmation, out for delivery, delivered). */
-export async function registerForOrderPush(): Promise<void> {
+export async function registerForOrderPush(): Promise<RegisterPushResult> {
   if (!Device.isDevice) {
-    return;
+    return { ok: false, reason: 'simulator' };
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return { ok: false, reason: 'no_supabase' };
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session?.user) {
+    return { ok: false, reason: 'no_session' };
   }
 
   await ensureAndroidChannel();
@@ -45,7 +59,7 @@ export async function registerForOrderPush(): Promise<void> {
     permission = status;
   }
   if (permission !== 'granted') {
-    return;
+    return { ok: false, reason: 'permission_denied' };
   }
 
   const projectId =
@@ -54,27 +68,38 @@ export async function registerForOrderPush(): Promise<void> {
     Constants.expoConfig?.extra?.easProjectId;
 
   if (!projectId) {
-    return;
+    return { ok: false, reason: 'no_project_id' };
   }
 
-  const push = await Notifications.getExpoPushTokenAsync({ projectId });
+  let pushToken: string;
+  try {
+    const push = await Notifications.getExpoPushTokenAsync({ projectId });
+    pushToken = push.data;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (__DEV__) {
+      console.warn('[push] getExpoPushTokenAsync', detail);
+    }
+    return { ok: false, reason: 'token', detail };
+  }
+
   const platform =
     Platform.OS === 'ios' || Platform.OS === 'android' || Platform.OS === 'web'
       ? Platform.OS
       : 'unknown';
 
-  const supabase = getSupabaseClient();
-  if (!supabase) {
-    return;
-  }
-
   const { error } = await supabase.rpc('upsert_push_token', {
-    p_token: push.data,
+    p_token: pushToken,
     p_platform: platform,
   });
   if (error) {
-    console.warn('[push] upsert_push_token', error.message);
+    if (__DEV__) {
+      console.warn('[push] upsert_push_token', error.message);
+    }
+    return { ok: false, reason: 'save', detail: error.message };
   }
+
+  return { ok: true };
 }
 
 export function addOrderNotificationResponseListener(

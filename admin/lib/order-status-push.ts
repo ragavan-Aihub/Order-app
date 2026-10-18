@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 import { env } from '@/config/env';
 import type { OrderStatus } from '@/types/order';
 
@@ -15,16 +17,18 @@ export async function notifyOrderStatusPush(orderId: string, status: OrderStatus
   }
 
   try {
-    const response = await fetch(`${baseUrl}/functions/v1/send-order-status-push`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${serviceRoleKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ order_id: orderId, status }),
+    const supabase = createClient(baseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-    if (!response.ok) {
-      console.warn('[push] send-order-status-push', response.status, await response.text());
+    const { data, error } = await supabase.functions.invoke('send-order-status-push', {
+      body: { order_id: orderId, status },
+    });
+    if (error) {
+      console.warn('[push] send-order-status-push', error.message);
+      return;
+    }
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.warn('[push] send-order-status-push', data);
     }
   } catch (error) {
     console.warn('[push] send-order-status-push failed', error);

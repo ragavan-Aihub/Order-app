@@ -30,17 +30,12 @@ export function isDefinitelyOffline(state: Network.NetworkState): boolean {
     return true;
   }
 
-  // While the link is up, do not block the app on isInternetReachable alone — Android often
-  // reports false briefly at cold start before reachability is validated.
+  // Link reported up — never block on reachability alone (Android flips reachable at cold start / resume).
   if (state.isConnected === true) {
     return false;
   }
 
-  // No explicit connected=true: only treat unreachable as offline when type is known.
-  if (state.isInternetReachable === false && !unknown) {
-    return true;
-  }
-
+  // Do not treat isInternetReachable=false when isConnected is still unknown — common after resume.
   return false;
 }
 

@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 11 Oct 2026.
+Last updated: 13 Oct 2026.
 
 ## Must do before go-live
 
@@ -29,6 +29,7 @@ Last updated: 11 Oct 2026.
   9. `supabase/migrations/20261005000000_customer_cancel_rules.sql` (customers can cancel only while an order is Placed, at most 3 cancellations in 24 hours; the reason is always set on the server. The admin panel is not affected. Until it runs, the app hides Cancel for confirmed orders but the server still allows it)
   10. `supabase/migrations/20261005010000_security_hardening.sql` (run after step 9. Order prices and totals come from the product list instead of the app; customers cannot mark orders as paid or set other internal fields; the customer record links by the verified OTP phone; plus address, cancel, Partner API and storage limits. Works with the current app, no new build needed)
   11. Order modification stack (admin shop edits, customer block after shop modify, revert): `20261010000000_order_modifications.sql` through `20261014000000_admin_revert_pre_admin_snapshot.sql` — run in filename order on hosted Supabase if not already applied.
+  12. **Push notifications:** `20261011010000_push_notifications.sql`, then `20261018000000_push_service_role_grants.sql` (required for Edge Function reads). Deploy `send-order-status-push`, set `SUPABASE_SERVICE_ROLE_KEY` on admin, install preview APK (not Expo Go). See `supabase/documentation/push-notifications.md`.
 
 ### Preview APK for demos
 
@@ -36,6 +37,8 @@ Last updated: 11 Oct 2026.
 - **How:** Bump `android.versionCode` in `mobile/app.json`, then run `npx eas-cli build -p android --profile preview` from `mobile/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset so voice stays hidden.
 
 ## After demo feedback (agreed, not all built)
+
+**Summary for stakeholders:** `docs/post-demo-updates.md`
 
 ### Pending deliveries on the dashboard and orders list
 

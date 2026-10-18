@@ -8,9 +8,12 @@ Customers get push notifications when the shop moves an order to:
 
 Placed (`new`) and cancelled orders do not send push.
 
-## 1. Apply the migration
+## 1. Apply the migrations
 
-Run [`supabase/migrations/20261011010000_push_notifications.sql`](../migrations/20261011010000_push_notifications.sql) in the Supabase SQL editor (or via CLI).
+Run in the Supabase SQL editor (or via CLI), in order:
+
+1. [`20261011010000_push_notifications.sql`](../migrations/20261011010000_push_notifications.sql) — `push_tokens` table and `upsert_push_token` RPC
+2. [`20261018000000_push_service_role_grants.sql`](../migrations/20261018000000_push_service_role_grants.sql) — lets the Edge Function read `orders` and `push_tokens` with the service role key (without this, invocations return **500** `permission denied for table orders`)
 
 ## 2. Deploy the Edge Function
 
@@ -46,11 +49,17 @@ If status can change outside the admin app (Partner API, SQL), add a webhook:
 
 The function ignores updates that are not one of the three notify statuses.
 
-## 5. Mobile app
+## 5. Mobile app (Expo + Android FCM)
+
+Firebase is **only** for Google’s push pipe on Android; Supabase remains your backend.
+
+1. [Firebase Console](https://console.firebase.google.com/) — Android app `com.farm2flavour.app`.
+2. Download **`google-services.json`** → save as `mobile/google-services.json` (already referenced in `app.json`).
+3. **EAS FCM V1:** Firebase → Project settings → Service accounts → **Generate new private key** → upload in `eas credentials` → **Push Notifications (FCM V1)** (preview + production profiles). Do **not** commit that JSON; add to `.gitignore`.
+4. Bump `android.versionCode`, rebuild preview APK, reinstall.
 
 - Uses **Expo Push** (`expo-notifications`). Tokens are saved with RPC `upsert_push_token` after the customer grants notification permission (shop tabs, signed in).
 - Tapping a notification opens the order detail screen.
-- **New APK required** after adding the plugin (`android.versionCode` bumped). EAS configures FCM for preview/production builds.
 
 ## 6. Test
 
@@ -68,5 +77,10 @@ Check Edge Function logs in Supabase Dashboard → **Edge Functions** → **send
 | No permission prompt | User must reach Home (shop tabs) while signed in |
 | Token not saved | Migration applied; RPC `upsert_push_token` granted |
 | Admin update, no push | `SUPABASE_SERVICE_ROLE_KEY` on admin server; function deployed |
-| Function 401 | Authorization header uses service role key, not anon key |
+| Function 401 | Authorization header uses service role key, not anon key; redeploy function after auth changes |
+| Function 500 permission denied | Run `20261018000000_push_service_role_grants.sql` |
+| 200 `skipped` / `no_app_user` | Order was not placed by a signed-in app user (no `user_id`); push only for app orders |
+| 200 `sent: 0` | No row in `push_tokens` — see below |
+| `push_tokens` always empty | Signed in (OTP account, not browse-only skip); migration `20261011010000` applied; notifications **Allowed**; open Home after login; on Android preview builds, configure **FCM** in [Expo credentials](https://docs.expo.dev/push-notifications/fcm-credentials/) for the EAS project |
 | Expo errors in logs | Token expired; reinstall app and sign in again |
+| Expo `InvalidCredentials` / FCM server key | FCM **V1 service account** on [expo.dev](https://expo.dev) → project **farm2flavour** → Credentials → Android → **preview**, from the **same** Firebase project as `google-services.json` (`order-app-1b975`). Re-upload, wait ~1 min, test again (no new APK needed). |

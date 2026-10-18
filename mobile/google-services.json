@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "573939447468",
+    "project_id": "order-app-1b975",
+    "storage_bucket": "order-app-1b975.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:573939447468:android:878ce74efae3e513b39109",
+        "android_client_info": {
+          "package_name": "com.farm2flavour.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzTGgCpO7X5MIphaRSqdrs9Jk4qe9zvkg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

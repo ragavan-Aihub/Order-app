@@ -48,6 +48,30 @@ function parseInput(body: PushPayload): { orderId: string; status: string } | nu
   return null;
 }
 
+function isAuthorizedServiceToken(token: string, configuredKey: string, projectUrl: string): boolean {
+  const trimmed = token.trim();
+  const expected = configuredKey.trim();
+  if (trimmed && expected && trimmed === expected) {
+    return true;
+  }
+  try {
+    const segment = trimmed.split('.')[1];
+    if (!segment) {
+      return false;
+    }
+    const payload = JSON.parse(
+      atob(segment.replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { role?: string; ref?: string };
+    if (payload.role !== 'service_role') {
+      return false;
+    }
+    const projectRef = new URL(projectUrl).hostname.split('.')[0];
+    return payload.ref === projectRef;
+  } catch {
+    return false;
+  }
+}
+
 async function sendExpoPush(
   tokens: string[],
   title: string,
@@ -78,9 +102,20 @@ async function sendExpoPush(
       },
       body: JSON.stringify(chunk),
     });
+    const text = await response.text();
     if (!response.ok) {
-      const text = await response.text();
-      console.error('Expo push failed', response.status, text);
+      console.error('Expo push HTTP error', response.status, text);
+      continue;
+    }
+    try {
+      const payload = JSON.parse(text) as { data?: { status?: string; message?: string }[] };
+      for (const ticket of payload.data ?? []) {
+        if (ticket.status === 'error') {
+          console.error('Expo push ticket error', ticket.message);
+        }
+      }
+    } catch {
+      console.error('Expo push unexpected response', text);
     }
   }
 }
@@ -98,7 +133,7 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (token !== serviceRoleKey) {
+  if (!isAuthorizedServiceToken(token, serviceRoleKey, supabaseUrl)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
@@ -140,11 +175,17 @@ Deno.serve(async (req) => {
     .eq('id', orderId)
     .maybeSingle();
 
-  if (orderError || !order?.user_id) {
-    return new Response(JSON.stringify({ error: orderError?.message ?? 'Order not found' }), {
-      status: orderError ? 500 : 404,
+  if (orderError) {
+    return new Response(JSON.stringify({ error: orderError.message }), {
+      status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+  if (!order?.user_id) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'no_app_user', order_id: orderId }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
   }
 
   const copy = messageForStatus(status, order.order_number ?? null);

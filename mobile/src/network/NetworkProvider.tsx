@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View, type AppStateStatus } from 'react-native';
 
 import { OfflineScreen } from '@/components/OfflineScreen';
 import { getIsOffline, isDefinitelyOffline } from '@/services/network';
@@ -32,15 +32,19 @@ export function useNetworkStatus(): NetworkContextValue {
 }
 
 const OFFLINE_SCREEN_DELAY_MS = 1200;
-/** Ignore blocking offline UI right after launch while the OS settles network state. */
-const STARTUP_GRACE_MS = 2800;
+/** Ignore blocking offline UI while the OS settles network state (launch or return from background). */
+const NETWORK_GRACE_MS = 3200;
 
 export function NetworkProvider({ children }: { children: ReactNode }) {
   const state = Network.useNetworkState();
   const rawOffline = isDefinitelyOffline(state);
   const [offline, setOffline] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const [startupGrace, setStartupGrace] = useState(true);
+  const [networkGrace, setNetworkGrace] = useState(true);
+
+  const beginNetworkGrace = useCallback(() => {
+    setNetworkGrace(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,24 +53,63 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
         setOffline(false);
       }
     });
-    const graceTimer = setTimeout(() => setStartupGrace(false), STARTUP_GRACE_MS);
+    beginNetworkGrace();
+    const graceTimer = setTimeout(() => setNetworkGrace(false), NETWORK_GRACE_MS);
     return () => {
       cancelled = true;
       clearTimeout(graceTimer);
     };
-  }, []);
+  }, [beginNetworkGrace]);
+
+  useEffect(() => {
+    let resumeGraceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const onAppState = (next: AppStateStatus) => {
+      if (next !== 'active') {
+        return;
+      }
+      beginNetworkGrace();
+      if (resumeGraceTimer) {
+        clearTimeout(resumeGraceTimer);
+      }
+      resumeGraceTimer = setTimeout(() => setNetworkGrace(false), NETWORK_GRACE_MS);
+      void getIsOffline().then((down) => {
+        if (!down) {
+          setOffline(false);
+        }
+      });
+    };
+
+    const sub = AppState.addEventListener('change', onAppState);
+    return () => {
+      sub.remove();
+      if (resumeGraceTimer) {
+        clearTimeout(resumeGraceTimer);
+      }
+    };
+  }, [beginNetworkGrace]);
 
   useEffect(() => {
     if (!rawOffline) {
       setOffline(false);
       return;
     }
-    if (startupGrace) {
+    if (networkGrace) {
       return;
     }
-    const timer = setTimeout(() => setOffline(true), OFFLINE_SCREEN_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [rawOffline, startupGrace]);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void getIsOffline().then((down) => {
+        if (!cancelled) {
+          setOffline(down);
+        }
+      });
+    }, OFFLINE_SCREEN_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [rawOffline, networkGrace]);
 
   const blocking = offline;
 
