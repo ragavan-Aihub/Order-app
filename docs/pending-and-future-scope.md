@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 13 Oct 2026.
+Last updated: 19 Oct 2026.
 
 ## Must do before go-live
 
@@ -30,6 +30,7 @@ Last updated: 13 Oct 2026.
   10. `supabase/migrations/20261005010000_security_hardening.sql` (run after step 9. Order prices and totals come from the product list instead of the app; customers cannot mark orders as paid or set other internal fields; the customer record links by the verified OTP phone; plus address, cancel, Partner API and storage limits. Works with the current app, no new build needed)
   11. Order modification stack (admin shop edits, customer block after shop modify, revert): `20261010000000_order_modifications.sql` through `20261014000000_admin_revert_pre_admin_snapshot.sql` — run in filename order on hosted Supabase if not already applied.
   12. **Push notifications:** `20261011010000_push_notifications.sql`, then `20261018000000_push_service_role_grants.sql` (required for Edge Function reads). Deploy `send-order-status-push`, set `SUPABASE_SERVICE_ROLE_KEY` on admin, install preview APK (not Expo Go). See `supabase/documentation/push-notifications.md`.
+  13. **Notify me:** `20261019100000_product_notify_interests.sql`. Deploy `send-product-available-push` (same service role auth as order push). Admin triggers it when a product flips from Coming soon to Available.
 
 ### Preview APK for demos
 
@@ -66,9 +67,9 @@ Last updated: 13 Oct 2026.
 
 ### Coming soon → Notify me
 
-- **Status:** Pending
-- **What:** On unavailable products (`available === false`), let customers register interest; admin sees demand; optional push when the product is available.
-- **Today:** `ProductCard` shows "Coming soon" with no notify action.
+- **Status:** Done (code). **Pending:** run migration `20261019100000_product_notify_interests.sql` on hosted Supabase; deploy Edge Function `send-product-available-push` (`--no-verify-jwt`); preview APK if you ship mobile-only.
+- **What:** Customers tap **Notify me** on coming-soon products (one tap, optional Settings prompt if notifications off). Admin **Notify me demand** on Products lists name, mobile, and counts; flipping **Coming soon → Available** sends push and clears the wait list.
+- **Docs:** `supabase/documentation/push-notifications.md` (product-available section).
 
 ## Phase 2
 

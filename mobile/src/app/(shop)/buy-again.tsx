@@ -20,6 +20,7 @@ import { HomeHeader } from '@/components/HomeHeader';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
+import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -34,6 +35,7 @@ export default function BuyAgainScreen() {
   const insets = useSafeAreaInsets();
   const { increase, decrease, items, itemCount } = useCart();
   const addToCart = useAddToCart();
+  const { isNotified, busyId, onNotifyPress } = useProductNotifyInterests();
   const { offline } = useNetworkStatus();
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
@@ -185,6 +187,13 @@ export default function BuyAgainScreen() {
                   onAddToCart={() => addToCart(product, 1)}
                   onIncrease={() => increase(product.id)}
                   onDecrease={() => decrease(product.id)}
+                  notifyNotified={isNotified(product.id)}
+                  notifyBusy={busyId === product.id}
+                  onNotifyPress={
+                    product.available === false
+                      ? () => void onNotifyPress(product.id, product.name)
+                      : undefined
+                  }
                 />
               </View>
             ))}

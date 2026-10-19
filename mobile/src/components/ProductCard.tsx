@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
+import { productNotifyCopy } from '@/copy/product-notify';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
@@ -14,6 +15,9 @@ type ProductCardProps = {
   onIncrease: () => void;
   onDecrease: () => void;
   compact?: boolean;
+  notifyNotified?: boolean;
+  notifyBusy?: boolean;
+  onNotifyPress?: () => void;
 };
 
 /** Slightly wider than square — shorter image block (reference grid). */
@@ -34,6 +38,9 @@ export function ProductCard({
   onIncrease,
   onDecrease,
   compact = false,
+  notifyNotified = false,
+  notifyBusy = false,
+  onNotifyPress,
 }: ProductCardProps) {
   const comingSoon = product.available === false;
 
@@ -63,9 +70,40 @@ export function ProductCard({
           {product.name}
         </Text>
         <View style={styles.bodySpacer} />
+        {comingSoon && onNotifyPress ? (
+          <Text style={[styles.notifyHelper, compact && styles.notifyHelperCompact]} numberOfLines={3}>
+            {productNotifyCopy.helper}
+          </Text>
+        ) : null}
         <View style={styles.footerRow}>
           <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
-          {comingSoon ? null : quantity > 0 ? (
+          {comingSoon && onNotifyPress ? (
+            <Pressable
+              onPress={onNotifyPress}
+              disabled={notifyBusy}
+              style={[
+                styles.notifyButton,
+                notifyNotified && styles.notifyButtonOn,
+                compact && styles.notifyButtonCompact,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={notifyNotified ? productNotifyCopy.notified : productNotifyCopy.notifyMe}
+            >
+              {notifyBusy ? (
+                <ActivityIndicator size="small" color={notifyNotified ? colors.primaryDark : colors.primaryText} />
+              ) : (
+                <Text
+                  style={[
+                    styles.notifyLabel,
+                    notifyNotified && styles.notifyLabelOn,
+                    compact && styles.notifyLabelCompact,
+                  ]}
+                >
+                  {notifyNotified ? productNotifyCopy.notified : productNotifyCopy.notifyMe}
+                </Text>
+              )}
+            </Pressable>
+          ) : comingSoon ? null : quantity > 0 ? (
             <QuantityStepper
               compact
               dense
@@ -205,5 +243,43 @@ const styles = StyleSheet.create({
     color: colors.primaryText,
     fontSize: 13,
     fontWeight: '700',
+  },
+  notifyHelper: {
+    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 13,
+    color: colors.textMuted,
+  },
+  notifyHelperCompact: {
+    fontSize: 9,
+    lineHeight: 12,
+  },
+  notifyButton: {
+    minWidth: 72,
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifyButtonOn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  notifyButtonCompact: {
+    minWidth: 64,
+  },
+  notifyLabel: {
+    color: colors.primaryText,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  notifyLabelOn: {
+    color: colors.primaryDark,
+  },
+  notifyLabelCompact: {
+    fontSize: 11,
   },
 });

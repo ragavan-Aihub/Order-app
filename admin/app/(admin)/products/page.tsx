@@ -1,16 +1,20 @@
 import Link from 'next/link';
 
 import { ProductImport } from '@/components/ProductImport';
+import { ProductNotifyDemand } from '@/components/ProductNotifyDemand';
 import { ProductsBoard } from '@/components/ProductsBoard';
 import { isCategoriesEnabled } from '@/services/business';
 import { getActiveCategories } from '@/services/categories';
+import { getProductNotifyCountMap, getProductNotifyDemand } from '@/services/product-notify-demand';
 import { getAllProducts } from '@/services/products';
 
 export default async function ProductsPage() {
   const enabled = await isCategoriesEnabled();
-  const [products, categories] = await Promise.all([
+  const [products, categories, notifyDemand, notifyCounts] = await Promise.all([
     getAllProducts(),
     enabled ? getActiveCategories() : Promise.resolve([]),
+    getProductNotifyDemand(),
+    getProductNotifyCountMap(),
   ]);
 
   return (
@@ -39,12 +43,26 @@ export default async function ProductsPage() {
         categoriesEnabled={enabled}
         categoryNames={categories.map((item) => item.name)}
       />
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-stone-900">Notify me demand</h2>
+          <p className="text-sm text-stone-600">
+            Customers who tapped Notify me on coming-soon items in the app.
+          </p>
+        </div>
+        <ProductNotifyDemand rows={notifyDemand} />
+      </section>
       {products.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
           No products yet. Add one, or import a filled template.
         </div>
       ) : (
-        <ProductsBoard products={products} categoriesEnabled={enabled} categories={categories} />
+        <ProductsBoard
+          products={products}
+          categoriesEnabled={enabled}
+          categories={categories}
+          notifyCounts={notifyCounts}
+        />
       )}
     </div>
   );

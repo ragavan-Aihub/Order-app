@@ -39,7 +39,7 @@ These were in the tree before / alongside the post-demo admin batch; relevant if
 
 ## Not done yet
 
-- **Coming soon → Notify me** on unavailable products (interest list + admin view + optional push).
+- **Coming soon → Notify me** on unavailable products (interest list + admin demand view + push when marked Available). Code shipped; run migration `20261019100000_product_notify_interests.sql` and deploy `send-product-available-push` on hosted Supabase.
 
 ## Demo / test tips
 

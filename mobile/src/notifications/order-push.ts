@@ -102,13 +102,20 @@ export async function registerForOrderPush(): Promise<RegisterPushResult> {
   return { ok: true };
 }
 
-export function addOrderNotificationResponseListener(
-  onOpenOrder: (orderId: string) => void,
-): Notifications.EventSubscription {
+export function addOrderNotificationResponseListener(handlers: {
+  onOpenOrder?: (orderId: string) => void;
+  onOpenProduct?: (productId: string) => void;
+}): Notifications.EventSubscription {
   return Notifications.addNotificationResponseReceivedListener((response) => {
-    const orderId = response.notification.request.content.data?.orderId;
+    const data = response.notification.request.content.data;
+    const orderId = data?.orderId;
     if (typeof orderId === 'string' && orderId.length > 0) {
-      onOpenOrder(orderId);
+      handlers.onOpenOrder?.(orderId);
+      return;
+    }
+    const productId = data?.productId;
+    if (typeof productId === 'string' && productId.length > 0) {
+      handlers.onOpenProduct?.(productId);
     }
   });
 }

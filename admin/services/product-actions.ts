@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { notifyProductAvailablePush } from '@/lib/product-status-push';
 import { isSupabaseConfigured } from '@/config/env';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import { MAX_IMAGE_BYTES, uploadProductImageBytes } from '@/services/storage';
@@ -66,6 +67,14 @@ export async function updateProductAvailability(
   if ('error' in ctx) {
     return { error: ctx.error };
   }
+  const { data: before } = await ctx.supabase
+    .from('products')
+    .select('available')
+    .eq('id', productId)
+    .eq('business_id', ctx.businessId)
+    .maybeSingle();
+  const wasComingSoon = before?.available === false;
+
   const { data, error } = await ctx.supabase
     .from('products')
     .update({ available })
@@ -76,7 +85,11 @@ export async function updateProductAvailability(
   if (error || !data) {
     return { error: 'Could not update this product.' };
   }
+  if (wasComingSoon && available) {
+    void notifyProductAvailablePush(productId);
+  }
   revalidatePath('/products');
+  revalidatePath(`/products/${productId}`);
   return { error: null };
 }
 

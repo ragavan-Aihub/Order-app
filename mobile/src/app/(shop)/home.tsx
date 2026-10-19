@@ -23,6 +23,7 @@ import { HomeHeader } from '@/components/HomeHeader';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProductCard } from '@/components/ProductCard';
+import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { env } from '@/config/env';
 import { colors, radius, shadow, spacing } from '@/config/theme';
@@ -41,6 +42,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { increase, decrease, items, itemCount, resumeEdit, takeResumeEdit } = useCart();
   const addToCart = useAddToCart();
+  const { isNotified, busyId, onNotifyPress } = useProductNotifyInterests();
 
   useEffect(() => {
     if (resumeEdit) {
@@ -286,6 +288,13 @@ export default function HomeScreen() {
                   onAddToCart={() => addToCart(product, 1)}
                   onIncrease={() => increase(product.id)}
                   onDecrease={() => decrease(product.id)}
+                  notifyNotified={isNotified(product.id)}
+                  notifyBusy={busyId === product.id}
+                  onNotifyPress={
+                    product.available === false
+                      ? () => void onNotifyPress(product.id, product.name)
+                      : undefined
+                  }
                 />
               </View>
             ))}

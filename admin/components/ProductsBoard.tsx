@@ -14,10 +14,12 @@ export function ProductsBoard({
   products,
   categoriesEnabled = false,
   categories = [],
+  notifyCounts = {},
 }: {
   products: Product[];
   categoriesEnabled?: boolean;
   categories?: Array<{ id: string; name: string }>;
+  notifyCounts?: Record<string, number>;
 }) {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -97,6 +99,11 @@ export function ProductsBoard({
                 <ProductTableThumbnail src={product.image_url} alt={product.name} sizeClass="h-16 w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{product.name}</p>
+                  {(notifyCounts[product.id] ?? 0) > 0 ? (
+                    <p className="text-xs font-medium text-amber-800">
+                      {notifyCounts[product.id]} waiting for notify
+                    </p>
+                  ) : null}
                   <p className="truncate text-sm text-stone-500">{product.description}</p>
                   {categoriesEnabled ? (
                     <p className="text-xs text-stone-500">{product.category_name ?? 'Uncategorized'}</p>
@@ -150,6 +157,11 @@ export function ProductsBoard({
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium">{product.name}</p>
+                        {(notifyCounts[product.id] ?? 0) > 0 ? (
+                          <p className="text-xs font-medium text-amber-800">
+                            {notifyCounts[product.id]} waiting for notify
+                          </p>
+                        ) : null}
                         <p className="text-sm text-stone-500">{product.description}</p>
                       </td>
                       <td className="px-4 py-3">{formatPrice(product.price)}</td>

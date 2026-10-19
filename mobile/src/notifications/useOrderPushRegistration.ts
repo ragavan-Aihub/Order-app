@@ -41,8 +41,13 @@ export function useOrderPushRegistration() {
         handlerConfigured = true;
       }
 
-      subscription = push.addOrderNotificationResponseListener((orderId) => {
-        router.push({ pathname: '/order/[id]', params: { id: orderId } });
+      subscription = push.addOrderNotificationResponseListener({
+        onOpenOrder: (orderId) => {
+          router.push({ pathname: '/order/[id]', params: { id: orderId } });
+        },
+        onOpenProduct: (productId) => {
+          router.push({ pathname: '/product/[id]', params: { id: productId } });
+        },
       });
 
       await tryRegister();

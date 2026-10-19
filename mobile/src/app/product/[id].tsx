@@ -1,6 +1,14 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
@@ -10,7 +18,9 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { ViewCartBar } from '@/components/ViewCartBar';
-import { colors, spacing } from '@/config/theme';
+import { productNotifyCopy } from '@/copy/product-notify';
+import { colors, radius, spacing } from '@/config/theme';
+import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { getProductById } from '@/services/products';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
@@ -24,6 +34,7 @@ export default function ProductDetailsScreen() {
   const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
+  const { isNotified, busyId, onNotifyPress } = useProductNotifyInterests();
 
   useEffect(() => {
     if (!id) {
@@ -78,8 +89,22 @@ export default function ProductDetailsScreen() {
       </ScrollView>
       {itemCount > 0 ? <ViewCartBar inline /> : null}
       {comingSoon ? (
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-          <Text style={styles.soonBanner}>Coming soon</Text>
+        <View style={[styles.footer, styles.footerStack, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
+          <Text style={styles.notifyHelper}>{productNotifyCopy.helper}</Text>
+          <Pressable
+            onPress={() => void onNotifyPress(product.id, product.name)}
+            disabled={busyId === product.id}
+            style={[styles.notifyButton, isNotified(product.id) && styles.notifyButtonOn]}
+            accessibilityRole="button"
+          >
+            {busyId === product.id ? (
+              <ActivityIndicator color={colors.primaryDark} />
+            ) : (
+              <Text style={[styles.notifyButtonText, isNotified(product.id) && styles.notifyButtonTextOn]}>
+                {isNotified(product.id) ? productNotifyCopy.notified : productNotifyCopy.notifyMe}
+              </Text>
+            )}
+          </Pressable>
         </View>
       ) : (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
@@ -156,15 +181,39 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  footerStack: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   footerAction: {
     flex: 1,
   },
-  soonBanner: {
-    flex: 1,
-    textAlign: 'center',
+  notifyHelper: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+  },
+  notifyButton: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  notifyButtonOn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  notifyButtonText: {
+    color: colors.primaryText,
     fontSize: 16,
-    fontWeight: '800',
-    color: colors.warning,
+    fontWeight: '700',
+  },
+  notifyButtonTextOn: {
+    color: colors.primaryDark,
   },
   centered: {
     flex: 1,
