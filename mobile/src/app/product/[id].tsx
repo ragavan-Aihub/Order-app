@@ -1,5 +1,5 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +21,7 @@ import { ViewCartBar } from '@/components/ViewCartBar';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { colors, radius, spacing } from '@/config/theme';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
-import { getProductById } from '@/services/products';
+import { fetchProductByIdLive, invalidateProductCatalogCache } from '@/services/products';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
@@ -29,24 +29,58 @@ export default function ProductDetailsScreen() {
   const insets = useSafeAreaInsets();
   const { itemCount } = useCart();
   const addToCart = useAddToCart();
-  const { id: idParam } = useLocalSearchParams<{ id: string }>();
+  const { id: idParam, fromAvailablePush: fromPushParam } = useLocalSearchParams<{
+    id: string;
+    fromAvailablePush?: string;
+  }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
+  const fromAvailablePush =
+    (Array.isArray(fromPushParam) ? fromPushParam[0] : fromPushParam) === '1';
   const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
-  const { isNotified, busyId, onNotifyPress } = useProductNotifyInterests();
+  const loadedIdRef = useRef<string | null>(null);
+  const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } = useProductNotifyInterests();
 
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-
-    getProductById(id)
-      .then(setProduct)
-      .catch(() => setProduct(null))
-      .finally(() => setLoading(false));
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+      let active = true;
+      const needsFullScreenLoader = loadedIdRef.current !== id || fromAvailablePush;
+      if (needsFullScreenLoader) {
+        setLoading(true);
+      }
+      void (async () => {
+        if (fromAvailablePush) {
+          invalidateProductCatalogCache();
+        }
+        await refreshNotifyInterests();
+        try {
+          const next = await fetchProductByIdLive(id);
+          if (active) {
+            setProduct(next);
+            if (next) {
+              loadedIdRef.current = id;
+            }
+          }
+        } catch {
+          if (active) {
+            setProduct(null);
+          }
+        } finally {
+          if (active) {
+            setLoading(false);
+          }
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [fromAvailablePush, id, refreshNotifyInterests]),
+  );
 
   if (loading) {
     return (
@@ -65,6 +99,7 @@ export default function ProductDetailsScreen() {
   }
 
   const comingSoon = product.available === false;
+  const footerLoading = loading && fromAvailablePush;
 
   const lineTotal = product.price * quantity;
 
@@ -84,27 +119,42 @@ export default function ProductDetailsScreen() {
         <View style={styles.body}>
           <Text style={styles.name}>{product.name}</Text>
           {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
-          <Text style={styles.price}>{formatPrice(product.price)}</Text>
+          {comingSoon ? null : <Text style={styles.price}>{formatPrice(product.price)}</Text>}
         </View>
       </ScrollView>
       {itemCount > 0 ? <ViewCartBar inline /> : null}
-      {comingSoon ? (
+      {footerLoading ? (
+        <View style={[styles.footer, styles.footerCentered, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : comingSoon ? (
         <View style={[styles.footer, styles.footerStack, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-          <Text style={styles.notifyHelper}>{productNotifyCopy.helper}</Text>
-          <Pressable
-            onPress={() => void onNotifyPress(product.id, product.name)}
-            disabled={busyId === product.id}
-            style={[styles.notifyButton, isNotified(product.id) && styles.notifyButtonOn]}
-            accessibilityRole="button"
-          >
-            {busyId === product.id ? (
-              <ActivityIndicator color={colors.primaryDark} />
-            ) : (
-              <Text style={[styles.notifyButtonText, isNotified(product.id) && styles.notifyButtonTextOn]}>
-                {isNotified(product.id) ? productNotifyCopy.notified : productNotifyCopy.notifyMe}
-              </Text>
-            )}
-          </Pressable>
+          <View style={styles.footerNotifyRow}>
+            <Text style={styles.price}>{formatPrice(product.price)}</Text>
+            <Pressable
+              onPress={() => void onNotifyPress(product.id, product.name)}
+              disabled={busyId === product.id || isNotified(product.id)}
+              style={[
+                styles.notifyButton,
+                styles.notifyButtonInline,
+                isNotified(product.id) && styles.notifyButtonOn,
+                isNotified(product.id) && styles.notifyButtonDisabled,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isNotified(product.id) }}
+            >
+              {busyId === product.id ? (
+                <ActivityIndicator color={colors.primaryDark} />
+              ) : (
+                <Text style={[styles.notifyButtonText, isNotified(product.id) && styles.notifyButtonTextOn]}>
+                  {isNotified(product.id) ? productNotifyCopy.notified : productNotifyCopy.notifyMe}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+          {isNotified(product.id) ? (
+            <Text style={styles.notifyHelper}>{productNotifyCopy.helper}</Text>
+          ) : null}
         </View>
       ) : (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
@@ -185,14 +235,24 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
   },
+  footerCentered: {
+    justifyContent: 'center',
+    minHeight: 72,
+  },
   footerAction: {
     flex: 1,
+  },
+  footerNotifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   notifyHelper: {
     fontSize: 14,
     lineHeight: 20,
     color: colors.textMuted,
-    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
   notifyButton: {
     minHeight: 48,
@@ -202,10 +262,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
+  notifyButtonInline: {
+    minHeight: 40,
+    minWidth: 120,
+  },
   notifyButtonOn: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.primary,
+  },
+  notifyButtonDisabled: {
+    opacity: 0.55,
   },
   notifyButtonText: {
     color: colors.primaryText,

@@ -70,23 +70,20 @@ export function ProductCard({
           {product.name}
         </Text>
         <View style={styles.bodySpacer} />
-        {comingSoon && onNotifyPress ? (
-          <Text style={[styles.notifyHelper, compact && styles.notifyHelperCompact]} numberOfLines={3}>
-            {productNotifyCopy.helper}
-          </Text>
-        ) : null}
         <View style={styles.footerRow}>
           <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
           {comingSoon && onNotifyPress ? (
             <Pressable
               onPress={onNotifyPress}
-              disabled={notifyBusy}
+              disabled={notifyBusy || notifyNotified}
               style={[
                 styles.notifyButton,
                 notifyNotified && styles.notifyButtonOn,
+                notifyNotified && styles.notifyButtonDisabled,
                 compact && styles.notifyButtonCompact,
               ]}
               accessibilityRole="button"
+              accessibilityState={{ disabled: notifyNotified }}
               accessibilityLabel={notifyNotified ? productNotifyCopy.notified : productNotifyCopy.notifyMe}
             >
               {notifyBusy ? (
@@ -122,6 +119,11 @@ export function ProductCard({
             </Pressable>
           )}
         </View>
+        {comingSoon && onNotifyPress && notifyNotified ? (
+          <Text style={[styles.notifyHelper, compact && styles.notifyHelperCompact]} numberOfLines={3}>
+            {productNotifyCopy.helper}
+          </Text>
+        ) : null}
       </View>
     </>
   );
@@ -267,6 +269,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.primary,
+  },
+  notifyButtonDisabled: {
+    opacity: 0.55,
   },
   notifyButtonCompact: {
     minWidth: 64,

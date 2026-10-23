@@ -6,11 +6,7 @@ import { productNotifyCopy } from '@/copy/product-notify';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { ensurePushForProductNotify } from '@/notifications/ensure-push-permission';
 import { registerForOrderPush } from '@/notifications/order-push';
-import {
-  fetchMyProductNotifyIds,
-  removeProductNotifyInterest,
-  upsertProductNotifyInterest,
-} from '@/services/product-notify';
+import { fetchMyProductNotifyIds, upsertProductNotifyInterest } from '@/services/product-notify';
 import { getSignedInUser } from '@/services/supabase';
 
 export function useProductNotifyInterests() {
@@ -33,37 +29,8 @@ export function useProductNotifyInterests() {
   const isNotified = useCallback((productId: string) => notifiedIds.has(productId), [notifiedIds]);
 
   const onNotifyPress = useCallback(
-    async (productId: string, productName: string) => {
-      if (busyId) {
-        return;
-      }
-      if (notifiedIds.has(productId)) {
-        Alert.alert(productNotifyCopy.stopTitle, productNotifyCopy.stopBody(productName), [
-          { text: productNotifyCopy.stopCancel, style: 'cancel' },
-          {
-            text: productNotifyCopy.stopConfirm,
-            style: 'destructive',
-            onPress: () => {
-              void (async () => {
-                if (!(await requireConnection())) {
-                  return;
-                }
-                setBusyId(productId);
-                const result = await removeProductNotifyInterest(productId);
-                setBusyId(null);
-                if (!result.ok) {
-                  Alert.alert(productNotifyCopy.errorGeneric);
-                  return;
-                }
-                setNotifiedIds((prev) => {
-                  const next = new Set(prev);
-                  next.delete(productId);
-                  return next;
-                });
-              })();
-            },
-          },
-        ]);
+    async (productId: string, _productName: string) => {
+      if (busyId || notifiedIds.has(productId)) {
         return;
       }
 

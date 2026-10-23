@@ -102,20 +102,61 @@ export async function registerForOrderPush(): Promise<RegisterPushResult> {
   return { ok: true };
 }
 
+function readId(data: Record<string, unknown> | undefined, ...keys: string[]): string | null {
+  if (!data) {
+    return null;
+  }
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+/** Route from push `data` (order detail or product detail). */
+export function handlePushNotificationData(
+  data: Record<string, unknown> | undefined,
+  handlers: {
+    onOpenOrder?: (orderId: string) => void;
+    onOpenProduct?: (productId: string) => void;
+  },
+): void {
+  const orderId = readId(data, 'orderId', 'order_id');
+  if (orderId) {
+    handlers.onOpenOrder?.(orderId);
+    return;
+  }
+  const productId = readId(data, 'productId', 'product_id');
+  if (productId) {
+    handlers.onOpenProduct?.(productId);
+  }
+}
+
+export function handlePushNotificationResponse(
+  response: Notifications.NotificationResponse,
+  handlers: {
+    onOpenOrder?: (orderId: string) => void;
+    onOpenProduct?: (productId: string) => void;
+  },
+): void {
+  handlePushNotificationData(
+    response.notification.request.content.data as Record<string, unknown> | undefined,
+    handlers,
+  );
+}
+
+/** When the app was opened from a notification (cold start). */
+export async function getPushNotificationLaunchResponse(): Promise<Notifications.NotificationResponse | null> {
+  return Notifications.getLastNotificationResponseAsync();
+}
+
 export function addOrderNotificationResponseListener(handlers: {
   onOpenOrder?: (orderId: string) => void;
   onOpenProduct?: (productId: string) => void;
 }): Notifications.EventSubscription {
   return Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = response.notification.request.content.data;
-    const orderId = data?.orderId;
-    if (typeof orderId === 'string' && orderId.length > 0) {
-      handlers.onOpenOrder?.(orderId);
-      return;
-    }
-    const productId = data?.productId;
-    if (typeof productId === 'string' && productId.length > 0) {
-      handlers.onOpenProduct?.(productId);
-    }
+    handlePushNotificationResponse(response, handlers);
   });
 }

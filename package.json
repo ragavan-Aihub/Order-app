@@ -11,6 +11,7 @@
   "devDependencies": {
     "marked": "^15.0.12",
     "md-to-pdf": "^5.2.4",
-    "puppeteer": "^24.9.0"
+    "puppeteer": "^24.9.0",
+    "supabase": "^2.122.0"
   }
 }

@@ -15,6 +15,7 @@ Run in the Supabase SQL editor (or via CLI), in order:
 1. [`20261011010000_push_notifications.sql`](../migrations/20261011010000_push_notifications.sql) — `push_tokens` table and `upsert_push_token` RPC
 2. [`20261018000000_push_service_role_grants.sql`](../migrations/20261018000000_push_service_role_grants.sql) — lets the Edge Function read `orders` and `push_tokens` with the service role key (without this, invocations return **500** `permission denied for table orders`)
 3. [`20261019100000_product_notify_interests.sql`](../migrations/20261019100000_product_notify_interests.sql) — **Notify me** wait list and admin demand RPCs (required for product-available push)
+4. [`20261024100000_product_push_service_role_grants.sql`](../migrations/20261024100000_product_push_service_role_grants.sql) — lets `send-product-available-push` read `products` (without this, push is skipped or **500** `permission denied for table products`)
 
 ## 2. Deploy the Edge Functions
 
@@ -62,13 +63,14 @@ Firebase is **only** for Google’s push pipe on Android; Supabase remains your 
 
 - Uses **Expo Push** (`expo-notifications`). Tokens are saved with RPC `upsert_push_token` after the customer grants notification permission (shop tabs, signed in).
 - Tapping an **order** notification opens the order detail screen.
-- Tapping a **product available** notification opens the product screen (`data.productId`).
+- Tapping a **product available** notification opens **Home**, scrolls to that product in the grid, and highlights it briefly (`data.productId`), including when the app was opened from a killed state.
 
 ### Notify me (coming soon products)
 
 - On products with `available === false`, customers tap **Notify me** (one tap; interest is saved even if they decline the Settings prompt).
 - RPCs: `upsert_product_notify_interest`, `remove_product_notify_interest`, `my_product_notify_interests`.
 - When admin marks the product **Available**, interested customers get **Now available** push; rows in `product_notify_interests` for that product are deleted after send.
+- Product pushes include the product photo when `image_url` is a public **https** URL (`richContent.image`). On **Android** it shows in the notification. The small left glyph is still the Farm2Flavour app icon unless you add a custom Android notification icon setup.
 
 ## 6. Test
 
@@ -88,7 +90,7 @@ Check Edge Function logs in Supabase Dashboard → **Edge Functions** if nothing
 | Token not saved | Migration applied; RPC `upsert_push_token` granted |
 | Admin update, no push | `SUPABASE_SERVICE_ROLE_KEY` on admin server; function deployed |
 | Function 401 | Authorization header uses service role key, not anon key; redeploy function after auth changes |
-| Function 500 permission denied | Run `20261018000000_push_service_role_grants.sql` |
+| Function 500 permission denied | Order push: `20261018000000_push_service_role_grants.sql`. Product push: also `20261024100000_product_push_service_role_grants.sql` |
 | 200 `skipped` / `no_app_user` | Order was not placed by a signed-in app user (no `user_id`); push only for app orders |
 | 200 `sent: 0` | No row in `push_tokens` — see below |
 | `push_tokens` always empty | Signed in (OTP account, not browse-only skip); migration `20261011010000` applied; notifications **Allowed**; open Home after login; on Android preview builds, configure **FCM** in [Expo credentials](https://docs.expo.dev/push-notifications/fcm-credentials/) for the EAS project |

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { isPushAvailable } from '@/notifications/push-runtime';
@@ -11,6 +11,26 @@ let handlerConfigured = false;
 export function useOrderPushRegistration() {
   const router = useRouter();
 
+  const pushHandlers = useCallback(
+    () => ({
+      onOpenOrder: (orderId: string) => {
+        router.push({ pathname: '/order/[id]', params: { id: orderId } });
+      },
+      onOpenProduct: (productId: string) => {
+        void (async () => {
+          const products = await import('@/services/products');
+          products.invalidateProductCatalogCache();
+          await products.fetchProductByIdLive(productId);
+          router.push({
+            pathname: '/home',
+            params: { focusProduct: productId, fromAvailablePush: '1' },
+          });
+        })();
+      },
+    }),
+    [router],
+  );
+
   useEffect(() => {
     if (!isPushAvailable()) {
       return;
@@ -19,6 +39,8 @@ export function useOrderPushRegistration() {
     let subscription: { remove: () => void } | undefined;
     let active = true;
     let authSubscription: { unsubscribe: () => void } | undefined;
+
+    const handlers = pushHandlers();
 
     const tryRegister = async () => {
       const push = await import('@/notifications/order-push');
@@ -41,14 +63,12 @@ export function useOrderPushRegistration() {
         handlerConfigured = true;
       }
 
-      subscription = push.addOrderNotificationResponseListener({
-        onOpenOrder: (orderId) => {
-          router.push({ pathname: '/order/[id]', params: { id: orderId } });
-        },
-        onOpenProduct: (productId) => {
-          router.push({ pathname: '/product/[id]', params: { id: productId } });
-        },
-      });
+      subscription = push.addOrderNotificationResponseListener(handlers);
+
+      const launchResponse = await push.getPushNotificationLaunchResponse();
+      if (launchResponse && active) {
+        push.handlePushNotificationResponse(launchResponse, handlers);
+      }
 
       await tryRegister();
     })().catch((error) => {
@@ -83,5 +103,5 @@ export function useOrderPushRegistration() {
       authSubscription?.unsubscribe();
       appSub.remove();
     };
-  }, [router]);
+  }, [pushHandlers]);
 }

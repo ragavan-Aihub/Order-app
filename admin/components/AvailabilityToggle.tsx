@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { updateProductAvailability } from '@/services/product-actions';
@@ -14,9 +15,14 @@ export function AvailabilityToggle({
   available: boolean;
   disabled?: boolean;
 }) {
+  const router = useRouter();
   const [on, setOn] = useState(available);
   const [saving, setSaving] = useState(false);
   const notice = useActionNotice();
+
+  useEffect(() => {
+    setOn(available);
+  }, [available]);
 
   async function onToggle() {
     if (saving || disabled) {
@@ -31,6 +37,7 @@ export function AvailabilityToggle({
     }
     setOn(next);
     notice.show(next ? 'Product marked available' : 'Product marked unavailable');
+    router.refresh();
   }
 
   return (

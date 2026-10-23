@@ -26,24 +26,42 @@ function isAuthorizedServiceToken(token: string, configuredKey: string, projectU
   }
 }
 
+function pushImageUrl(raw: string | null | undefined): string | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  const url = raw.trim();
+  if (!url.startsWith('https://')) {
+    return undefined;
+  }
+  return url;
+}
+
 async function sendExpoPush(
   tokens: string[],
   title: string,
   body: string,
   data: Record<string, string>,
+  imageUrl?: string,
 ): Promise<number> {
   if (tokens.length === 0) {
     return 0;
   }
-  const messages = tokens.map((to) => ({
-    to,
-    sound: 'default',
-    title,
-    body,
-    data,
-    priority: 'high',
-    channelId: 'order-updates',
-  }));
+  const messages = tokens.map((to) => {
+    const message: Record<string, unknown> = {
+      to,
+      sound: 'default',
+      title,
+      body,
+      data,
+      priority: 'high',
+      channelId: 'order-updates',
+    };
+    if (imageUrl) {
+      message.richContent = { image: imageUrl };
+    }
+    return message;
+  });
 
   let sent = 0;
   for (let i = 0; i < messages.length; i += 100) {
@@ -114,7 +132,7 @@ Deno.serve(async (req) => {
 
   const { data: product, error: productError } = await supabase
     .from('products')
-    .select('id, name, available')
+    .select('id, name, available, image_url')
     .eq('id', productId)
     .maybeSingle();
 
@@ -169,9 +187,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  const title = 'Now available';
-  const pushBody = `${product.name} is available to order.`;
-  const sent = await sendExpoPush(tokens, title, pushBody, { productId: product.id });
+  const title = 'Now Available!';
+  const pushBody = `${product.name} is back! It's now available to order. Tap to order yours.`;
+  const imageUrl = pushImageUrl((product as { image_url?: string | null }).image_url);
+  const sent = await sendExpoPush(
+    tokens,
+    title,
+    pushBody,
+    {
+      productId: String(product.id),
+      screen: 'home',
+    },
+    imageUrl,
+  );
 
   await supabase.from('product_notify_interests').delete().eq('product_id', productId);
 

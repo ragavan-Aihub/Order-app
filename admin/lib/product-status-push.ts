@@ -7,6 +7,7 @@ export async function notifyProductAvailablePush(productId: string): Promise<voi
   const baseUrl = env.supabaseUrl.replace(/\/$/, '');
   const serviceRoleKey = env.supabaseServiceRoleKey;
   if (!baseUrl || !serviceRoleKey) {
+    console.warn('[push] send-product-available-push skipped: set SUPABASE_SERVICE_ROLE_KEY in admin/.env');
     return;
   }
 
@@ -21,8 +22,12 @@ export async function notifyProductAvailablePush(productId: string): Promise<voi
       console.warn('[push] send-product-available-push', error.message);
       return;
     }
-    if (data && typeof data === 'object' && 'error' in data) {
-      console.warn('[push] send-product-available-push', data);
+    if (data && typeof data === 'object') {
+      if ('error' in data) {
+        console.warn('[push] send-product-available-push', data);
+      } else if (process.env.NODE_ENV !== 'production' && 'sent' in data) {
+        console.info('[push] send-product-available-push', data);
+      }
     }
   } catch (error) {
     console.warn('[push] send-product-available-push failed', error);

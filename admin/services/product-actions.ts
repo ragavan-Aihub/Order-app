@@ -67,14 +67,6 @@ export async function updateProductAvailability(
   if ('error' in ctx) {
     return { error: ctx.error };
   }
-  const { data: before } = await ctx.supabase
-    .from('products')
-    .select('available')
-    .eq('id', productId)
-    .eq('business_id', ctx.businessId)
-    .maybeSingle();
-  const wasComingSoon = before?.available === false;
-
   const { data, error } = await ctx.supabase
     .from('products')
     .update({ available })
@@ -85,8 +77,8 @@ export async function updateProductAvailability(
   if (error || !data) {
     return { error: 'Could not update this product.' };
   }
-  if (wasComingSoon && available) {
-    void notifyProductAvailablePush(productId);
+  if (available) {
+    await notifyProductAvailablePush(productId);
   }
   revalidatePath('/products');
   revalidatePath(`/products/${productId}`);

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,7 +29,12 @@ import { env } from '@/config/env';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { refreshBusiness } from '@/services/business';
-import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
+import {
+  fetchProductByIdLive,
+  getCachedProducts,
+  invalidateProductCatalogCache,
+  refreshAvailableProducts,
+} from '@/services/products';
 import type { Product } from '@/types/product';
 import { sortProductsForDisplay } from '@/utils/product-list-sort';
 
@@ -39,6 +44,11 @@ function matchesSearch(product: Product, term: string) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { focusProduct: focusProductParam } = useLocalSearchParams<{
+    focusProduct?: string;
+    fromAvailablePush?: string;
+  }>();
+  const focusProductId = Array.isArray(focusProductParam) ? focusProductParam[0] : focusProductParam;
   const insets = useSafeAreaInsets();
   const { increase, decrease, items, itemCount, resumeEdit, takeResumeEdit } = useCart();
   const addToCart = useAddToCart();
@@ -62,6 +72,11 @@ export default function HomeScreen() {
   const painted = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const chipsRef = useRef<ScrollView>(null);
+  const gridSectionY = useRef(0);
+  const productAnchorY = useRef<Record<string, number>>({});
+  const [highlightProductId, setHighlightProductId] = useState<string | null>(null);
+  const pendingFocusProductId = useRef<string | null>(null);
+  const didScrollToHighlight = useRef(false);
 
   const onSearchChange = (text: string) => {
     setQuery(text);
@@ -122,8 +137,38 @@ export default function HomeScreen() {
     }, [loadCatalog]),
   );
 
-  useEffect(() => subscribeHomeCategory(() => setCategoryId(getHomeCategoryId())), []);
+  useEffect(() => {
+    if (!focusProductId) {
+      return;
+    }
+    let active = true;
+    pendingFocusProductId.current = focusProductId;
+    didScrollToHighlight.current = false;
+    productAnchorY.current = {};
+    void (async () => {
+      invalidateProductCatalogCache();
+      await fetchProductByIdLive(focusProductId);
+      const catalog = await refreshAvailableProducts();
+      if (!active) {
+        return;
+      }
+      setProducts(catalog);
+      setQuery('');
+      setCategoryId('');
+      setHomeCategoryId('');
+      setHighlightProductId(focusProductId);
+      setTimeout(() => {
+        if (active) {
+          setHighlightProductId((current) => (current === focusProductId ? null : current));
+        }
+      }, 4000);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [focusProductId]);
 
+  useEffect(() => subscribeHomeCategory(() => setCategoryId(getHomeCategoryId())), []);
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -146,6 +191,27 @@ export default function HomeScreen() {
     }
     return map;
   }, [items]);
+
+  const tryScrollToHighlightedProduct = useCallback(
+    (productId: string, layoutY: number) => {
+      if (
+        didScrollToHighlight.current ||
+        highlightProductId !== productId ||
+        pendingFocusProductId.current !== productId
+      ) {
+        return;
+      }
+      didScrollToHighlight.current = true;
+      pendingFocusProductId.current = null;
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, gridSectionY.current + layoutY - 120),
+          animated: true,
+        });
+      });
+    },
+    [highlightProductId],
+  );
 
   if (loading) {
     return (
@@ -279,9 +345,22 @@ export default function HomeScreen() {
               : 'No products match this search.'}
           </Text>
         ) : (
-          <View style={styles.grid}>
+          <View
+            onLayout={(event) => {
+              gridSectionY.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <View style={styles.grid}>
             {visibleProducts.map((product) => (
-              <View key={product.id} style={styles.gridItem}>
+              <View
+                key={product.id}
+                style={[styles.gridItem, highlightProductId === product.id && styles.gridItemHighlight]}
+                onLayout={(event) => {
+                  const layoutY = event.nativeEvent.layout.y;
+                  productAnchorY.current[product.id] = layoutY;
+                  tryScrollToHighlightedProduct(product.id, layoutY);
+                }}
+              >
                 <ProductCard
                   product={product}
                   quantity={quantityById[product.id] ?? 0}
@@ -298,6 +377,7 @@ export default function HomeScreen() {
                 />
               </View>
             ))}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -477,6 +557,12 @@ const styles = StyleSheet.create({
     width: '50%',
     padding: 4,
     alignItems: 'stretch',
+  },
+  gridItemHighlight: {
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   centered: {
     flex: 1,
