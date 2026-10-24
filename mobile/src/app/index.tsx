@@ -1,9 +1,15 @@
-import { Redirect, useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { WelcomeSignup } from '@/components/WelcomeSignup';
 import { colors } from '@/config/theme';
+import {
+  captureNotificationLaunchTarget,
+  markPushLaunchHandled,
+  routeForPushLaunch,
+  takePendingPushLaunch,
+} from '@/notifications/pending-push-deeplink';
 import { hasEnteredShop } from '@/nav/shop-entry';
 import { getSignedInUser } from '@/services/supabase';
 
@@ -11,12 +17,24 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [launchRedirect, setLaunchRedirect] = useState<Href | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      Promise.all([getSignedInUser(), hasEnteredShop()])
-        .then(([user, entered]) => {
+      void (async () => {
+        try {
+          await captureNotificationLaunchTarget();
+          if (!active) {
+            return;
+          }
+          const launch = takePendingPushLaunch();
+          if (launch) {
+            setLaunchRedirect(routeForPushLaunch(launch));
+            void markPushLaunchHandled(launch.responseId);
+            return;
+          }
+          const [user, entered] = await Promise.all([getSignedInUser(), hasEnteredShop()]);
           if (!active) {
             return;
           }
@@ -27,20 +45,28 @@ export default function WelcomeScreen() {
           }
           setShowWelcome(true);
           setReady(true);
-        })
-        .catch(() => {
+        } catch {
           if (active) {
             setReady(true);
           }
-        });
+        }
+      })();
       return () => {
         active = false;
       };
     }, [router]),
   );
 
+  if (launchRedirect) {
+    return <Redirect href={launchRedirect} />;
+  }
+
   if (!showWelcome) {
-    return <Redirect href="/home" />;
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   if (!ready) {

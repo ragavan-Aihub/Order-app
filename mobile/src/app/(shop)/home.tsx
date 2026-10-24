@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -44,15 +44,23 @@ function matchesSearch(product: Product, term: string) {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { focusProduct: focusProductParam } = useLocalSearchParams<{
+  const {
+    focusProduct: focusProductParam,
+    fromAvailablePush: fromPushParam,
+    pushOpenKey: pushOpenKeyParam,
+  } = useLocalSearchParams<{
     focusProduct?: string;
     fromAvailablePush?: string;
+    pushOpenKey?: string;
   }>();
   const focusProductId = Array.isArray(focusProductParam) ? focusProductParam[0] : focusProductParam;
+  const fromAvailablePush = Array.isArray(fromPushParam) ? fromPushParam[0] : fromPushParam;
+  const pushOpenKey = Array.isArray(pushOpenKeyParam) ? pushOpenKeyParam[0] : pushOpenKeyParam;
   const insets = useSafeAreaInsets();
   const { increase, decrease, items, itemCount, resumeEdit, takeResumeEdit } = useCart();
   const addToCart = useAddToCart();
-  const { isNotified, busyId, onNotifyPress } = useProductNotifyInterests();
+  const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } =
+    useProductNotifyInterests();
 
   useEffect(() => {
     if (resumeEdit) {
@@ -75,8 +83,21 @@ export default function HomeScreen() {
   const gridSectionY = useRef(0);
   const productAnchorY = useRef<Record<string, number>>({});
   const [highlightProductId, setHighlightProductId] = useState<string | null>(null);
+  const [highlightFromPush, setHighlightFromPush] = useState(false);
+  const [pushCatalogLoading, setPushCatalogLoading] = useState(false);
   const pendingFocusProductId = useRef<string | null>(null);
   const didScrollToHighlight = useRef(false);
+
+  const openingFromAvailablePush = fromAvailablePush === '1' && Boolean(focusProductId);
+
+  useLayoutEffect(() => {
+    if (!openingFromAvailablePush || !focusProductId) {
+      return;
+    }
+    setQuery('');
+    setCategoryId('');
+    setHomeCategoryId('');
+  }, [focusProductId, openingFromAvailablePush, pushOpenKey]);
 
   const onSearchChange = (text: string) => {
     setQuery(text);
@@ -126,7 +147,13 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (openingFromAvailablePush) {
+        return;
+      }
       setCategoryId(getHomeCategoryId());
+      if (focusProductId) {
+        return;
+      }
       void loadCatalog()
         .catch(() => {
           if (!painted.current) {
@@ -134,7 +161,7 @@ export default function HomeScreen() {
           }
         })
         .finally(() => setLoading(false));
-    }, [loadCatalog]),
+    }, [focusProductId, loadCatalog, openingFromAvailablePush]),
   );
 
   useEffect(() => {
@@ -142,33 +169,104 @@ export default function HomeScreen() {
       return;
     }
     let active = true;
+    let clearHighlightTimer: ReturnType<typeof setTimeout> | undefined;
     pendingFocusProductId.current = focusProductId;
     didScrollToHighlight.current = false;
     productAnchorY.current = {};
+
+    const fromPush = fromAvailablePush === '1';
+    if (fromPush) {
+      setPushCatalogLoading(true);
+    }
+    setHighlightProductId(focusProductId);
+    setHighlightFromPush(fromPush);
+    const highlightMs = fromPush ? 10_000 : 4_000;
+    clearHighlightTimer = setTimeout(() => {
+      if (active) {
+        setHighlightProductId((current) => (current === focusProductId ? null : current));
+        setHighlightFromPush(false);
+      }
+    }, highlightMs);
+
     void (async () => {
+      if (fromPush) {
+        try {
+          void refreshNotifyInterests();
+          invalidateProductCatalogCache();
+          const applyAvailableSoonAsInStock = (list: Product[]) =>
+            sortProductsForDisplay(
+              list.map((p) => (p.id === focusProductId ? { ...p, available: true } : p)),
+            );
+
+          setProducts((prev) => (prev.length > 0 ? applyAvailableSoonAsInStock(prev) : prev));
+
+          const diskCatalog = await getCachedProducts();
+          if (active && diskCatalog.length > 0) {
+            setProducts(applyAvailableSoonAsInStock(diskCatalog));
+            setLoading(false);
+            setPushCatalogLoading(false);
+          }
+
+          const [live, catalog] = await Promise.all([
+            fetchProductByIdLive(focusProductId),
+            refreshAvailableProducts(),
+          ]);
+          if (!active) {
+            return;
+          }
+          let next = catalog;
+          if (live?.available === true) {
+            const index = next.findIndex((p) => p.id === live.id);
+            if (index >= 0) {
+              const merged = next.slice();
+              merged[index] = live;
+              next = sortProductsForDisplay(merged);
+            } else if (live.active !== false) {
+              next = sortProductsForDisplay([...next, live]);
+            }
+          }
+          setProducts(next);
+          setLoading(false);
+          painted.current = true;
+        } finally {
+          if (active) {
+            setPushCatalogLoading(false);
+          }
+        }
+        return;
+      }
+
+      const cached = await getCachedProducts();
+      if (active && cached.length > 0) {
+        setProducts(cached);
+        setLoading(false);
+        painted.current = true;
+      }
       invalidateProductCatalogCache();
-      await fetchProductByIdLive(focusProductId);
       const catalog = await refreshAvailableProducts();
       if (!active) {
         return;
       }
       setProducts(catalog);
-      setQuery('');
-      setCategoryId('');
-      setHomeCategoryId('');
-      setHighlightProductId(focusProductId);
-      setTimeout(() => {
-        if (active) {
-          setHighlightProductId((current) => (current === focusProductId ? null : current));
-        }
-      }, 4000);
+      setLoading(false);
+      painted.current = true;
     })();
+
     return () => {
       active = false;
+      setPushCatalogLoading(false);
+      if (clearHighlightTimer !== undefined) {
+        clearTimeout(clearHighlightTimer);
+      }
     };
-  }, [focusProductId]);
+  }, [focusProductId, fromAvailablePush, pushOpenKey, refreshNotifyInterests]);
 
-  useEffect(() => subscribeHomeCategory(() => setCategoryId(getHomeCategoryId())), []);
+  useEffect(() => {
+    if (openingFromAvailablePush) {
+      return;
+    }
+    return subscribeHomeCategory(() => setCategoryId(getHomeCategoryId()));
+  }, [openingFromAvailablePush]);
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -213,7 +311,7 @@ export default function HomeScreen() {
     [highlightProductId],
   );
 
-  if (loading) {
+  if ((loading && !focusProductId) || pushCatalogLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -339,11 +437,19 @@ export default function HomeScreen() {
           <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" />
         ) : null}
         {visibleProducts.length === 0 ? (
-          <Text style={styles.empty}>
-            {offline && products.length === 0
-              ? 'Connect to the internet to load products.'
-              : 'No products match this search.'}
-          </Text>
+          openingFromAvailablePush ? (
+            <View style={styles.emptyLoading}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          ) : (
+            <Text style={styles.empty}>
+              {offline && products.length === 0
+                ? 'Connect to the internet to load products.'
+                : query.trim() || categoryId
+                  ? 'No products match this search.'
+                  : 'No products to show yet.'}
+            </Text>
+          )
         ) : (
           <View
             onLayout={(event) => {
@@ -354,7 +460,11 @@ export default function HomeScreen() {
             {visibleProducts.map((product) => (
               <View
                 key={product.id}
-                style={[styles.gridItem, highlightProductId === product.id && styles.gridItemHighlight]}
+                style={[
+                  styles.gridItem,
+                  highlightProductId === product.id &&
+                    (highlightFromPush ? styles.gridItemHighlightFromPush : styles.gridItemHighlight),
+                ]}
                 onLayout={(event) => {
                   const layoutY = event.nativeEvent.layout.y;
                   productAnchorY.current[product.id] = layoutY;
@@ -547,6 +657,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: colors.textMuted,
   },
+  emptyLoading: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -563,6 +677,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
     borderWidth: 2,
     borderColor: colors.primary,
+  },
+  /** Distinct from default teal highlight — used when opening Home from “now available” push. */
+  gridItemHighlightFromPush: {
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(234, 88, 12, 0.14)',
+    borderWidth: 2,
+    borderColor: colors.warning,
   },
   centered: {
     flex: 1,

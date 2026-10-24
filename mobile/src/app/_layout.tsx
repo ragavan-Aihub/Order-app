@@ -10,6 +10,9 @@ import { loadCart } from '@/cart/cart-storage';
 import { OfflineScreen } from '@/components/OfflineScreen';
 import { colors, spacing } from '@/config/theme';
 import { NetworkProvider } from '@/network/NetworkProvider';
+import { captureNotificationLaunchTarget } from '@/notifications/pending-push-deeplink';
+import { configureOrderNotificationHandler } from '@/notifications/order-push';
+import { isPushAvailable } from '@/notifications/push-runtime';
 import { isNetworkFailure } from '@/services/network';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
@@ -64,6 +67,10 @@ export default function RootLayout() {
   useEffect(() => {
     loadAddressBook().catch(() => undefined);
     loadCart().catch(() => undefined);
+    if (isPushAvailable()) {
+      configureOrderNotificationHandler();
+      void captureNotificationLaunchTarget();
+    }
   }, []);
   return (
     <SafeAreaProvider>

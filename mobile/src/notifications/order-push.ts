@@ -111,6 +111,27 @@ function readId(data: Record<string, unknown> | undefined, ...keys: string[]): s
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim();
     }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return null;
+}
+
+export type PushNavigationTarget =
+  | { kind: 'order'; orderId: string }
+  | { kind: 'product'; productId: string };
+
+export function getPushNavigationTarget(
+  data: Record<string, unknown> | undefined,
+): PushNavigationTarget | null {
+  const orderId = readId(data, 'orderId', 'order_id');
+  if (orderId) {
+    return { kind: 'order', orderId };
+  }
+  const productId = readId(data, 'productId', 'product_id');
+  if (productId) {
+    return { kind: 'product', productId };
   }
   return null;
 }
@@ -123,15 +144,15 @@ export function handlePushNotificationData(
     onOpenProduct?: (productId: string) => void;
   },
 ): void {
-  const orderId = readId(data, 'orderId', 'order_id');
-  if (orderId) {
-    handlers.onOpenOrder?.(orderId);
+  const target = getPushNavigationTarget(data);
+  if (!target) {
     return;
   }
-  const productId = readId(data, 'productId', 'product_id');
-  if (productId) {
-    handlers.onOpenProduct?.(productId);
+  if (target.kind === 'order') {
+    handlers.onOpenOrder?.(target.orderId);
+    return;
   }
+  handlers.onOpenProduct?.(target.productId);
 }
 
 export function handlePushNotificationResponse(

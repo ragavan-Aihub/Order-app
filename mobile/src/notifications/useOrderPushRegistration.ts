@@ -2,7 +2,15 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
+import {
+  captureNotificationLaunchTarget,
+  markPushLaunchHandled,
+  routeForPushLaunch,
+  takePendingPushLaunch,
+} from '@/notifications/pending-push-deeplink';
+import { homeParamsForAvailableProductPush } from '@/notifications/product-available-push-route';
 import { isPushAvailable } from '@/notifications/push-runtime';
+import { invalidateProductCatalogCache } from '@/services/products';
 import { getSupabaseClient } from '@/services/supabase';
 
 let handlerConfigured = false;
@@ -14,18 +22,14 @@ export function useOrderPushRegistration() {
   const pushHandlers = useCallback(
     () => ({
       onOpenOrder: (orderId: string) => {
-        router.push({ pathname: '/order/[id]', params: { id: orderId } });
+        router.replace({ pathname: '/order/[id]', params: { id: orderId } });
       },
       onOpenProduct: (productId: string) => {
-        void (async () => {
-          const products = await import('@/services/products');
-          products.invalidateProductCatalogCache();
-          await products.fetchProductByIdLive(productId);
-          router.push({
-            pathname: '/home',
-            params: { focusProduct: productId, fromAvailablePush: '1' },
-          });
-        })();
+        invalidateProductCatalogCache();
+        router.replace({
+          pathname: '/home',
+          params: homeParamsForAvailableProductPush(productId),
+        });
       },
     }),
     [router],
@@ -63,11 +67,19 @@ export function useOrderPushRegistration() {
         handlerConfigured = true;
       }
 
-      subscription = push.addOrderNotificationResponseListener(handlers);
+      const Notifications = await import('expo-notifications');
+      subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+        push.handlePushNotificationResponse(response, handlers);
+        void markPushLaunchHandled(response.notification.request.identifier);
+      });
 
-      const launchResponse = await push.getPushNotificationLaunchResponse();
-      if (launchResponse && active) {
-        push.handlePushNotificationResponse(launchResponse, handlers);
+      await captureNotificationLaunchTarget();
+      if (active) {
+        const launch = takePendingPushLaunch();
+        if (launch) {
+          router.replace(routeForPushLaunch(launch));
+          await markPushLaunchHandled(launch.responseId);
+        }
       }
 
       await tryRegister();
