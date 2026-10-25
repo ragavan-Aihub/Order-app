@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,7 +8,7 @@ import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { OrderItemsWithPlacedDiff } from '@/components/OrderItemsWithPlacedDiff';
 import {
   pickCustomerAdminOrderDiff,
@@ -22,15 +23,7 @@ import {
   orderShopModifiedMessage,
   type OrderWithItems,
 } from '@/types/order';
-import {
-  formatOrderNumber,
-  formatOrderStatus,
-  formatPaymentSummaryLine,
-  formatPlacedAt,
-  formatPrice,
-  formatStepTime,
-  orderStatusTone,
-} from '@/utils/format';
+import { formatOrderNumber, formatPrice, formatStepTime } from '@/utils/format';
 
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -101,14 +94,9 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const statusTone = orderStatusTone(order.status);
   const cancelledAt = order.status === 'cancelled' ? latestStatusTime(order.status_events, 'cancelled') : null;
   const current = order;
   const orderTitle = `Order #${formatOrderNumber(order.order_number)}`;
-  const paymentLine = formatPaymentSummaryLine(order);
-  const deliveryLines = [order.delivery_address, order.pincode ? `Pincode ${order.pincode}` : null]
-    .filter(Boolean)
-    .join('\n');
 
   function confirmCancel() {
     Alert.alert(
@@ -140,102 +128,147 @@ export default function OrderDetailScreen() {
   const showModifyBlocked =
     isOpenOrderStatus(order.status) && !showModify && (shopModified || !canModifyOrder(order));
   const showOpenActions = showModify || showModifyBlocked || showCancel;
+  const modifyBlockedMessage = shopModified
+    ? orderShopModifiedMessage()
+    : isOpenOrderStatus(order.status)
+      ? orderLockedMessage(order.status)
+      : null;
 
   return (
     <>
-      <Stack.Screen options={{ title: orderTitle }} />
+      <Stack.Screen
+        options={{
+          title: orderTitle,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+        }}
+      />
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
+          { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm },
         ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
         }
       >
-        <View style={styles.summary}>
-          <Text style={[styles.summaryStatus, { color: statusTone.fg }]}>{formatOrderStatus(order.status)}</Text>
-          <Text style={styles.summaryMeta}>{formatPlacedAt(order.created_at)}</Text>
-          {paymentLine ? <Text style={styles.summaryMeta}>{paymentLine}</Text> : null}
-        </View>
+        {showModifyBlocked && modifyBlockedMessage ? (
+          <View style={styles.infoBanner}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.warning} />
+            <Text style={styles.infoBannerText}>{modifyBlockedMessage}</Text>
+          </View>
+        ) : null}
 
         {showOpenActions ? (
           <View style={styles.actions}>
             {showModify ? (
               <Pressable
                 onPress={() => goModifyOrder(order, beginEditOrder)}
-                style={({ pressed }) => [styles.actionBtn, styles.modifyBtn, pressed && styles.modifyPressed]}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.modifyBtn,
+                  styles.actionFlex,
+                  !showCancel && styles.actionSolo,
+                  pressed && styles.modifyPressed,
+                ]}
                 accessibilityRole="button"
               >
                 <Text style={styles.modifyLabel}>Modify order</Text>
               </Pressable>
-            ) : shopModified ? (
-              <Text style={styles.limitText}>{orderShopModifiedMessage()}</Text>
-            ) : isOpenOrderStatus(order.status) ? (
-              <Text style={styles.limitText}>{orderLockedMessage(order.status)}</Text>
             ) : null}
             {showCancel ? (
               <Pressable
                 onPress={confirmCancel}
-                style={({ pressed }) => [styles.actionBtn, styles.cancelBtn, pressed && styles.cancelPressed]}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.cancelBtn,
+                  styles.actionFlex,
+                  !showModify && styles.actionSolo,
+                  pressed && styles.cancelPressed,
+                ]}
                 accessibilityRole="button"
               >
+                <Ionicons name="trash-outline" size={16} color={colors.danger} style={styles.cancelIcon} />
                 <Text style={styles.cancelLabel}>Cancel order</Text>
               </Pressable>
             ) : null}
           </View>
         ) : null}
 
-        {order.status === 'cancelled' ? (
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Cancelled</Text>
-            <Text style={styles.bodyText}>{order.cancel_reason || 'This order was cancelled.'}</Text>
-            {cancelledAt ? <Text style={styles.muted}>{formatStepTime(cancelledAt)}</Text> : null}
-            <View style={styles.payRow}>
-              <PaymentBadge
-                method={order.payment_method ?? 'pending'}
-                orderStatus={order.status}
-                refundStatus={order.refund_status}
-              />
+        <View style={styles.groupCard}>
+          {order.status === 'cancelled' ? (
+            <View style={[styles.groupSection, styles.groupSectionTint]}>
+              <Text style={styles.blockTitle}>Cancelled</Text>
+              <Text style={styles.bodyText}>{order.cancel_reason || 'This order was cancelled.'}</Text>
+              {cancelledAt ? <Text style={styles.muted}>{formatStepTime(cancelledAt)}</Text> : null}
+              <View style={styles.payRowBlock}>
+                <PaymentBadge
+                  method={order.payment_method ?? 'pending'}
+                  orderStatus={order.status}
+                  refundStatus={order.refund_status}
+                />
+              </View>
             </View>
-          </View>
-        ) : (
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Order progress</Text>
-            <OrderProgress status={order.status} events={order.status_events} placedAt={order.created_at} />
-          </View>
-        )}
-
-        <View style={styles.block}>
-          <Text style={styles.blockTitle}>Delivery</Text>
-          <Text style={styles.bodyText}>{order.customer_name}</Text>
-          <Text style={styles.bodyText}>{order.mobile}</Text>
-          <Text style={styles.bodyText}>{deliveryLines}</Text>
-        </View>
-
-        <View style={styles.block}>
-          <Text style={styles.blockTitle}>Items</Text>
-          {adminOrderDiff ? (
-            <OrderItemsWithPlacedDiff diff={adminOrderDiff} />
           ) : (
-            <>
-              {order.order_items.map((item) => (
-                <View key={item.id} style={styles.itemRow}>
-                  <View style={styles.itemCopy}>
+            <View style={[styles.groupSection, styles.groupSectionTint]}>
+              <View style={styles.blockTitleRow}>
+                <Text style={[styles.blockTitle, styles.blockTitleInRow]}>Order progress</Text>
+                <PaymentBadge
+                  method={order.payment_method ?? 'pending'}
+                  orderStatus={order.status}
+                  refundStatus={order.refund_status}
+                />
+              </View>
+              <OrderProgress status={order.status} events={order.status_events} placedAt={order.created_at} />
+            </View>
+          )}
+
+          <View style={styles.groupDivider} />
+
+          <View style={styles.groupSection}>
+            <View style={styles.blockTitleRow}>
+              <Text style={styles.blockTitle}>Delivery</Text>
+              <Ionicons name="location-outline" size={18} color={colors.primaryDark} />
+            </View>
+            <Text style={styles.deliveryName}>{order.customer_name}</Text>
+            <View style={styles.phoneRow}>
+              <Ionicons name="call-outline" size={16} color={colors.primary} />
+              <Text style={styles.bodyText}>{order.mobile}</Text>
+            </View>
+            <Text style={styles.addressText}>{order.delivery_address}</Text>
+            {order.pincode ? <Text style={styles.pincodeText}>Pincode {order.pincode}</Text> : null}
+          </View>
+
+          <View style={styles.groupDivider} />
+
+          <View style={[styles.groupSection, styles.groupSectionTint]}>
+            <Text style={styles.blockTitle}>Items</Text>
+            {adminOrderDiff ? (
+              <OrderItemsWithPlacedDiff diff={adminOrderDiff} />
+            ) : (
+              <>
+                <View style={styles.itemHeaderRow}>
+                  <Text style={[styles.itemHeaderCell, styles.itemHeaderName]}>Item</Text>
+                  <Text style={[styles.itemHeaderCell, styles.itemHeaderQty]}>Qty</Text>
+                  <Text style={[styles.itemHeaderCell, styles.itemHeaderPrice]}>Price</Text>
+                </View>
+                {order.order_items.map((item) => (
+                  <View key={item.id} style={styles.itemRow}>
                     <Text style={styles.itemName} numberOfLines={2}>
                       {item.product_name}
                     </Text>
-                    <Text style={styles.itemQty}>× {item.quantity}</Text>
+                    <Text style={styles.itemQtyCol}>×{item.quantity}</Text>
+                    <Text style={styles.itemPriceCol}>{formatPrice(item.subtotal)}</Text>
                   </View>
-                  <Text style={styles.itemPrice}>{formatPrice(item.subtotal)}</Text>
+                ))}
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
                 </View>
-              ))}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
-              </View>
-            </>
-          )}
+              </>
+            )}
+          </View>
         </View>
       </ScrollView>
     </>
@@ -254,56 +287,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textMuted,
   },
-  content: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    gap: spacing.xs,
+  scroll: {
+    flex: 1,
     backgroundColor: colors.background,
   },
-  summary: {
-    backgroundColor: colors.surface,
+  content: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.md,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    backgroundColor: '#FFF7ED',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: '#FDBA74',
     borderRadius: radius.sm,
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 10,
-    gap: 2,
   },
-  summaryStatus: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: colors.primaryDark,
-    letterSpacing: -0.3,
-  },
-  summaryMeta: {
+  infoBannerText: {
+    flex: 1,
     fontSize: 13,
-    lineHeight: 17,
-    color: colors.textMuted,
-    fontWeight: '500',
+    lineHeight: 18,
+    fontWeight: '600',
+    color: colors.warning,
   },
   actions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: spacing.sm,
-    paddingHorizontal: 2,
+  },
+  actionFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  actionSolo: {
+    flex: 1,
   },
   actionBtn: {
-    minHeight: 38,
-    paddingHorizontal: 14,
+    minHeight: 44,
+    paddingHorizontal: spacing.sm,
     borderRadius: radius.sm,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
   },
   modifyBtn: {
     borderWidth: 1.5,
     borderColor: colors.primary,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.primarySoft,
   },
   cancelBtn: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+  },
+  cancelIcon: {
+    marginTop: 1,
   },
   cancelPressed: {
     opacity: 0.88,
@@ -311,7 +354,7 @@ const styles = StyleSheet.create({
   },
   cancelLabel: {
     color: colors.danger,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
   modifyPressed: {
@@ -320,96 +363,170 @@ const styles = StyleSheet.create({
   },
   modifyLabel: {
     color: colors.primaryDark,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
-  limitText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textMuted,
-    fontWeight: '500',
-  },
-  block: {
+  groupCard: {
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 3,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    ...shadow.sm,
+  },
+  groupSection: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 4,
+    backgroundColor: colors.surface,
+  },
+  groupSectionTint: {
+    backgroundColor: colors.surfaceInset,
+  },
+  groupDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
+  },
+  blockTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   blockTitle: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.45,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    color: colors.textMuted,
-    marginBottom: 1,
+    color: colors.primaryDark,
+    marginBottom: 2,
+  },
+  blockTitleInRow: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: 0,
   },
   bodyText: {
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 21,
     color: colors.text,
     fontWeight: '500',
+  },
+  deliveryName: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  addressText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  pincodeText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginTop: 2,
   },
   muted: {
     fontSize: 12,
     color: colors.textMuted,
   },
-  payRow: {
+  payRowBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: spacing.xs,
+  },
+  itemHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 6,
+    marginBottom: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  itemHeaderCell: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: colors.textMuted,
+  },
+  itemHeaderName: {
+    flex: 1,
+    minWidth: 0,
+  },
+  itemHeaderQty: {
+    width: 40,
+    textAlign: 'center',
+  },
+  itemHeaderPrice: {
+    width: 76,
+    textAlign: 'right',
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingVertical: 1,
-  },
-  itemCopy: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
-    gap: 6,
+    paddingVertical: 6,
+    gap: spacing.xs,
   },
   itemName: {
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
     fontSize: 14,
     lineHeight: 19,
     fontWeight: '600',
     color: colors.text,
   },
-  itemQty: {
-    fontSize: 13,
+  itemQtyCol: {
+    width: 40,
+    textAlign: 'center',
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textMuted,
+    fontVariant: ['tabular-nums'],
   },
-  itemPrice: {
+  itemPriceCol: {
+    width: 76,
+    textAlign: 'right',
     fontSize: 14,
     fontWeight: '700',
     color: colors.text,
+    fontVariant: ['tabular-nums'],
   },
   totalRow: {
-    marginTop: 6,
-    paddingTop: 8,
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
+    marginHorizontal: -spacing.xs,
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     color: colors.text,
   },
   totalValue: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.primaryDark,
+    fontVariant: ['tabular-nums'],
   },
 });

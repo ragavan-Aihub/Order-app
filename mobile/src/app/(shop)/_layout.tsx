@@ -24,12 +24,12 @@ function ShopTabs() {
         /** Icons only — labels clash with Android 3-button / gesture nav bar. */
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.background,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
           paddingTop: 8,
           paddingBottom: 6,
-          elevation: 8,
+          elevation: 0,
         },
         tabBarItemStyle: {
           paddingVertical: 6,
@@ -119,5 +119,6 @@ const styles = StyleSheet.create({
   scene: {
     flex: 1,
     paddingTop: 0,
+    backgroundColor: colors.background,
   },
 });

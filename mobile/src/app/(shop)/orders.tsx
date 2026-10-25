@@ -11,7 +11,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { buildOrderDiffTableRows, orderDiffHasChanges } from '@/order-modifications/diff';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import {
   getLatestAdminModificationsByOrderId,
@@ -20,7 +20,7 @@ import {
 } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import { type OrderModification, type OrderWithItems } from '@/types/order';
-import { formatOrderListDate, formatOrderNumber, formatPrice, orderStatusTone } from '@/utils/format';
+import { formatOrderListDate, formatOrderNumber, formatPrice, orderListRailColor } from '@/utils/format';
 
 function itemSummary(order: OrderWithItems) {
   const names = order.order_items.map((item) => item.product_name).filter(Boolean);
@@ -145,11 +145,11 @@ export default function MyOrdersScreen() {
         </View>
       ) : (
         orders.map((order) => {
-          const tone = orderStatusTone(order.status);
+          const railColor = orderListRailColor(order);
           const qty = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
           return (
             <View key={order.id} style={styles.card}>
-              <View style={[styles.rail, { backgroundColor: tone.fg }]} />
+              <View style={[styles.rail, { backgroundColor: railColor }]} />
               <View style={styles.cardBody}>
                 <Pressable
                   onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
@@ -204,9 +204,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.md,
     flexGrow: 1,
-    backgroundColor: colors.background,
   },
   screenTitle: {
     fontSize: 22,
@@ -218,10 +217,9 @@ const styles = StyleSheet.create({
   emptyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.sm,
+    ...shadow.sm,
   },
   emptyTitle: {
     fontSize: 18,
@@ -251,10 +249,9 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     overflow: 'hidden',
+    ...shadow.sm,
   },
   rail: {
     width: 5,

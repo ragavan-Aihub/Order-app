@@ -21,8 +21,15 @@ export function PaymentBadge({
     return null;
   }
   const tone = displayPaymentTone(status);
+  const bordered = status === 'pending';
   return (
-    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+    <View
+      style={[
+        styles.badge,
+        { backgroundColor: tone.bg },
+        bordered && { borderWidth: 1.5, borderColor: tone.fg },
+      ]}
+    >
       <Text style={[styles.label, { color: tone.fg }]}>
         {formatDisplayPayment({
           status: orderStatus,

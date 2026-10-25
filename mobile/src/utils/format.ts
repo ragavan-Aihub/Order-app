@@ -194,6 +194,19 @@ export function displayPaymentTone(status: ReturnType<typeof displayPaymentStatu
   }
 }
 
+/** Left accent on My orders cards — orange when payment still pending, else order status color. */
+export function orderListRailColor(order: {
+  status: string;
+  payment_method?: string | null;
+  refund_status?: string | null;
+}): string {
+  const payment = displayPaymentStatus(order);
+  if (payment === 'pending') {
+    return displayPaymentTone('pending').fg;
+  }
+  return orderStatusTone(order.status).fg;
+}
+
 export function paymentMethodTone(method: string): { bg: string; fg: string } {
   return displayPaymentTone(method === 'cash' || method === 'upi' ? 'paid' : 'pending');
 }

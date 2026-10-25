@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '@/config/theme';
+import { colors, spacing } from '@/config/theme';
 import type { OrderStatusEvent } from '@/types/order';
 import { formatStepTime } from '@/utils/format';
 
@@ -70,6 +70,8 @@ export function OrderProgress({
         const here = !allComplete && index === current;
         const last = index === STEPS.length - 1;
         const time = stepTime(index);
+        const hint =
+          here && step.status === 'new' && status === 'new' ? 'Shop will confirm soon' : null;
         return (
           <View key={step.status} style={styles.row}>
             <View style={styles.rail}>
@@ -89,17 +91,23 @@ export function OrderProgress({
               )}
             </View>
             <View style={styles.copy}>
-              <Text
-                style={[
-                  styles.label,
-                  done && styles.labelDone,
-                  here && styles.labelCurrent,
-                  !done && !here && styles.labelUpcoming,
-                ]}
-              >
-                {step.label}
-              </Text>
-              {time ? <Text style={[styles.time, here && styles.timeCurrent]}>{time}</Text> : null}
+              <View style={styles.labelRow}>
+                <Text
+                  style={[
+                    styles.label,
+                    styles.labelFlex,
+                    done && styles.labelDone,
+                    here && styles.labelCurrent,
+                    !done && !here && styles.labelUpcoming,
+                  ]}
+                >
+                  {step.label}
+                </Text>
+                {time ? (
+                  <Text style={[styles.timeRight, here && styles.timeCurrent]}>{time}</Text>
+                ) : null}
+              </View>
+              {hint ? <Text style={styles.stepHint}>{hint}</Text> : null}
             </View>
           </View>
         );
@@ -171,11 +179,21 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     justifyContent: 'flex-start',
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
   label: {
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 17,
     color: colors.textMuted,
+  },
+  labelFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   labelDone: {
     color: colors.textMuted,
@@ -188,20 +206,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   labelUpcoming: {
-    color: '#C4C4CC',
-    fontWeight: '500',
+    color: '#A1A1AA',
+    fontWeight: '600',
   },
-  time: {
-    marginTop: 0,
-    fontSize: 10,
-    lineHeight: 14,
+  timeRight: {
+    flexShrink: 0,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.textMuted,
+    fontWeight: '500',
     fontVariant: ['tabular-nums'],
+    textAlign: 'right',
   },
   timeCurrent: {
     color: colors.primaryDark,
     fontWeight: '600',
-    opacity: 0.85,
+  },
+  stepHint: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textMuted,
+    fontWeight: '500',
   },
   cancelledBox: {
     paddingVertical: 4,
