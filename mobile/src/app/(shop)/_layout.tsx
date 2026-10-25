@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
 import { OrderPushRegistration } from '@/components/OrderPushRegistration';
 import { colors } from '@/config/theme';
+import { NotificationPermissionProvider } from '@/notifications/NotificationPermissionProvider';
 
 export const unstable_settings = {
   initialRouteName: 'home',
@@ -106,8 +107,10 @@ function ShopTabs() {
 export default function ShopTabsLayout() {
   return (
     <ShopCatalogProvider>
-      <OrderPushRegistration />
-      <ShopTabs />
+      <NotificationPermissionProvider>
+        <OrderPushRegistration />
+        <ShopTabs />
+      </NotificationPermissionProvider>
     </ShopCatalogProvider>
   );
 }

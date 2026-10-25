@@ -52,13 +52,8 @@ export async function registerForOrderPush(): Promise<RegisterPushResult> {
 
   await ensureAndroidChannel();
 
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let permission = existing;
-  if (existing !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    permission = status;
-  }
-  if (permission !== 'granted') {
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') {
     return { ok: false, reason: 'permission_denied' };
   }
 

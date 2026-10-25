@@ -27,6 +27,7 @@ import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { env } from '@/config/env';
 import { colors, radius, shadow, spacing } from '@/config/theme';
+import { notifyHomeCatalogReady } from '@/notifications/notification-permission-offer';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { refreshBusiness } from '@/services/business';
 import {
@@ -162,6 +163,22 @@ export default function HomeScreen() {
         })
         .finally(() => setLoading(false));
     }, [focusProductId, loadCatalog, openingFromAvailablePush]),
+  );
+
+  const reportCatalogReadyForNotificationOffer = useCallback(() => {
+    if (!loading && !pushCatalogLoading) {
+      notifyHomeCatalogReady();
+    }
+  }, [loading, pushCatalogLoading]);
+
+  useEffect(() => {
+    reportCatalogReadyForNotificationOffer();
+  }, [reportCatalogReadyForNotificationOffer]);
+
+  useFocusEffect(
+    useCallback(() => {
+      reportCatalogReadyForNotificationOffer();
+    }, [reportCatalogReadyForNotificationOffer]),
   );
 
   useEffect(() => {

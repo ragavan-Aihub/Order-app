@@ -44,18 +44,21 @@ export function useProductNotifyInterests() {
       }
 
       setBusyId(productId);
-      const result = await upsertProductNotifyInterest(productId);
-      if (!result.ok) {
-        setBusyId(null);
-        Alert.alert(productNotifyCopy.errorGeneric);
-        return;
-      }
-      setNotifiedIds((prev) => new Set(prev).add(productId));
-      const permission = await ensurePushForProductNotify();
-      if (permission === 'granted') {
+      try {
+        const permission = await ensurePushForProductNotify();
+        if (permission !== 'granted') {
+          return;
+        }
+        const result = await upsertProductNotifyInterest(productId);
+        if (!result.ok) {
+          Alert.alert(productNotifyCopy.errorGeneric);
+          return;
+        }
+        setNotifiedIds((prev) => new Set(prev).add(productId));
         void registerForOrderPush();
+      } finally {
+        setBusyId(null);
       }
-      setBusyId(null);
     },
     [busyId, notifiedIds, requireConnection, router],
   );

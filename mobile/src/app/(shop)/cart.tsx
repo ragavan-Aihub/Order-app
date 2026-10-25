@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -65,7 +65,10 @@ export default function CartScreen() {
   const bottomPad = spacing.xs;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selected, setSelected] = useState<SavedAddress | null>(null);
+  const [addressBookTick, setAddressBookTick] = useState(0);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const bumpAddressBook = useCallback(() => setAddressBookTick((n) => n + 1), []);
+  const selected = useMemo(() => getSelectedAddress(), [addressBookTick]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [footerHeight, setFooterHeight] = useState(96);
@@ -98,10 +101,9 @@ export default function CartScreen() {
   }, [focus, router, scrollToAddMore]);
 
   const loadAddress = useCallback(async () => {
-    setSelected(getSelectedAddress());
     await loadAddressBook().catch(() => undefined);
-    setSelected(getSelectedAddress());
-  }, []);
+    bumpAddressBook();
+  }, [bumpAddressBook]);
 
   const discardModify = useCallback(
     (status: OrderStatus | null, orderNumber: number | null) => {
@@ -130,6 +132,7 @@ export default function CartScreen() {
   useFocusEffect(
     useCallback(() => {
       loadAddress().catch(() => undefined);
+      void getSignedInUser().then((user) => setSignedIn(Boolean(user)));
       if (items.length === 0 && !leaving.current) {
         router.replace('/home');
       }
@@ -165,11 +168,13 @@ export default function CartScreen() {
     }, [discardIfClosed, editingOrderId]),
   );
 
+  useEffect(() => subscribeAddressBook(bumpAddressBook), [bumpAddressBook]);
+
   useEffect(() => {
-    return subscribeAddressBook(() => {
-      setSelected(getSelectedAddress());
-    });
-  }, []);
+    if (!selected) {
+      setConfirmOpen(false);
+    }
+  }, [selected]);
 
   if (items.length === 0) {
     return (
@@ -226,11 +231,30 @@ export default function CartScreen() {
       : 'Placing order…'
     : editingOpen
       ? 'Update order'
-      : 'Place order';
+      : signedIn === false
+        ? 'Sign in to order'
+        : !selected
+          ? 'Add delivery address'
+          : 'Place order';
   const placeOrderDisabled = submitting || Boolean(editingOpen && !hasOrderChanges);
+  const checkoutHint =
+    signedIn === false
+      ? 'Sign in to place your order.'
+      : !selected
+        ? 'Add a delivery address to continue.'
+        : null;
 
-  function onPlaceOrder() {
+  async function onPlaceOrder() {
     if (placeOrderDisabled) {
+      return;
+    }
+    const user = await getSignedInUser();
+    if (!user) {
+      router.push({ pathname: '/login', params: { next: 'cart' } });
+      return;
+    }
+    if (!selected) {
+      setPickerOpen(true);
       return;
     }
     setConfirmOpen(true);
@@ -504,6 +528,9 @@ export default function CartScreen() {
         onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
       >
         {error ? <Text style={[styles.error, styles.footerMessage]}>{error}</Text> : null}
+        {checkoutHint && !error ? (
+          <Text style={[styles.checkoutHint, styles.footerMessage]}>{checkoutHint}</Text>
+        ) : null}
         {openOrder && !editingOpen ? (
           <Text style={[styles.error, styles.footerMessage]}>
             Order #{formatOrderNumber(openOrder.order_number)} is already open at this address. Pick another
@@ -546,18 +573,18 @@ export default function CartScreen() {
           loadAddress().catch(() => undefined);
         }}
       />
-      <PlaceOrderConfirmSheet
-        visible={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={confirmPlaceOrder}
-        totalAmount={totalAmount}
-        itemCount={itemCount}
-        addressTitle={
-          selected ? `Deliver to ${savedAddressLabel(selected.label)}` : 'Delivery address'
-        }
-        addressLine={selected ? savedAddressLine(selected) : 'Add a delivery address'}
-        mode={editingOpen ? 'update' : 'place'}
-      />
+      {selected ? (
+        <PlaceOrderConfirmSheet
+          visible={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={confirmPlaceOrder}
+          totalAmount={totalAmount}
+          itemCount={itemCount}
+          addressTitle={`Deliver to ${savedAddressLabel(selected.label)}`}
+          addressLine={savedAddressLine(selected)}
+          mode={editingOpen ? 'update' : 'place'}
+        />
+      ) : null}
     </GestureHandlerRootView>
   );
 }
@@ -760,6 +787,11 @@ const styles = StyleSheet.create({
   footerMessage: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
+  },
+  checkoutHint: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
   checkoutBar: {
     flexDirection: 'row',
