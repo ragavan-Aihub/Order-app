@@ -18,6 +18,7 @@ import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress } from '@/components/OrderProgress';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { ProductImage } from '@/components/ProductImage';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
 import { canCancelOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
@@ -28,8 +29,19 @@ import {
   formatPrice,
 } from '@/utils/format';
 
-const BAND_SUCCESS = '#E3F3EC';
-const BAND_CANCELLED = '#FDECEC';
+const BAND_SUCCESS = '#E8F7F0';
+const BAND_CANCELLED = '#FEF2F2';
+
+const CONFETTI = [
+  { left: '6%', top: 18, w: 7, h: 3, color: '#FDE68A', rotate: '24deg' },
+  { left: '18%', top: 42, w: 6, h: 3, color: '#86EFAC', rotate: '-18deg' },
+  { left: '72%', top: 14, w: 8, h: 3, color: '#FBCFE8', rotate: '12deg' },
+  { left: '84%', top: 38, w: 6, h: 3, color: '#93C5FD', rotate: '-28deg' },
+  { left: '58%', top: 8, w: 5, h: 3, color: '#FDBA74', rotate: '32deg' },
+  { left: '38%', top: 28, w: 6, h: 3, color: '#C4B5FD', rotate: '-8deg' },
+  { left: '12%', top: 8, w: 5, h: 2, color: '#FDA4AF', rotate: '16deg' },
+  { left: '90%', top: 12, w: 5, h: 2, color: '#A7F3D0', rotate: '-22deg' },
+] as const;
 
 function first(value?: string | string[]) {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -39,6 +51,18 @@ function first(value?: string | string[]) {
 function shortAddress(full: string) {
   const { address } = splitDeliveryAddress(full);
   return address.split(',')[0]?.trim() || address.trim();
+}
+
+function DeliveryMapThumb() {
+  return (
+    <View style={styles.mapThumb}>
+      <View style={styles.mapRoadH} />
+      <View style={[styles.mapRoadH, styles.mapRoadHMid]} />
+      <View style={styles.mapRoadV} />
+      <View style={styles.mapPark} />
+      <Ionicons name="location" size={20} color={colors.success} style={styles.mapPinIcon} />
+    </View>
+  );
 }
 
 export default function OrderStatusScreen() {
@@ -95,6 +119,8 @@ export default function OrderStatusScreen() {
   const cancelled = status === 'cancelled';
   const canChange = Boolean(order && isOpenOrderStatus(order.status));
   const bandColor = cancelled ? BAND_CANCELLED : BAND_SUCCESS;
+  const canvasColor = cancelled ? colors.background : bandColor;
+  const celebrate = !cancelled;
 
   const headline = cancelled
     ? 'Order cancelled'
@@ -160,12 +186,24 @@ export default function OrderStatusScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: canvasColor }]}>
       <Stack.Screen
         options={{
           title: 'Order status',
-          headerStyle: { backgroundColor: bandColor },
+          headerStyle: { backgroundColor: canvasColor },
           headerShadowVisible: false,
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => router.replace('/home')}
+              hitSlop={10}
+              style={styles.headerBack}
+              accessibilityRole="button"
+              accessibilityLabel="Back to home"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
+          ),
           headerRight: canChange
             ? () => (
                 <Pressable
@@ -182,121 +220,183 @@ export default function OrderStatusScreen() {
         }}
       />
       <ScrollView
+        style={[styles.scroll, { backgroundColor: canvasColor }]}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
         }
       >
-        <View style={[styles.band, { backgroundColor: bandColor }]} pointerEvents="none" />
-        <View style={styles.hero}>
-          <View style={[styles.heroIcon, cancelled && styles.heroIconCancelled]}>
+        <View style={styles.heroWrap}>
+          <View style={[styles.heroBadge, cancelled && styles.heroBadgeCancelled]}>
             <Ionicons
               name={cancelled ? 'close' : 'checkmark'}
               size={28}
               color={colors.primaryText}
             />
           </View>
-          <Text style={styles.orderNumber}>
-            Order #{orderNumber != null ? formatOrderNumber(orderNumber) : '—'}
-          </Text>
-          <Text style={[styles.headline, cancelled && styles.headlineCancelled]}>{headline}</Text>
-          {showAwaitingShopNote ? (
-            <Text style={styles.headlineNote}>{ORDER_AWAITING_SHOP_NOTE}</Text>
-          ) : null}
-          <View style={styles.heroDivider} />
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{total != null ? formatPrice(total) : '—'}</Text>
-          </View>
-          <View style={styles.payRow}>
-            <Ionicons name="cash-outline" size={14} color={colors.textMuted} />
-            <Text style={styles.payNote}>Pay on delivery · Cash or UPI</Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.deliverRow}>
-            <View style={styles.deliverIcon}>
-              <Ionicons name="location" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.deliverCopy}>
-              <Text style={styles.deliverText} numberOfLines={1}>
-                <Text style={styles.deliverKicker}>Delivering to · </Text>
-                {placeName ?? streetLine ?? '…'}
+          <View style={styles.hero}>
+            <View
+              style={[
+                styles.heroHead,
+                celebrate && styles.heroHeadCelebrate,
+                cancelled && styles.heroHeadCancelled,
+              ]}
+            >
+              {celebrate && status === 'new'
+                ? CONFETTI.map((piece, index) => (
+                    <View
+                      key={index}
+                      pointerEvents="none"
+                      style={[
+                        styles.confettiPiece,
+                        {
+                          left: piece.left,
+                          top: piece.top,
+                          width: piece.w,
+                          height: piece.h,
+                          backgroundColor: piece.color,
+                          transform: [{ rotate: piece.rotate }],
+                        },
+                      ]}
+                    />
+                  ))
+                : null}
+              <Text style={[styles.orderNumber, celebrate && styles.orderNumberCelebrate]}>
+                Order #{orderNumber != null ? formatOrderNumber(orderNumber) : '—'}
               </Text>
-              {placeName && streetLine && !showAddress ? (
-                <Text style={styles.deliverPreview} numberOfLines={1}>
-                  {streetLine}
+              <Text
+                style={[
+                  styles.headline,
+                  celebrate && styles.headlineCelebrate,
+                  cancelled && styles.headlineCancelled,
+                ]}
+              >
+                {headline}
+              </Text>
+              {showAwaitingShopNote ? (
+                <Text style={[styles.headlineNote, celebrate && styles.headlineNoteCelebrate]} numberOfLines={3}>
+                  {ORDER_AWAITING_SHOP_NOTE}
                 </Text>
               ) : null}
             </View>
-            {order ? (
-              <Pressable
-                onPress={() => setShowAddress((open) => !open)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: showAddress }}
-              >
-                <Text style={styles.link}>{showAddress ? 'Hide' : 'View address'}</Text>
-              </Pressable>
+            <View style={styles.heroDivider} />
+            <View style={styles.totalRow}>
+              <View style={styles.totalLeft}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <View style={styles.payRow}>
+                  <Ionicons name="wallet-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.payNote}>Pay on delivery · Cash or UPI</Text>
+                </View>
+              </View>
+              <Text style={styles.totalValue}>{total != null ? formatPrice(total) : '—'}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.groupCard}>
+          <View style={styles.groupSection}>
+            <View style={styles.deliverRow}>
+              <DeliveryMapThumb />
+              <View style={styles.deliverCopy}>
+                <Text style={styles.deliverText} numberOfLines={1}>
+                  <Text style={styles.deliverKicker}>Delivering to · </Text>
+                  {placeName ?? streetLine ?? '…'}
+                </Text>
+                {placeName && streetLine && !showAddress ? (
+                  <Text style={styles.deliverPreview} numberOfLines={1}>
+                    {streetLine}
+                  </Text>
+                ) : null}
+              </View>
+              {order ? (
+                <Pressable
+                  onPress={() => setShowAddress((open) => !open)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: showAddress }}
+                >
+                  <Text style={styles.link}>{showAddress ? 'Hide' : 'View address'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {order && showAddress ? (
+              <View style={styles.addressFull}>
+                <Text style={styles.addressText}>
+                  {splitDeliveryAddress(order.delivery_address).address}
+                  {order.pincode ? `, ${order.pincode}` : ''}
+                </Text>
+                <Text style={styles.addressMeta}>
+                  {order.customer_name} · {order.mobile}
+                </Text>
+              </View>
             ) : null}
           </View>
-          {order && showAddress ? (
-            <View style={styles.addressFull}>
-              <Text style={styles.addressText}>
-                {splitDeliveryAddress(order.delivery_address).address}
-                {order.pincode ? `, ${order.pincode}` : ''}
-              </Text>
-              <Text style={styles.addressMeta}>
-                {order.customer_name} · {order.mobile}
-              </Text>
-            </View>
-          ) : null}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Order status</Text>
-          {loading && !order ? (
-            <ActivityIndicator color={colors.primary} style={styles.loader} />
-          ) : (
-            <OrderProgress status={status} events={order?.status_events} placedAt={order?.created_at} />
-          )}
-          {cancelling ? (
-            <View style={styles.cancellingRow}>
-              <ActivityIndicator size="small" color={colors.danger} />
-              <Text style={styles.cancellingText}>Cancelling your order…</Text>
-            </View>
+        <View style={styles.groupCard}>
+          <View style={styles.groupSection}>
+            <Text style={styles.statusCardTitle}>Order status</Text>
+            {loading && !order ? (
+              <ActivityIndicator color={colors.primary} style={styles.loader} />
+            ) : (
+              <OrderProgress
+                visual="rich"
+                compact
+                status={status}
+                events={order?.status_events}
+                placedAt={order?.created_at}
+              />
+            )}
+            {cancelling ? (
+              <View style={styles.cancellingRow}>
+                <ActivityIndicator size="small" color={colors.danger} />
+                <Text style={styles.cancellingText}>Cancelling your order…</Text>
+              </View>
+            ) : null}
+          </View>
+          {order ? (
+            <>
+              <View style={styles.groupDivider} />
+              <Pressable
+                onPress={() => router.push(`/order/${order.id}`)}
+                style={({ pressed }) => [styles.detailsRow, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="document-text-outline" size={18} color={colors.primaryDark} />
+                <Text style={styles.detailsLabel}>
+                  View order details
+                  {order.order_items.length
+                    ? ` · ${order.order_items.length} ${order.order_items.length === 1 ? 'item' : 'items'}`
+                    : ''}
+                </Text>
+                <View style={styles.detailsTrail}>
+                  <View style={styles.detailsThumbs}>
+                    {order.order_items.slice(0, 3).map((item, index) => (
+                      <ProductImage
+                        key={item.id}
+                        uri={item.image_url}
+                        compact
+                        style={[styles.detailsThumb, index > 0 && styles.detailsThumbOverlap]}
+                        recyclingKey={item.id}
+                        accessibilityLabel={item.product_name}
+                      />
+                    ))}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </View>
+              </Pressable>
+            </>
           ) : null}
         </View>
-
-        {order ? (
-          <Pressable
-            onPress={() => router.push(`/order/${order.id}`)}
-            style={({ pressed }) => [styles.detailsRow, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
-            <Ionicons name="receipt-outline" size={18} color={colors.primaryDark} />
-            <Text style={styles.detailsLabel}>
-              View order details
-              {order.order_items.length
-                ? ` · ${order.order_items.length} ${order.order_items.length === 1 ? 'item' : 'items'}`
-                : ''}
-            </Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
-        ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.sm }]}>
-        <PrimaryButton label="Back to home" onPress={() => router.replace('/home')} />
-        <Pressable
-          onPress={() => router.replace('/orders')}
-          style={styles.footerLink}
-          hitSlop={6}
-          accessibilityRole="button"
-        >
-          <Text style={styles.link}>View all orders</Text>
-        </Pressable>
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.sm, backgroundColor: canvasColor },
+        ]}
+      >
+        <PrimaryButton label="Back to home" onPress={() => router.replace('/home')} style={styles.footerButton} />
       </View>
     </View>
   );
@@ -307,9 +407,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   content: {
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
     gap: spacing.sm,
+  },
+  headerBack: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -4,
   },
   more: {
     width: 40,
@@ -317,120 +430,202 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  band: {
+  heroWrap: {
+    marginTop: spacing.xs,
+    paddingTop: 24,
+  },
+  heroBadge: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
-    height: 170,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    alignSelf: 'center',
+    zIndex: 2,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 5,
+    borderColor: colors.surface,
+    ...shadow.md,
+  },
+  heroBadgeCancelled: {
+    backgroundColor: colors.danger,
   },
   hero: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingTop: 20,
-    paddingBottom: spacing.md,
-    alignItems: 'center',
+    overflow: 'hidden',
     ...shadow.sm,
   },
-  heroIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    borderWidth: 5,
-    borderColor: '#DCFCE7',
+  heroHead: {
+    paddingHorizontal: spacing.md,
+    paddingTop: 30,
+    paddingBottom: spacing.sm,
+    gap: 4,
   },
-  heroIconCancelled: {
-    backgroundColor: colors.danger,
-    borderColor: '#FEE2E2',
+  heroHeadCelebrate: {
+    backgroundColor: '#F3FBF8',
+    alignItems: 'center',
+  },
+  heroHeadCancelled: {
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+  },
+  confettiPiece: {
+    position: 'absolute',
+    opacity: 0.9,
+    borderRadius: 1,
   },
   orderNumber: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
     color: colors.text,
   },
+  orderNumberCelebrate: {
+    fontSize: 22,
+    lineHeight: 28,
+    textAlign: 'center',
+    letterSpacing: -0.35,
+  },
   headline: {
-    marginTop: 2,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.success,
+  },
+  headlineCelebrate: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '700',
     textAlign: 'center',
   },
   headlineCancelled: {
     color: colors.danger,
   },
   headlineNote: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '500',
     color: colors.textMuted,
+  },
+  headlineNoteCelebrate: {
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    maxWidth: 320,
   },
   heroDivider: {
-    alignSelf: 'stretch',
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
-    marginTop: spacing.md,
-    marginBottom: 12,
   },
   totalRow: {
-    alignSelf: 'stretch',
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  totalLeft: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   totalLabel: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: colors.text,
   },
   totalValue: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: -0.4,
     color: colors.text,
+    fontVariant: ['tabular-nums'],
   },
   payRow: {
-    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
+    gap: 4,
   },
   payNote: {
-    fontSize: 12.5,
+    fontSize: 13,
     color: colors.textMuted,
+    fontWeight: '500',
   },
-  card: {
+  groupCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    ...shadow.sm,
+  },
+  groupSection: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 6,
+    backgroundColor: colors.surface,
+  },
+  groupDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
   },
   deliverRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  deliverIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+  mapThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.sm,
+    backgroundColor: '#E4EBF0',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#CBD5E1',
+    overflow: 'hidden',
+  },
+  mapRoadH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 14,
+    height: 3,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.95,
+  },
+  mapRoadHMid: {
+    top: 30,
+    height: 2,
+    opacity: 0.75,
+  },
+  mapRoadV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 18,
+    width: 3,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.85,
+  },
+  mapPark: {
+    position: 'absolute',
+    right: 4,
+    top: 4,
+    width: 14,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: 'rgba(134, 239, 172, 0.45)',
+  },
+  mapPinIcon: {
+    position: 'absolute',
+    left: 14,
+    top: 10,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   deliverCopy: {
     flex: 1,
@@ -456,7 +651,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   addressFull: {
-    marginLeft: 46,
+    marginLeft: 48 + spacing.sm,
     gap: 4,
   },
   addressText: {
@@ -468,10 +663,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
-  sectionTitle: {
-    fontSize: 15,
+  statusCardTitle: {
+    fontSize: 16,
     fontWeight: '800',
     color: colors.text,
+    marginBottom: spacing.sm,
   },
   loader: {
     marginVertical: spacing.md,
@@ -489,33 +685,47 @@ const styles = StyleSheet.create({
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    minHeight: 52,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    minHeight: 44,
   },
   detailsLabel: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.text,
+  },
+  detailsTrail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  detailsThumbs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailsThumb: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  detailsThumbOverlap: {
+    marginLeft: -6,
   },
   pressed: {
     opacity: 0.85,
   },
   footer: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    gap: spacing.xs,
-    backgroundColor: colors.surface,
+    paddingTop: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(15, 118, 110, 0.12)',
   },
-  footerLink: {
-    alignSelf: 'center',
-    paddingVertical: spacing.xs,
+  footerButton: {
+    minHeight: 48,
   },
 });

@@ -9,7 +9,7 @@ import { formatPrice } from '@/utils/format';
 export const SHOP_TAB_BAR_HEIGHT = 52;
 
 /** Distance from tab scene bottom to pill bottom (scene ends above tab bar). */
-export const CART_BOTTOM_INSET = 6;
+export const CART_BOTTOM_INSET = 10;
 
 /** Compact corner pill height (reference-style quick access). */
 export const FLOATING_CART_BAR_HEIGHT = 44;

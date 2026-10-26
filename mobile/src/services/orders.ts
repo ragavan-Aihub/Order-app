@@ -2,6 +2,7 @@ import type { CartItem } from '@/cart/CartContext';
 import { CART_LIMIT_ITEMS, CART_LIMIT_QTY, MAX_CART_ITEMS, MAX_ITEM_QTY } from '@/cart/limits';
 import { env } from '@/config/env';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
+import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
 import { getSupabaseClient } from '@/services/supabase';
 import type { Product } from '@/types/product';
 import type {
@@ -296,6 +297,62 @@ function cartLinesPayload(items: CartItem[]) {
     product_price: item.product.price,
     quantity: item.quantity,
   }));
+}
+
+function normalizeProductId(id: string) {
+  return id.trim().toLowerCase();
+}
+
+async function enrichOrderItemsWithImages(items: OrderItem[]): Promise<OrderItem[]> {
+  if (items.length === 0) {
+    return items;
+  }
+  let catalog: Product[] = [];
+  try {
+    catalog = await refreshAvailableProducts();
+  } catch {
+    catalog = await getCachedProducts().catch(() => []);
+  }
+  const imageByProductId = new Map<string, string | null>();
+  const imageByName = new Map<string, string | null>();
+  for (const product of catalog) {
+    imageByProductId.set(normalizeProductId(product.id), product.image_url ?? null);
+    const key = product.name.trim().toLowerCase();
+    if (key && product.image_url) {
+      imageByName.set(key, product.image_url);
+    }
+  }
+
+  const productIds = [
+    ...new Set(items.map((item) => item.product_id).filter((id): id is string => Boolean(id))),
+  ];
+  const supabase = getSupabaseClient();
+  if (supabase && productIds.length) {
+    let query = supabase.from('products').select('id, image_url').in('id', productIds);
+    if (env.businessId) {
+      query = query.eq('business_id', env.businessId);
+    }
+    const { data, error } = await query;
+    if (!error && data) {
+      for (const row of data) {
+        imageByProductId.set(
+          normalizeProductId(row.id as string),
+          (row.image_url as string | null) ?? null,
+        );
+      }
+    }
+  }
+
+  return items.map((item) => {
+    let image_url: string | null = null;
+    if (item.product_id) {
+      image_url = imageByProductId.get(normalizeProductId(item.product_id)) ?? null;
+    }
+    if (!image_url && item.product_name) {
+      image_url = imageByName.get(item.product_name.trim().toLowerCase()) ?? null;
+    }
+    return { ...item, image_url };
+  });
 }
 
 export function cartItemsFromOrder(order: OrderWithItems, catalog: Product[]): CartItem[] {
@@ -926,6 +983,7 @@ export async function getMyOrderById(id: string): Promise<OrderWithItems | null>
 
     if (error || !order) {
       if (lines?.length) {
+        const orderItems = await enrichOrderItemsWithImages(lines);
         return {
           id,
           order_number: 0,
@@ -942,15 +1000,17 @@ export async function getMyOrderById(id: string): Promise<OrderWithItems | null>
           refund_status: null,
           created_at: '',
           updated_at: '',
-          order_items: lines,
+          order_items: orderItems,
         } as OrderWithItems;
       }
       return null;
     }
 
+    const orderItems = await enrichOrderItemsWithImages(lines ?? []);
+
     return {
       ...(order as Order),
-      order_items: lines ?? [],
+      order_items: orderItems,
       status_events: statusEvents,
     };
   } catch {

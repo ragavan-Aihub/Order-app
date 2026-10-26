@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -30,7 +31,7 @@ import { ProductImage } from '@/components/ProductImage';
 import { PlaceOrderConfirmSheet } from '@/components/PlaceOrderConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
@@ -433,37 +434,33 @@ export default function CartScreen() {
           const change = rowChange(item.product.id);
           const isLast = index === items.length - 1;
           return (
-            <Swipeable
-              key={item.product.id}
-              ref={(swipeable) => {
-                if (swipeable) {
-                  swipeables.current.set(item.product.id, swipeable);
-                } else {
-                  swipeables.current.delete(item.product.id);
-                }
-              }}
-              overshootRight={false}
-              rightThreshold={40}
-              onSwipeableRightOpen={() => confirmRemove(item)}
-              renderRightActions={() => (
-                <Pressable
-                  onPress={() => confirmRemove(item)}
-                  style={styles.deleteAction}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${item.product.name}`}
-                >
-                  <Ionicons name="trash-outline" size={22} color={colors.primaryText} />
-                </Pressable>
-              )}
-            >
-              <View
-                style={[
-                  styles.row,
-                  change?.kind === 'new' && styles.rowNew,
-                  isLast && styles.rowLast,
-                ]}
-                accessibilityHint="Swipe left to delete"
+            <View key={item.product.id}>
+              <Swipeable
+                ref={(swipeable) => {
+                  if (swipeable) {
+                    swipeables.current.set(item.product.id, swipeable);
+                  } else {
+                    swipeables.current.delete(item.product.id);
+                  }
+                }}
+                overshootRight={false}
+                rightThreshold={40}
+                onSwipeableRightOpen={() => confirmRemove(item)}
+                renderRightActions={() => (
+                  <Pressable
+                    onPress={() => confirmRemove(item)}
+                    style={styles.deleteAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${item.product.name}`}
+                  >
+                    <Ionicons name="trash-outline" size={22} color={colors.primaryText} />
+                  </Pressable>
+                )}
               >
+                <View
+                  style={[styles.row, change?.kind === 'new' && styles.rowNew]}
+                  accessibilityHint="Swipe left to delete"
+                >
                 <ProductImage
                   uri={item.product.image_url}
                   style={styles.thumb}
@@ -487,6 +484,7 @@ export default function CartScreen() {
                   ) : null}
                 </View>
                 <View style={styles.detailsRight}>
+                  <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
                   <QuantityStepper
                     compact
                     dense
@@ -494,10 +492,11 @@ export default function CartScreen() {
                     onDecrease={() => onDecrease(item)}
                     onIncrease={() => increase(item.product.id)}
                   />
-                  <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
                 </View>
               </View>
-            </Swipeable>
+              </Swipeable>
+              {!isLast ? <View style={styles.rowDivider} /> : null}
+            </View>
           );
         })}
         </View>
@@ -607,7 +606,7 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingHorizontal: spacing.xs,
     paddingBottom: spacing.xs,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
@@ -660,12 +659,14 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    paddingTop: 4,
+    paddingTop: spacing.sm,
     gap: spacing.xs,
   },
   itemList: {
     backgroundColor: colors.surface,
+    borderRadius: radius.md,
     overflow: 'hidden',
+    ...shadow.sm,
   },
   modifyBarWrap: {
     paddingHorizontal: spacing.md,
@@ -679,15 +680,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
     backgroundColor: colors.surface,
   },
   rowNew: {
     backgroundColor: '#F7FDFB',
   },
-  rowLast: {
-    borderBottomWidth: 0,
+  rowDivider: {
+    height: Platform.OS === 'android' ? 1 : StyleSheet.hairlineWidth,
+    backgroundColor: '#D6D3D1',
+    marginHorizontal: spacing.sm,
   },
   tag: {
     paddingHorizontal: 8,
@@ -714,7 +715,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: radius.sm,
-    backgroundColor: '#E4E4E7',
+    backgroundColor: colors.border,
   },
   detailsLeft: {
     flex: 1,
@@ -738,7 +739,7 @@ const styles = StyleSheet.create({
   unit: {
     fontSize: 12,
     color: colors.textMuted,
-    marginTop: 1,
+    marginTop: 2,
   },
   subtotal: {
     fontSize: 16,
@@ -758,9 +759,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
-    minHeight: 40,
-    marginTop: 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 48,
+    marginTop: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(15, 118, 110, 0.35)',
   },
   addMoreLeft: {
     flexDirection: 'row',

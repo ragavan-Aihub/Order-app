@@ -5,6 +5,7 @@
   "scripts": {
     "admin": "npm run dev --prefix admin",
     "mobile": "npm start --prefix mobile",
+    "delivery": "npm start --prefix delivery",
     "docs:pdf": "node scripts/generate-docs-pdf.mjs && node scripts/generate-docs-html.mjs",
     "docs:html": "node scripts/generate-docs-html.mjs"
   },

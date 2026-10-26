@@ -1,20 +1,38 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
 import { OrderPushRegistration } from '@/components/OrderPushRegistration';
-import { colors } from '@/config/theme';
+import { colors, radius } from '@/config/theme';
 import { NotificationPermissionProvider } from '@/notifications/NotificationPermissionProvider';
+
+function ShopTabBarButton({ children, style, accessibilityState, ...rest }: BottomTabBarButtonProps) {
+  const focused = accessibilityState?.selected;
+  return (
+    <Pressable {...rest} style={[styles.tabButton, style]}>
+      {focused ? <View style={styles.tabButtonPill} pointerEvents="none" /> : null}
+      <View style={styles.tabButtonIcon}>{children}</View>
+    </Pressable>
+  );
+}
 
 export const unstable_settings = {
   initialRouteName: 'home',
 };
 
 function ShopTabs() {
+  const insets = useSafeAreaInsets();
+  /** Android 3-button nav often reports bottom inset 0 — reserve space so icons stay tappable. */
+  const navBottom =
+    insets.bottom > 0 ? insets.bottom : Platform.OS === 'android' ? 22 : 0;
+  const tabBarPaddingBottom = 8;
+
   return (
     <Tabs
-      safeAreaInsets={{ top: 0 }}
+      safeAreaInsets={{ top: 0, bottom: navBottom }}
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text,
@@ -23,16 +41,27 @@ function ShopTabs() {
         tabBarInactiveTintColor: colors.tabBarInactive,
         /** Icons only — labels clash with Android 3-button / gesture nav bar. */
         tabBarShowLabel: false,
+        tabBarButton: (props) => <ShopTabBarButton {...props} />,
         tabBarStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
           paddingTop: 8,
-          paddingBottom: 6,
-          elevation: 0,
+          paddingBottom: tabBarPaddingBottom,
+          ...Platform.select({
+            ios: {
+              shadowColor: '#18181B',
+              shadowOpacity: 0.07,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: -4 },
+            },
+            default: {
+              elevation: 6,
+            },
+          }),
         },
         tabBarItemStyle: {
-          paddingVertical: 6,
+          paddingVertical: 4,
         },
         tabBarIconStyle: { marginTop: 0 },
         sceneStyle: styles.scene,
@@ -120,5 +149,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 0,
     backgroundColor: colors.background,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabButtonPill: {
+    position: 'absolute',
+    width: 52,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+  },
+  tabButtonIcon: {
+    zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

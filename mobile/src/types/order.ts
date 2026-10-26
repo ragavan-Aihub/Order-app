@@ -98,6 +98,8 @@ export type OrderItem = {
   quantity: number;
   subtotal: number;
   created_at: string;
+  /** Resolved from live/catalog product row when loading order detail. */
+  image_url?: string | null;
 };
 
 export type OrderStatusEvent = {

@@ -48,6 +48,67 @@ function parseInput(body: PushPayload): { orderId: string; status: string } | nu
   return null;
 }
 
+function normalizeOrderStatus(status: string): string {
+  return status === 'preparing' ? 'confirmed' : status;
+}
+
+function jsonResponse(body: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+async function authorizeAdminJwt(
+  supabaseUrl: string,
+  anonKey: string,
+  accessToken: string,
+  orderId: string,
+  requestedStatus: string,
+): Promise<Response | null> {
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+
+  const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
+  const userId = userData.user?.id;
+  if (userError || !userId) {
+    return jsonResponse({ error: 'Unauthorized' }, 401);
+  }
+
+  const { data: profile, error: profileError } = await userClient
+    .from('profiles')
+    .select('role, business_id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profileError) {
+    return jsonResponse({ error: profileError.message }, 500);
+  }
+  if (!profile || profile.role !== 'admin' || !profile.business_id) {
+    return jsonResponse({ error: 'Forbidden' }, 403);
+  }
+
+  const { data: order, error: orderError } = await userClient
+    .from('orders')
+    .select('id, business_id, status')
+    .eq('id', orderId)
+    .maybeSingle();
+
+  if (orderError) {
+    return jsonResponse({ error: orderError.message }, 500);
+  }
+  if (!order || order.business_id !== profile.business_id) {
+    return jsonResponse({ error: 'Order not found' }, 404);
+  }
+
+  if (normalizeOrderStatus(order.status) !== requestedStatus) {
+    return jsonResponse({ error: 'Order status does not match request' }, 409);
+  }
+
+  return null;
+}
+
 function isAuthorizedServiceToken(token: string, configuredKey: string, projectUrl: string): boolean {
   const trimmed = token.trim();
   const expected = configuredKey.trim();
@@ -127,44 +188,44 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(JSON.stringify({ error: 'Server not configured' }), { status: 500 });
-  }
-
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!isAuthorizedServiceToken(token, serviceRoleKey, supabaseUrl)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    return jsonResponse({ error: 'Server not configured' }, 500);
   }
 
   let body: PushPayload;
   try {
     body = (await req.json()) as PushPayload;
   } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
+    return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
   const parsed = parseInput(body);
   if (!parsed) {
-    return new Response(JSON.stringify({ skipped: true, reason: 'missing order_id or status' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ skipped: true, reason: 'missing order_id or status' }, 200);
   }
 
   const { orderId, status } = parsed;
   if (!NOTIFY_STATUSES.has(status)) {
-    return new Response(JSON.stringify({ skipped: true, reason: 'status not notifiable' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ skipped: true, reason: 'status not notifiable' }, 200);
   }
 
   if (body.type === 'UPDATE' && body.old_record?.status === status) {
-    return new Response(JSON.stringify({ skipped: true, reason: 'unchanged status' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ skipped: true, reason: 'unchanged status' }, 200);
+  }
+
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) {
+    return jsonResponse({ error: 'Unauthorized' }, 401);
+  }
+
+  const serviceCaller = isAuthorizedServiceToken(token, serviceRoleKey, supabaseUrl);
+  if (!serviceCaller) {
+    const denied = await authorizeAdminJwt(supabaseUrl, anonKey, token, orderId, status);
+    if (denied) {
+      return denied;
+    }
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);

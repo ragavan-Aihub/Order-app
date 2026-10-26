@@ -26,7 +26,12 @@ supabase functions deploy send-order-status-push --no-verify-jwt
 supabase functions deploy send-product-available-push --no-verify-jwt
 ```
 
-Both functions validate the caller with `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`.
+`send-order-status-push` accepts either:
+
+- `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` (admin server, webhooks), or
+- a signed-in **admin** user JWT from the delivery app (must match the order’s business and current status).
+
+`send-product-available-push` still requires the service role key.
 
 Supabase injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` into the function environment automatically.
 
@@ -38,7 +43,13 @@ Add to **admin** `.env` (local) and your hosted admin environment:
 SUPABASE_SERVICE_ROLE_KEY=<service role key from Supabase → Project Settings → API>
 ```
 
-When an admin changes order status in the panel, `updateOrderStatus` invokes `send-order-status-push`. When a product goes from **Coming soon** to **Available**, `updateProductAvailability` invokes `send-product-available-push`. If the key is missing, updates still work; push is skipped.
+When an admin changes order status in the panel, `updateOrderStatus` invokes `send-order-status-push`. The **delivery** app invokes the same function after a successful status update (admin session token). When a product goes from **Coming soon** to **Available**, `updateProductAvailability` invokes `send-product-available-push`. If the key is missing on admin, panel updates still work; push is skipped.
+
+After changing auth on `send-order-status-push`, redeploy:
+
+```bash
+supabase functions deploy send-order-status-push --no-verify-jwt
+```
 
 ## 4. Optional: Database Webhook (backup path)
 
