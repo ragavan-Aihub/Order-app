@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">How the customer app and the admin panel work, written for the business owner, staff and product managers.</p>
 
-<p class="meta">Version 1 &middot; Last updated 5 October 2026</p>
+<p class="meta">Version 1.1 &middot; Last updated 28 October 2026</p>
 
 </div>
 
@@ -44,8 +44,11 @@ This is an online ordering system for a small business that takes orders and del
 |---|---|---|
 | **Customer app** | Customers | Android phone (installed as an app) |
 | **Admin panel** | Business owner and staff | Web browser on a laptop or phone |
+| **Delivery app** (optional) | Shop staff who deliver orders | Android phone (installed as an app) |
 
-The app carries **your** business name, logo, home banner, products and prices, so the same system can serve any business. You manage products, prices, orders and customers in the admin panel.
+The customer app carries **your** business name, logo, home banner, products and prices, so the same system can serve any business. You manage products, prices, orders and customers in the admin panel. The delivery app uses the **same admin login** (email and password) for staff on the road.
+
+The delivery app is optional. Many shops run deliveries from the admin panel only; use the delivery app when drivers need a phone-first list, maps links, swipe-to-advance status, and UPI QR at the door.
 
 Both parts share one online database. When a customer places an order in the app, it appears in the admin panel at once. When the shop changes the order status in the admin panel, the customer sees it in the app.
 
@@ -103,7 +106,7 @@ Both parts share one online database. When a customer places an order in the app
 
 **Rules:**
 
-- A customer can tap **Skip** on the first screen and browse products without signing in. Sign-in is needed later, when they add an address, open My orders or Buy again, or place an order.
+- A customer can tap **Skip** on the first screen and browse products without signing in. Sign-in is needed later, when they add an address, open **Orders** or **Order again**, or place an order.
 - When a customer signs in for the first time, they are added automatically to your **Customers** list in the admin panel, with the source **App**.
 - If OTPs are requested too often, the app says: "Wait about a minute, then request a new OTP."
 
@@ -131,20 +134,23 @@ Both parts share one online database. When a customer places an order in the app
 
 ### 3.3 Shopping
 
+**Bottom tabs:** **Home**, **Order again**, and **Orders**. There is no Cart tab; the cart opens from the floating **View cart** bar.
+
 **Home screen** (top to bottom):
 
 1. The delivery address, and the customer's initial (tap it to open **Account**).
 2. The **Modifying order** bar, only when the customer is changing an existing order (see 3.6).
-3. A search box: **Search products** (searches names and descriptions).
-4. Category chips (**All**, then each category with its picture), only if you use categories.
-5. Your home banner picture, if you set one.
-6. All products in a grid of **3 per row**. Each card shows the picture, name, price and an **Add** button. After adding, the button becomes a **- / +** stepper.
+3. Optional **Order by Voice** card, only when the developer turns voice ordering on for this build.
+4. A search box: **Search products** (searches names and descriptions).
+5. Category chips (**All**, then each category with its picture), only if you use categories. This row **stays fixed under search** while the customer scrolls products. Swipe sideways when there are many categories.
+6. Your home banner picture, if you set one (scrolls with the product list).
+7. All products in a grid of **2 per row**. Each card shows the picture, name, price and an **Add** button. After adding, the button becomes a **- / +** stepper.
 
-**Coming soon products** show dimmed with the words "Coming soon" and have no Add button. They appear at the end of the list.
+**Coming soon products** show dimmed with the words "Coming soon". They can show a **Notify me** button instead of Add. They appear at the end of the list.
 
-**Tapping a product** does nothing in this version.
+**Tapping a product** does not open a product detail page in this version.
 
-**Buy again tab:** shows products from the customer's last 10 orders (cancelled orders are not counted). It uses the same 3-per-row grid and has its own search box. It is a quick way to repeat a usual order.
+**Order again tab:** shows products from the customer's last 10 orders (cancelled orders are not counted). It uses the same 2-per-row grid and has its own search box. It is a quick way to repeat a usual order.
 
 **View cart bar:** when the cart has items, a green **View cart** bar floats at the bottom with the item count.
 
@@ -199,7 +205,7 @@ Both parts share one online database. When a customer places an order in the app
 
 **What it does:** the customer can change an open order: add products, remove products or change quantities.
 
-**How to start:** tap **Modify** on the order in **My orders**, or **Modify order** on the order details screen or the Order status screen.
+**How to start:** tap **Modify** on the order in **Orders**, or **Modify order** on the order details screen or the Order status screen.
 
 **What the customer sees:**
 
@@ -231,7 +237,7 @@ Both parts share one online database. When a customer places an order in the app
 
 ### 3.8 Cancelling an order
 
-**Steps:** in **My orders**, tap **Cancel** on the order. Or open the order and choose **Cancel order** from the "..." menu. Confirm with **Cancel order**.
+**Steps:** in **Orders**, tap **Cancel** on the order. Or open the order and choose **Cancel order** from the "..." menu. Confirm with **Cancel order**.
 
 **Rules:**
 
@@ -241,24 +247,27 @@ Both parts share one online database. When a customer places an order in the app
 - The reason is saved as "Customer requested". The customer is not asked to type a reason.
 - Cancelling cannot be undone by the customer.
 
-### 3.9 My orders and order tracking
+### 3.9 Your orders and order tracking
 
-**My orders tab** shows the latest 40 orders. Each card shows:
+**Orders tab** (title **Your Orders**) shows the latest 40 orders. Each card shows:
 
-- order number and total;
-- item count and the first item names;
-- date;
-- status badge (coloured) and payment badge (for example "Payment pending", "Paid · Cash", "Paid · UPI", "Refund pending", "Refunded");
-- **Shop modified** tag when the shop changed that order and the customer has not yet opened **View changes** (tap the order for details).
+- a plain-language status headline (for example **Order delivered**, **Out for delivery**, **Order placed**) with a small status icon;
+- **Placed at** date and time;
+- the order **total** and a menu icon (the whole card opens the order);
+- up to four **product pictures** in a row (then **+N** if there are more);
+- **Payment pending** (with a warning icon), **Refund pending**, or **Refunded** when that applies. Paid orders do not repeat a paid badge on the list;
+- **Shop modified** when the shop changed that order and the customer has not yet opened **View changes** on the detail screen.
 
-**Order details** (tap an order) shows **Modify order** and **Cancel order** (while Placed) when those actions are allowed:
+The **order number is not shown on the list**; it appears on the order detail screen only.
 
-- order number, status, placed date and time, payment status;
-- **Progress** with the four steps **Placed, Confirmed, Out for delivery, Delivered**. Each completed step shows its **date and time**, for example "4 Oct, 3:15 pm";
-- for cancelled orders: the reason and "Cancelled on {date and time}";
-- delivery name, mobile, address and pincode;
-- all items with quantities and the total.
-- If the shop edited the order, a short banner with **View changes** (added/removed items, quantity changes, old and new total). Payment status stays as it was; collect or refund any difference manually.
+**Order details** (tap a card) shows **Modify order** and **Cancel order** (while Placed) when those actions are allowed:
+
+- header **Order #…**, status, placed date and time, payment badge;
+- **Order progress** as separate cards for **Placed, Confirmed, Out for delivery, Delivered**, each with date and time when recorded;
+- **Deliver to** with receiver name and full address in a grey inset (no call or copy buttons on this screen);
+- when the order is **Out for delivery** and payment is not yet recorded, an optional **Pay by UPI** block with your shop's **UPI QR** image (if the shop uploaded one);
+- all items with quantities and the total;
+- if the shop edited the order, a banner with **View changes** (added/removed items, quantity changes, old and new total). Payment status stays as it was; collect or refund any difference manually.
 
 Note: older orders may show only the Placed time, because step times were not recorded for them at the time.
 
@@ -270,14 +279,35 @@ The Account screen (tap the round initial on Home) shows:
 
 - the customer's name and mobile number;
 - the default delivery address, with **Change**;
-- a link to **My orders**;
+- a link to **Orders**;
 - **Sign out**.
 
-### 3.11 When there is no internet
+### 3.11 Delivery app (optional, for shop staff)
+
+**Who signs in:** staff use the **admin email and password** (same as the web admin panel), not customer OTP.
+
+**Today's deliveries** screen:
+
+- Tabs **To deliver (n)** and **Delivered today**.
+- **To deliver** lists orders that are still **Placed**, **Confirmed**, or **Out for delivery** (same idea as **Pending delivery** in the admin panel).
+- **Delivered today** lists orders marked **Delivered** today (IST), for an end-of-day check.
+
+Each order card shows the customer, address, total, status, payment chip, and quick **Call** and **Map** actions.
+
+**Order detail** on the delivery app:
+
+- Swipe actions to move the order forward (**Confirm**, **Start delivery**, **Mark delivered**), with a short confirmation banner when appropriate.
+- Customer, address, map preview, items, and payment.
+- When marking **Delivered**, staff choose **Cash**, **UPI**, or **Not yet** (same rules as the admin panel).
+- For **UPI**, staff can show the shop's **UPI QR** to the customer and upload or replace that QR image from the phone (stored once per business for the customer app and delivery app).
+
+Customers do not use the delivery app.
+
+### 3.12 When there is no internet
 
 - If the customer has opened the app before, products are saved on the phone. They can still browse, and the app shows "You're offline. Saved products stay in your cart."
 - If there is no saved product list (first use with no internet), a full "You are Offline" screen appears with a **Reload** button.
-- Placing an order, signing in and loading My orders need the internet.
+- Placing an order, signing in and loading **Your Orders** need the internet.
 
 ## 4. The admin panel
 
@@ -516,7 +546,9 @@ Notes:
 | CSV import | Up to 250 products per file. |
 | Customers | Mobile number must be unique. Customers with orders cannot be deleted. |
 | Communities | Optional. Never shown to customers. |
-| Categories | Optional. Shown to customers as filters on Home. |
+| Categories | Optional. Shown to customers as a fixed chip row under search on Home. |
+| UPI QR | Optional. One image per business for pay-at-delivery UPI; upload from the delivery app (customer sees it on order detail when out for delivery and unpaid). |
+| Delivery app | Optional Android app for staff; admin login; delivery queue and swipe status updates. |
 | Times | All "today" and date filters use India Standard Time. |
 
 ## 6. Frequently asked questions

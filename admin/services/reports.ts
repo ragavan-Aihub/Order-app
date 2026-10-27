@@ -166,7 +166,7 @@ export function rangeFromFilters(filters: ReportFilters, now = new Date()): DayR
 export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
   const ctx = await adminContext();
   if ('error' in ctx) {
-    return { ok: false, message: ctx.error };
+    return { ok: false, message: ctx.error ?? 'Not signed in as admin.' };
   }
   const { supabase, businessId } = ctx;
   const today = istRangeForPreset('today');
@@ -306,7 +306,7 @@ export async function getDashboardData(): Promise<QueryResult<DashboardData>> {
 export async function getReportsData(filters: ReportFilters): Promise<QueryResult<ReportsData>> {
   const ctx = await adminContext();
   if ('error' in ctx) {
-    return { ok: false, message: ctx.error };
+    return { ok: false, message: ctx.error ?? 'Not signed in as admin.' };
   }
   const { supabase, businessId } = ctx;
   const range = rangeFromFilters(filters);

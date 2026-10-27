@@ -180,6 +180,30 @@ export function formatPlacedAt(value: string): string {
   return when ? `Placed ${when}` : 'Placed';
 }
 
+/** List card headline, e.g. "Order delivered". */
+export function formatOrderListHeadline(status: string): string {
+  switch (status) {
+    case 'new':
+      return 'Order placed';
+    case 'confirmed':
+      return 'Order confirmed';
+    case 'out_for_delivery':
+      return 'Out for delivery';
+    case 'delivered':
+      return 'Order delivered';
+    case 'cancelled':
+      return 'Order cancelled';
+    default:
+      return 'Order update';
+  }
+}
+
+/** List card subtitle under headline. */
+export function formatPlacedAtLine(createdAt: string): string {
+  const when = formatDateTime(createdAt);
+  return when ? `Placed at ${when}` : 'Placed';
+}
+
 export function displayPaymentTone(status: ReturnType<typeof displayPaymentStatus>): { bg: string; fg: string } {
   switch (status) {
     case 'paid':

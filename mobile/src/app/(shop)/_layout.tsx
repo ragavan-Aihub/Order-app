@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
@@ -13,9 +13,24 @@ function ShopTabBarButton({ children, style, accessibilityState, ...rest }: Bott
   const focused = accessibilityState?.selected;
   return (
     <Pressable {...rest} style={[styles.tabButton, style]}>
-      {focused ? <View style={styles.tabButtonPill} pointerEvents="none" /> : null}
-      <View style={styles.tabButtonIcon}>{children}</View>
+      <View style={styles.tabButtonContent}>
+        {focused ? <View style={styles.tabButtonPill} pointerEvents="none" /> : null}
+        {children}
+      </View>
     </Pressable>
+  );
+}
+
+function TabLabel({ label, color, focused }: { label: string; color: string; focused: boolean }) {
+  return (
+    <Text
+      style={[styles.tabLabel, { color }, focused && styles.tabLabelFocused]}
+      numberOfLines={2}
+      adjustsFontSizeToFit
+      minimumFontScale={0.85}
+    >
+      {label}
+    </Text>
   );
 }
 
@@ -28,7 +43,7 @@ function ShopTabs() {
   /** Android 3-button nav often reports bottom inset 0 — reserve space so icons stay tappable. */
   const navBottom =
     insets.bottom > 0 ? insets.bottom : Platform.OS === 'android' ? 22 : 0;
-  const tabBarPaddingBottom = 8;
+  const tabBarPaddingBottom = Math.max(6, navBottom > 0 ? 4 : 8);
 
   return (
     <Tabs
@@ -39,15 +54,16 @@ function ShopTabs() {
         headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: colors.primaryDark,
         tabBarInactiveTintColor: colors.tabBarInactive,
-        /** Icons only — labels clash with Android 3-button / gesture nav bar. */
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarLabelPosition: 'below-icon',
         tabBarButton: (props) => <ShopTabBarButton {...props} />,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          paddingTop: 8,
+          paddingTop: 4,
           paddingBottom: tabBarPaddingBottom,
+          height: 62 + navBottom,
           ...Platform.select({
             ios: {
               shadowColor: '#18181B',
@@ -61,9 +77,9 @@ function ShopTabs() {
           }),
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 0,
         },
-        tabBarIconStyle: { marginTop: 0 },
+        tabBarIconStyle: { marginTop: 2, marginBottom: 0 },
         sceneStyle: styles.scene,
       }}
     >
@@ -71,9 +87,10 @@ function ShopTabs() {
         name="home"
         options={{
           title: 'Home',
+          tabBarLabel: ({ color, focused }) => <TabLabel label="Home" color={color} focused={focused} />,
           headerShown: false,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -81,19 +98,24 @@ function ShopTabs() {
         name="buy-again"
         options={{
           title: 'Order again',
+          tabBarLabel: ({ color, focused }) => (
+            <TabLabel label="Order again" color={color} focused={focused} />
+          ),
+          tabBarAccessibilityLabel: 'Order again',
           headerShown: false,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'repeat' : 'repeat-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'repeat' : 'repeat-outline'} size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'My Order',
+          title: 'Orders',
+          tabBarLabel: ({ color, focused }) => <TabLabel label="Orders" color={color} focused={focused} />,
           headerShown: false,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -154,17 +176,32 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
+  },
+  tabButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 2,
   },
   tabButtonPill: {
     position: 'absolute',
+    top: 0,
     width: 52,
-    height: 30,
+    height: 28,
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
   },
-  tabButtonIcon: {
-    zIndex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+    width: '100%',
+    paddingHorizontal: 2,
+    lineHeight: 13,
+  },
+  tabLabelFocused: {
+    fontWeight: '700',
   },
 });

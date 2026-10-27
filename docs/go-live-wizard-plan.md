@@ -29,7 +29,7 @@
 
 ### Fallback
 
-- SQL script `supabase/scripts/go-live-reset.sql` (to be added with implementation) if a wizard step fails
+- SQL script [`supabase/scripts/go-live-reset.sql`](../supabase/scripts/go-live-reset.sql) and [docs/go-live-checklist.md](go-live-checklist.md) (simple go-live path; wizard still optional)
 
 ## Technical design (summary)
 

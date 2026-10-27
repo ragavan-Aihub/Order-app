@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '@/config/theme';
@@ -8,7 +8,7 @@ import { formatStepTime } from '@/utils/format';
 const STEPS = [
   { status: 'new', label: 'New', icon: 'bag-handle-outline' as const },
   { status: 'confirmed', label: 'Confirmed', icon: 'checkmark-circle-outline' as const },
-  { status: 'out_for_delivery', label: 'Out for Delivery', icon: 'bicycle-outline' as const },
+  { status: 'out_for_delivery', label: 'Out for Delivery', icon: 'bicycle-outline' as const, delivery: true },
   { status: 'delivered', label: 'Delivered', icon: 'home-outline' as const },
 ] as const;
 
@@ -112,6 +112,12 @@ export function OrderProgress({
                 {rich ? (
                   done ? (
                     <Ionicons name="checkmark" size={richCompact ? 14 : 16} color={colors.primaryText} />
+                  ) : 'delivery' in step && step.delivery ? (
+                    <MaterialCommunityIcons
+                      name="moped"
+                      size={richCompact ? 14 : 16}
+                      color={active ? colors.primaryText : '#A1A1AA'}
+                    />
                   ) : (
                     <Ionicons
                       name={step.icon}

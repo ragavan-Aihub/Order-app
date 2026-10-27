@@ -55,7 +55,7 @@ function asBytes(fileOrBuffer: File | Buffer | Uint8Array): Promise<Uint8Array> 
   if (typeof File !== 'undefined' && fileOrBuffer instanceof File) {
     return fileOrBuffer.arrayBuffer().then((buffer) => new Uint8Array(buffer));
   }
-  return new Uint8Array(fileOrBuffer as Buffer);
+  return new Uint8Array(fileOrBuffer as unknown as ArrayBuffer);
 }
 
 async function uploadImageBytes(

@@ -9,9 +9,13 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 19 Oct 2026.
+Last updated: 28 Oct 2026 (go-live checklist and migration audit added).
 
 ## Must do before go-live
+
+**Operator checklist:** [docs/go-live-checklist.md](go-live-checklist.md)  
+**Migration audit table:** [docs/supabase-migration-checklist.md](supabase-migration-checklist.md)  
+**Practice data wipe:** [supabase/scripts/go-live-reset.sql](../supabase/scripts/go-live-reset.sql)
 
 ### Run the database migrations
 
@@ -31,10 +35,11 @@ Last updated: 19 Oct 2026.
   11. Order modification stack (admin shop edits, customer block after shop modify, revert): `20261010000000_order_modifications.sql` through `20261014000000_admin_revert_pre_admin_snapshot.sql` — run in filename order on hosted Supabase if not already applied.
   12. **Push notifications:** `20261011010000_push_notifications.sql`, then `20261018000000_push_service_role_grants.sql` (required for Edge Function reads). Deploy `send-order-status-push`, set `SUPABASE_SERVICE_ROLE_KEY` on admin, install preview APK (not Expo Go). See `supabase/documentation/push-notifications.md`.
   13. **Notify me:** `20261019100000_product_notify_interests.sql`. Deploy `send-product-available-push` (same service role auth as order push). Admin triggers it when a product flips from Coming soon to Available.
+  14. **UPI QR at delivery:** `20261027220000_business_upi_qr.sql` (`businesses.upi_qr_url`). Used by the delivery app upload and the customer order detail when out for delivery and unpaid.
 
 ### Preview APK for demos
 
-- **Status:** v16 built (Oct 2026 demo). **Pending:** v17 when you want the post-demo mobile fix (clear edit session after admin cancel) from commit `91e3e7c` on device.
+- **Status:** **Pending:** preview build with `android.versionCode` 21+ (Your Orders, Home FlatList, order detail polish) and delivery APK (`delivery/eas.json` added). See [go-live-checklist.md](go-live-checklist.md) §D.
 - **How:** Bump `android.versionCode` in `mobile/app.json`, then run `npx eas-cli build -p android --profile preview` from `mobile/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset so voice stays hidden.
 
 ## After demo feedback (agreed, not all built)
@@ -64,6 +69,17 @@ Last updated: 19 Oct 2026.
 
 - **Status:** Done (admin)
 - **What:** **Use a different number** clears the mobile field instead of allowing the same number until save.
+
+### Delivery app (staff) and UPI QR
+
+- **Status:** Done (code). **Pending:** run `20261027220000_business_upi_qr.sql` on hosted Supabase; build/install `delivery/` APK for drivers; upload UPI QR once from the delivery app.
+- **What:** `delivery/` Expo app with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. Customer order detail shows QR when out for delivery and unpaid.
+- **Docs:** Business Guide §3.11; Technical Guide §7.4.
+
+### Customer app — Your Orders and Home polish
+
+- **Status:** Done (code). Ship with the next preview APK.
+- **What:** Orders tab title **Your Orders**; list cards without order number; status headline + product thumbs; payment pending below thumbs; Home category chips fixed under search; 2-column product grid with FlatList performance fixes.
 
 ### Coming soon → Notify me
 

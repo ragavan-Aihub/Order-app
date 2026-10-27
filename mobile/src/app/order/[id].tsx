@@ -1,13 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
+import { ProductImage } from '@/components/ProductImage';
 import { UpiPayBlock, UpiPayBlockLoading } from '@/components/UpiPayBlock';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { OrderItemsWithPlacedDiff } from '@/components/OrderItemsWithPlacedDiff';
@@ -26,6 +36,14 @@ import {
   type OrderWithItems,
 } from '@/types/order';
 import { formatOrderNumber, formatPrice, formatStepTime } from '@/utils/format';
+
+function fullDeliveryAddress(order: OrderWithItems): string {
+  const base = order.delivery_address.trim();
+  if (order.pincode && !base.includes(order.pincode)) {
+    return `${base}, ${order.pincode}`;
+  }
+  return base;
+}
 
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -156,6 +174,9 @@ export default function OrderDetailScreen() {
       ? orderLockedMessage(order.status)
       : null;
 
+  const lineCount = order.order_items.length;
+  const itemCount = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
+
   return (
     <>
       <Stack.Screen
@@ -163,13 +184,19 @@ export default function OrderDetailScreen() {
           title: orderTitle,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
+          headerTitleStyle: { fontSize: 20, fontWeight: '800', color: colors.text },
+          contentStyle: { backgroundColor: colors.background },
         }}
       />
+      <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm },
+          {
+            paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
+            flexGrow: 1,
+          },
         ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
@@ -218,96 +245,99 @@ export default function OrderDetailScreen() {
           </View>
         ) : null}
 
-        <View style={styles.groupCard}>
-          {order.status === 'cancelled' ? (
-            <View style={[styles.groupSection, styles.groupSectionTint]}>
-              <Text style={styles.blockTitle}>Cancelled</Text>
-              <Text style={styles.bodyText}>{order.cancel_reason || 'This order was cancelled.'}</Text>
-              {cancelledAt ? <Text style={styles.muted}>{formatStepTime(cancelledAt)}</Text> : null}
-              <View style={styles.payRowBlock}>
-                <PaymentBadge
-                  method={order.payment_method ?? 'pending'}
-                  orderStatus={order.status}
-                  refundStatus={order.refund_status}
-                />
-              </View>
+        {order.status === 'cancelled' ? (
+          <View style={styles.sectionCard}>
+            <Text style={styles.blockTitle}>Cancelled</Text>
+            <Text style={styles.bodyText}>{order.cancel_reason || 'This order was cancelled.'}</Text>
+            {cancelledAt ? <Text style={styles.muted}>{formatStepTime(cancelledAt)}</Text> : null}
+            <View style={styles.payRowBlock}>
+              <PaymentBadge
+                method={order.payment_method ?? 'pending'}
+                orderStatus={order.status}
+                refundStatus={order.refund_status}
+              />
             </View>
-          ) : (
-            <View style={[styles.groupSection, styles.groupSectionTint]}>
-              <View style={styles.blockTitleRow}>
-                <Text style={[styles.blockTitle, styles.blockTitleInRow]}>Order progress</Text>
-                <PaymentBadge
-                  method={order.payment_method ?? 'pending'}
-                  orderStatus={order.status}
-                  refundStatus={order.refund_status}
-                />
-              </View>
-              <OrderProgress status={order.status} events={order.status_events} placedAt={order.created_at} />
-            </View>
-          )}
-
-          <View style={styles.groupDivider} />
-
-          <View style={styles.groupSection}>
-            <View style={styles.blockTitleRow}>
-              <Text style={styles.blockTitle}>Delivery</Text>
-              <Ionicons name="location-outline" size={18} color={colors.primaryDark} />
-            </View>
-            <Text style={styles.deliveryName}>{order.customer_name}</Text>
-            <View style={styles.phoneRow}>
-              <Ionicons name="call-outline" size={16} color={colors.primary} />
-              <Text style={styles.bodyText}>{order.mobile}</Text>
-            </View>
-            <Text style={styles.addressText}>{order.delivery_address}</Text>
-            {order.pincode ? <Text style={styles.pincodeText}>Pincode {order.pincode}</Text> : null}
           </View>
+        ) : (
+          <View style={[styles.sectionCard, styles.sectionCardTint]}>
+            <View style={styles.blockTitleRow}>
+              <Text style={[styles.blockTitle, styles.blockTitleInRow]}>Order progress</Text>
+              <PaymentBadge
+                method={order.payment_method ?? 'pending'}
+                orderStatus={order.status}
+                refundStatus={order.refund_status}
+              />
+            </View>
+            <OrderProgress
+              visual="rich"
+              status={order.status}
+              events={order.status_events}
+              placedAt={order.created_at}
+            />
+          </View>
+        )}
 
-          {order.status === 'out_for_delivery' &&
-          order.payment_method !== 'cash' &&
-          order.payment_method !== 'upi' ? (
-            <>
-              <View style={styles.groupDivider} />
-              <View style={styles.groupSection}>
-                {upiQrLoading ? (
-                  <UpiPayBlockLoading />
-                ) : upiQrUrl ? (
-                  <UpiPayBlock qrUrl={upiQrUrl} amount={order.total_amount} />
-                ) : null}
-              </View>
-            </>
-          ) : null}
-
-          <View style={styles.groupDivider} />
-
-          <View style={[styles.groupSection, styles.groupSectionTint]}>
-            <Text style={styles.blockTitle}>Items</Text>
-            {adminOrderDiff ? (
-              <OrderItemsWithPlacedDiff diff={adminOrderDiff} />
-            ) : (
-              <>
-                <View style={styles.itemHeaderRow}>
-                  <Text style={[styles.itemHeaderCell, styles.itemHeaderName]}>Item</Text>
-                  <Text style={[styles.itemHeaderCell, styles.itemHeaderQty]}>Qty</Text>
-                  <Text style={[styles.itemHeaderCell, styles.itemHeaderPrice]}>Price</Text>
-                </View>
-                {order.order_items.map((item) => (
-                  <View key={item.id} style={styles.itemRow}>
-                    <Text style={styles.itemName} numberOfLines={2}>
-                      {item.product_name}
-                    </Text>
-                    <Text style={styles.itemQtyCol}>×{item.quantity}</Text>
-                    <Text style={styles.itemPriceCol}>{formatPrice(item.subtotal)}</Text>
-                  </View>
-                ))}
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total</Text>
-                  <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
-                </View>
-              </>
-            )}
+        <View style={styles.sectionCard}>
+          <Text style={styles.blockTitle}>Deliver to</Text>
+          <View style={styles.addressBlock}>
+            <Text style={styles.deliveryName}>{order.customer_name}</Text>
+            <Text style={styles.addressText}>{fullDeliveryAddress(order)}</Text>
           </View>
         </View>
+
+        {order.status === 'out_for_delivery' &&
+        order.payment_method !== 'cash' &&
+        order.payment_method !== 'upi' ? (
+          upiQrLoading ? (
+            <UpiPayBlockLoading />
+          ) : upiQrUrl ? (
+            <UpiPayBlock qrUrl={upiQrUrl} amount={order.total_amount} />
+          ) : null
+        ) : null}
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.blockTitle}>
+            Items ({itemCount} {itemCount === 1 ? 'item' : 'items'})
+          </Text>
+          {adminOrderDiff ? (
+            <OrderItemsWithPlacedDiff diff={adminOrderDiff} />
+          ) : (
+            <>
+              <View style={styles.itemHeaderRow}>
+                <Text style={[styles.itemHeaderCell, styles.itemHeaderName]}>Item</Text>
+                <Text style={[styles.itemHeaderCell, styles.itemHeaderQty]}>Qty</Text>
+                <Text style={[styles.itemHeaderCell, styles.itemHeaderPrice]}>Price</Text>
+              </View>
+              {order.order_items.map((item, index) => (
+                <View
+                  key={item.id}
+                  style={[styles.itemRow, index === lineCount - 1 && styles.itemRowLast]}
+                >
+                  <ProductImage
+                    uri={item.image_url}
+                    compact
+                    style={styles.itemThumb}
+                    recyclingKey={item.id}
+                    accessibilityLabel={item.product_name}
+                  />
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.product_name}
+                  </Text>
+                  <View style={styles.qtyPill}>
+                    <Text style={styles.qtyPillText}>{item.quantity}x</Text>
+                  </View>
+                  <Text style={styles.itemPriceCol}>{formatPrice(item.subtotal)}</Text>
+                </View>
+              ))}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
+              </View>
+            </>
+          )}
+        </View>
       </ScrollView>
+      </View>
     </>
   );
 }
@@ -324,6 +354,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textMuted,
   },
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   scroll: {
     flex: 1,
     backgroundColor: colors.background,
@@ -332,6 +366,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.md,
+    backgroundColor: colors.background,
   },
   infoBanner: {
     flexDirection: 'row',
@@ -403,25 +438,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  groupCard: {
+  sectionCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    overflow: 'hidden',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...shadow.sm,
   },
-  groupSection: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: 4,
-    backgroundColor: colors.surface,
-  },
-  groupSectionTint: {
+  sectionCardTint: {
     backgroundColor: colors.surfaceInset,
-  },
-  groupDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.md,
   },
   blockTitleRow: {
     flexDirection: 'row',
@@ -449,31 +477,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '500',
   },
+  addressBlock: {
+    marginTop: 2,
+    padding: spacing.sm,
+    backgroundColor: '#EEEDED',
+    borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    gap: 6,
+  },
   deliveryName: {
     fontSize: 16,
     lineHeight: 22,
     fontWeight: '800',
     color: colors.text,
   },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-  },
   addressText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.textMuted,
     fontWeight: '500',
-    marginTop: 4,
-  },
-  pincodeText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textMuted,
-    fontWeight: '600',
-    marginTop: 2,
   },
   muted: {
     fontSize: 12,
@@ -504,18 +527,28 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   itemHeaderQty: {
-    width: 40,
+    width: 44,
     textAlign: 'center',
   },
   itemHeaderPrice: {
-    width: 76,
+    width: 72,
     textAlign: 'right',
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 6,
+    alignItems: 'center',
+    paddingVertical: 8,
     gap: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  itemRowLast: {
+    borderBottomWidth: 0,
+  },
+  itemThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
   },
   itemName: {
     flex: 1,
@@ -525,16 +558,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
-  itemQtyCol: {
-    width: 40,
-    textAlign: 'center',
-    fontSize: 14,
+  qtyPill: {
+    minWidth: 36,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#3F3F46',
+    alignItems: 'center',
+  },
+  qtyPillText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: '#FAFAFA',
     fontVariant: ['tabular-nums'],
   },
   itemPriceCol: {
-    width: 76,
+    width: 72,
     textAlign: 'right',
     fontSize: 14,
     fontWeight: '700',
@@ -551,7 +590,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderRadius: radius.sm,
     marginHorizontal: -spacing.xs,
   },

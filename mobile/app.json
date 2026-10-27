@@ -15,7 +15,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 20,
+      "versionCode": 21,
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
       "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"],

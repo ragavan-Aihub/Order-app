@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,7 +9,7 @@ import { useTopInset } from '@/utils/safe-area';
 import { EmptyState } from '@/components/EmptyState';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
-import { StatusBadge } from '@/components/StatusBadge';
+import { ProductImage } from '@/components/ProductImage';
 import { buildOrderDiffTableRows, orderDiffHasChanges } from '@/order-modifications/diff';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -20,16 +20,33 @@ import {
 } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import { type OrderModification, type OrderWithItems } from '@/types/order';
-import { formatOrderListDate, formatOrderNumber, formatPrice, orderListRailColor } from '@/utils/format';
+import {
+  displayPaymentStatus,
+  formatOrderListHeadline,
+  formatPlacedAtLine,
+  formatPrice,
+  orderStatusTone,
+} from '@/utils/format';
 
-function itemSummary(order: OrderWithItems) {
-  const names = order.order_items.map((item) => item.product_name).filter(Boolean);
-  if (names.length === 0) {
-    return 'Tap to view items';
+/** Space above system nav + tab bar labels (screen is inside tab navigator). */
+const TAB_BAR_CLEARANCE = 72;
+const THUMB_VISIBLE = 4;
+
+function OrderListStatusIcon({ status }: { status: string }) {
+  const tone = orderStatusTone(status);
+  if (status === 'delivered') {
+    return <Ionicons name="checkmark-circle" size={22} color={tone.fg} />;
   }
-  const preview = names.slice(0, 2).join(', ');
-  const extra = names.length - 2;
-  return extra > 0 ? `${preview} +${extra}` : preview;
+  if (status === 'cancelled') {
+    return <Ionicons name="close-circle" size={22} color={tone.fg} />;
+  }
+  if (status === 'out_for_delivery') {
+    return <MaterialCommunityIcons name="moped" size={22} color={tone.fg} />;
+  }
+  if (status === 'confirmed') {
+    return <Ionicons name="checkmark-circle-outline" size={22} color={tone.fg} />;
+  }
+  return <Ionicons name="time-outline" size={22} color={tone.fg} />;
 }
 
 export default function MyOrdersScreen() {
@@ -115,7 +132,7 @@ export default function MyOrdersScreen() {
         styles.content,
         {
           paddingTop: topInset + spacing.sm,
-          paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md,
+          paddingBottom: Math.max(insets.bottom, spacing.md) + TAB_BAR_CLEARANCE,
         },
       ]}
       refreshControl={
@@ -123,7 +140,7 @@ export default function MyOrdersScreen() {
       }
     >
       {offline ? <OfflineBanner /> : null}
-      <Text style={styles.screenTitle}>My orders</Text>
+      <Text style={styles.screenTitle}>Your Orders</Text>
       {orders.length === 0 ? (
         <View style={styles.emptyCard}>
           <Ionicons name="receipt-outline" size={28} color={colors.primary} />
@@ -145,45 +162,77 @@ export default function MyOrdersScreen() {
         </View>
       ) : (
         orders.map((order) => {
-          const railColor = orderListRailColor(order);
-          const qty = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
+          const thumbs = order.order_items.slice(0, THUMB_VISIBLE);
+          const extraThumbCount = Math.max(0, order.order_items.length - THUMB_VISIBLE);
+          const paymentStatus = displayPaymentStatus({
+            status: order.status,
+            payment_method: order.payment_method,
+            refund_status: order.refund_status,
+          });
+          const showPaymentBadge =
+            paymentStatus === 'pending' ||
+            paymentStatus === 'refund_pending' ||
+            paymentStatus === 'refunded';
+
           return (
-            <View key={order.id} style={styles.card}>
-              <View style={[styles.rail, { backgroundColor: railColor }]} />
-              <View style={styles.cardBody}>
-                <Pressable
-                  onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.cardTop}>
-                    <Text style={styles.number} numberOfLines={2}>
-                      # {formatOrderNumber(order.order_number)}
-                      {shopModifiedOrderIds.has(order.id) ? (
-                        <Text style={styles.shopModifiedInline}> (Shop modified)</Text>
-                      ) : null}
+            <Pressable
+              key={order.id}
+              onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              accessibilityRole="button"
+            >
+              <View style={styles.cardHeader}>
+                <View style={styles.headerLeft}>
+                  <View style={styles.headlineRow}>
+                    <Text style={styles.headline} numberOfLines={1}>
+                      {formatOrderListHeadline(order.status)}
                     </Text>
-                    <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+                    <OrderListStatusIcon status={order.status} />
                   </View>
-                  <Text style={styles.items} numberOfLines={2}>
-                    {qty > 0
-                      ? `${qty} ${qty === 1 ? 'item' : 'items'} · ${itemSummary(order)}`
-                      : itemSummary(order)}
-                  </Text>
-                  <View style={styles.metaRow}>
-                    <Text style={styles.meta}>{formatOrderListDate(order.created_at)}</Text>
-                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  <Text style={styles.placedAt}>{formatPlacedAtLine(order.created_at)}</Text>
+                </View>
+                <View style={styles.headerRight}>
+                  <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+                  <View style={styles.menuCircle}>
+                    <Ionicons name="ellipsis-vertical" size={16} color={colors.textMuted} />
                   </View>
-                  <View style={styles.badges}>
-                    <StatusBadge status={order.status} />
-                    <PaymentBadge
-                      method={order.payment_method ?? 'pending'}
-                      orderStatus={order.status}
-                      refundStatus={order.refund_status}
-                    />
-                  </View>
-                </Pressable>
+                </View>
               </View>
-            </View>
+
+              {shopModifiedOrderIds.has(order.id) ? (
+                <Text style={styles.shopModified}>Shop modified this order</Text>
+              ) : null}
+
+              {thumbs.length > 0 ? (
+                <View style={styles.thumbStrip}>
+                  {thumbs.map((item) => (
+                    <ProductImage
+                      key={item.id}
+                      uri={item.image_url}
+                      compact
+                      style={styles.thumbCell}
+                      recyclingKey={item.id}
+                      accessibilityLabel={item.product_name}
+                    />
+                  ))}
+                  {extraThumbCount > 0 ? (
+                    <View style={[styles.thumbCell, styles.thumbMore]}>
+                      <Text style={styles.thumbMoreText}>+{extraThumbCount}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {showPaymentBadge ? (
+                <View style={styles.paymentRow}>
+                  <PaymentBadge
+                    method={order.payment_method ?? 'pending'}
+                    orderStatus={order.status}
+                    refundStatus={order.refund_status}
+                  />
+                </View>
+              ) : null}
+            </Pressable>
           );
         })
       )}
@@ -204,21 +253,24 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    gap: spacing.md,
+    gap: spacing.sm,
     flexGrow: 1,
+    backgroundColor: colors.background,
   },
   screenTitle: {
     fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.3,
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: spacing.xs,
   },
   emptyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.lg,
     gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...shadow.sm,
   },
   emptyTitle: {
@@ -247,60 +299,98 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   card: {
-    flexDirection: 'row',
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    overflow: 'hidden',
+    padding: spacing.md,
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...shadow.sm,
   },
-  rail: {
-    width: 5,
+  cardPressed: {
+    opacity: 0.94,
   },
-  cardBody: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    gap: 6,
-  },
-  cardTop: {
+  cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  number: {
+  headerLeft: {
     flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  headlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'nowrap',
+  },
+  headline: {
+    flexShrink: 1,
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  placedAt: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+    flexShrink: 0,
+  },
+  total: {
     fontSize: 18,
     fontWeight: '800',
     color: colors.text,
+    fontVariant: ['tabular-nums'],
   },
-  shopModifiedInline: {
-    fontSize: 14,
+  menuCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  shopModified: {
+    fontSize: 13,
     fontWeight: '700',
     color: colors.warning,
+    marginTop: -4,
   },
-  total: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
-  items: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.text,
-  },
-  metaRow: {
+  paymentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  meta: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  badges: {
+  thumbStrip: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  thumbCell: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  thumbMore: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4F4F5',
+  },
+  thumbMoreText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textMuted,
   },
 });

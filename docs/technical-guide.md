@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">Architecture, code, database and operations for developers and technical architects.</p>
 
-<p class="meta">Version 1 &middot; Last updated 4 October 2026</p>
+<p class="meta">Version 1.1 &middot; Last updated 28 October 2026</p>
 
 </div>
 
@@ -61,20 +61,19 @@ For screens and business rules in plain language, read the **Business Guide** fi
 
 ## 1. Architecture
 
-Three parts share one Supabase project:
+Three client apps share one Supabase project:
 
 ```
-+---------------------------+          +---------------------------+
-|  Customer app (mobile/)   |          |  Admin panel (admin/)     |
-|  Expo / React Native      |          |  Next.js (App Router)     |
-|  Android APK              |          |  Server components and    |
-|                           |          |  server actions           |
-+-------------+-------------+          +------+-------------+------+
-              |                               |             |
-              | supabase-js (anon key)        | supabase-js | /api/v1  (Partner API)
-              | phone OTP session             | (anon key)  | /api/sam (voice)
-              |                               | email login |
-              v                               v             v
++---------------------------+  +---------------------------+  +---------------------------+
+|  Customer app (mobile/)   |  |  Delivery app (delivery/) |  |  Admin panel (admin/)     |
+|  Expo / React Native      |  |  Expo / React Native      |  |  Next.js (App Router)     |
+|  Android APK              |  |  Android APK (staff)      |  |  Server components and    |
+|  Phone OTP                |  |  Email login (admin role) |  |  server actions           |
++-------------+-------------+  +-------------+-------------+  +------+-------------+------+
+              |                            |                          |             |
+              | supabase-js (anon key)     | supabase-js (anon key)   | supabase-js | /api/v1
+              |                            |                          | (anon key)  | /api/sam
+              v                            v                          v             v
 +-------------------------------------------------------------------+
 |                         Supabase                                  |
 |  Auth: phone OTP (customers, SMS by Twilio), email (admins)       |
@@ -113,18 +112,24 @@ order-app/
     app.json, app.config.js, eas.json
     src/
       app/                  Expo Router screens (file = route)
-        (shop)/             Tab group: home, buy-again, orders, cart, account, ...
-        order/[id].tsx      Order details
+        (shop)/             Tab group: home, buy-again, orders; hidden: cart, account, categories
+        order/[id].tsx      Order details (progress cards, UPI QR when applicable)
         address/form.tsx    Add or edit an address
         confirmation.tsx, new-order.tsx, checkout.tsx, login.tsx, verify.tsx, sam.tsx
       cart/                 Cart state, edit mode, address book, submit and limits
-      catalog/              ShopCatalogContext (products, categories, business)
-      components/           UI components (ProductCard, ModifyOrderBar, OrderProgress, ...)
+      catalog/              ShopCatalogContext, home-filter (category selection)
+      components/           ProductCard, HomeProductGridItem, OrderProgress, PaymentBadge, UpiPayBlock, ...
       services/             Supabase calls (orders, addresses, auth, products, ...)
       sam/                  Voice ordering client and NewOrderAddressPicker
       network/              NetworkProvider (online or offline)
       config/               env.ts, constants.ts, theme.ts
       types/, utils/
+  delivery/                 Delivery staff app (Expo, admin email login)
+    src/
+      app/(deliver)/        Queue list, order detail, swipe status actions
+      auth/                 AuthContext (profiles.role = admin)
+      components/           DeliverPaymentModal, UpiQrPanel, SwipeActionButton, ...
+      services/             orders.ts (delivery queue), business.ts (upi_qr_url upload)
   admin/                    Admin panel (Next.js)
     proxy.ts                Session refresh and login redirect (replaces middleware)
     app/
@@ -150,6 +155,7 @@ order-app/
 | | React | 19.2.3 |
 | | TypeScript | ~6.0.3 |
 | | AsyncStorage | for session, cart and catalog cache |
+| Delivery app | Same Expo / RN stack as customer app | shares patterns, separate `app.json` and package |
 | Admin panel | Next.js (App Router, `proxy.ts`) | 16.3.4 |
 | | React | 19.2.8 |
 | | Tailwind CSS | 4 |
@@ -185,6 +191,7 @@ Then:
 |---|---|---|
 | Admin panel | `npm run admin` (root) or `cd admin && npm run dev` | <http://localhost:3000>, sign in at `/login` |
 | Customer app | `npm run mobile` (root) or `cd mobile && npx expo start` | Open in Expo Go or a development build |
+| Delivery app | `cd delivery && npx expo start` | Admin email login; copy `delivery/.env.example` to `.env` |
 | PDF guides | `npm run docs:pdf` (root) | Writes `docs/pdf/*.pdf` |
 
 Without Supabase variables, the admin panel runs with mock data and a local admin. This is for UI work only.
@@ -236,7 +243,7 @@ Moving these values into environment variables or the `businesses` table is list
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `businesses` | One row per shop | `business_name`, `logo_url`, `banner_url`, `phone`, `email`, `address`, `description`, `communities_enabled`, `categories_enabled` |
+| `businesses` | One row per shop | `business_name`, `logo_url`, `banner_url`, `upi_qr_url`, `phone`, `email`, `address`, `description`, `communities_enabled`, `categories_enabled` |
 | `profiles` | One row per auth user | `id` (= `auth.users.id`), `role` (`customer` or `admin`), `business_id`, `name`, `mobile`, `email` |
 | `customers` | Shop's customer list (app and offline) | `name`, `mobile`, `mobile_key` (last 10 digits, unique per business), `source` (`app`, `whatsapp`, `walk_in`, `phone`, `other`), `notes`, `auth_user_id` |
 | `customer_addresses` | Address book, max 3 per customer | `user_id` or `customer_id`, `label` (`home`, `work`, `other`), `name`, `mobile`, `house`, `locality`, `address`, `pincode`, `city`, `instructions`, `is_default`, `community_id`, `community_name` |
@@ -365,8 +372,10 @@ Run every file in `supabase/migrations/` in name order, in the Supabase SQL edit
 | 35 | `customer_cancel_rules` | `cancelled_by`; customers cancel only while `new`, max 3 per 24 hours; status-aware modify limit message |
 | 36 | `security_hardening` | Server-side prices and totals, locked customer order fields, verified-phone customer linking, no customer read of `customers`, address and item rules, cancel lock, partner `active` check and input caps, function revokes, image bucket limits |
 | 37 | `order_modifications` | `orders.items_revision`, `order_modifications` audit table, shared pricing helpers, `admin_replace_order_items`, customer replace extended with audit + optimistic locking, RLS for customers and admins to read history |
+| … | (see `supabase/migrations/`) | Push notifications, product notify interests, link app addresses to customer, admin revert snapshots, etc. |
+| 47 | `business_upi_qr` | `businesses.upi_qr_url` for pay-at-delivery UPI QR (customer order detail + delivery app upload) |
 
-**Note:** `supabase/documentation/admin-setup.md` lists migrations only up to `admin_customers`. Use the folder as the source of truth.
+**Note:** `supabase/documentation/admin-setup.md` lists migrations only up to `admin_customers`. Use the folder as the source of truth (47 files as of Oct 2026).
 
 ## 6. Customer app internals
 
@@ -377,12 +386,12 @@ _layout.tsx  (providers: Network, ShopCatalog, Cart)
   index.tsx              Entry: decides welcome, login or home
   login.tsx, verify.tsx  Phone OTP
   (shop)/  tabs
-     home                Visible tab
-     buy-again           Visible tab
-     orders              Visible tab (My orders)
-     cart                Hidden tab (stays mounted, opened by View cart)
-     account             Hidden tab
-     categories          Hidden (Phase 2)
+     home                Visible tab; category chips fixed under search; product grid FlatList 2 columns
+     buy-again           Visible tab ("Order again" label)
+     orders              Visible tab; screen title "Your Orders"; list cards without order #
+     cart                Hidden tab (opened by View cart)
+     account             Hidden tab (avatar on Home)
+     categories          Hidden route (categories also on Home when enabled)
      reorder             Hidden, redirects
   checkout.tsx           "Saved addresses"
   address/form.tsx       Add or edit address
@@ -473,15 +482,25 @@ Timeouts: 15 seconds for placing, 4 seconds for lookups. All Supabase requests a
 - `src/cart/address-book.ts` switches the address at once (optimistic update), saves in the background and reloads if the save fails.
 - City and state come from `api.postalpincode.in` by pincode.
 
-### 6.7 Order tracking
+### 6.7 Order tracking and UPI at delivery
+
+- **List:** `(shop)/orders.tsx` — headline from `formatOrderListHeadline`, product thumbs via `getMyOrdersWithItems` + image enrichment; payment badge below thumbs when pending/refund.
+- **Detail:** `order/[id].tsx` — section cards, `OrderProgress`, `PaymentBadge`, deliver-to inset; loads `upi_qr_url` from `refreshBusiness()` when status is `out_for_delivery` and payment is not collected (`UpiPayBlock`).
+- **Helpers:** `formatOrderListHeadline`, `formatPlacedAtLine` in `utils/format.ts`.
 
 `src/components/OrderProgress.tsx` draws Placed, Confirmed, Out for delivery and Delivered, with the time of each step from `order_status_events` (`getMyOrderById` loads them). If the events cannot be read (migration 34 not run), only the placed time shows.
 
-### 6.8 App configuration
+### 6.8 Home catalog performance
+
+- Products sorted once (`sortProductsForDisplay` on catalog load); category and search only filter.
+- Category selection: `catalog/home-filter.ts` (`assignHomeCategoryId` avoids duplicate subscriber updates on chip tap); `startTransition` for filter state.
+- Product grid: `FlatList` with `numColumns={2}`, memoized `HomeProductGridItem` and `ProductCard`; grid cells use `width: '50%'` so an odd last row does not stretch full width.
+
+### 6.9 App configuration
 
 - `app.json`: app name, slug, URL scheme, Android package (`com.<business>.app`) and `versionCode`.
 - `app.config.js`: when `EXPO_PUBLIC_VOICE_ORDERING` is not `true`, removes the speech plugin and blocks the `RECORD_AUDIO` permission.
-- `expo-location` and `react-native-maps` are installed but not used (map entry was dropped).
+- `expo-location` and `react-native-maps` are installed in the customer app but not used for address entry (map entry was dropped). The delivery app uses `react-native-maps` for a map preview on order detail.
 
 ## 7. Admin panel internals
 
@@ -522,7 +541,19 @@ Browser -> proxy.ts           refreshes the Supabase session cookie;
 | `SHOW_LATER_PHASE_MENUS = false` | `components/AdminShell.tsx` | Hides Settings from the menu |
 | `LIST_QUICK_ACTIONS = false` | `components/OrdersBoard.tsx` | Hides next-step buttons on the orders list |
 
-### 7.4 Order actions (`services/order-actions.ts`)
+### 7.4 Delivery app internals (`delivery/`)
+
+| Area | Notes |
+|---|---|
+| Auth | `AuthContext` loads `profiles` with `role = 'admin'` and `business_id`; same Supabase email session as admin panel |
+| Queue | `listDeliveryOrders`: statuses `new`, `confirmed`, `out_for_delivery`; `listTodayDeliveredOrders`: `delivered` with `updated_at` in IST today |
+| Status | `updateDeliveryOrderStatus` via admin RLS; optional `notifyOrderStatusPush` after change |
+| UPI QR | `businesses.upi_qr_url`; upload to `business-logos` bucket at `{businessId}/upi-qr/` from `uploadBusinessUpiQrFromPickerAsset` |
+| UX | SwipeActionButton for next status; DeliverPaymentModal on mark delivered; Call/Map on list cards |
+
+Env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (no business id in env; taken from admin profile).
+
+### 7.5 Order actions (`services/order-actions.ts`)
 
 - **Status change:** sets the new status. Cancelling a paid order sets `refund_status = 'pending'`. The trigger writes the status event.
 - **Payment:** `cash`, `upi` or `pending` (Not yet). Refund: `pending` to `refunded`.

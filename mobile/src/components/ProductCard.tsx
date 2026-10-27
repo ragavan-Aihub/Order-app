@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ProductImage } from '@/components/ProductImage';
@@ -30,7 +31,7 @@ const BODY_PAD_H = spacing.sm;
 /** Minimum gap between name block and bottom price row when names match height. */
 const MIN_NAME_FOOTER_GAP = 4;
 
-export function ProductCard({
+export const ProductCard = memo(function ProductCard({
   product,
   quantity,
   onPress,
@@ -139,7 +140,7 @@ export function ProductCard({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

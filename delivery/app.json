@@ -16,6 +16,7 @@
       "bundleIdentifier": "com.farm2flavour.delivery"
     },
     "android": {
+      "versionCode": 2,
       "package": "com.farm2flavour.delivery",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {

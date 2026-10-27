@@ -877,9 +877,13 @@ export async function getMyOrdersWithItems(): Promise<OrderWithItems[]> {
       byOrder.set(item.order_id, list);
     }
 
+    const flatItems = orders.flatMap((order) => byOrder.get(order.id) ?? []);
+    const enrichedFlat = await enrichOrderItemsWithImages(flatItems);
+    const enrichedById = new Map(enrichedFlat.map((item) => [item.id, item]));
+
     return orders.map((order) => ({
       ...order,
-      order_items: byOrder.get(order.id) ?? [],
+      order_items: (byOrder.get(order.id) ?? []).map((item) => enrichedById.get(item.id) ?? item),
     }));
   } catch {
     return orders.map((order) => ({ ...order, order_items: [] }));

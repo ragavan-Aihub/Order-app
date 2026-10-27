@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Keyboard,
   Platform,
   Pressable,
@@ -12,17 +13,23 @@ import {
   Text,
   TextInput,
   View,
+  type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
 import { useShopCatalog } from '@/catalog/ShopCatalogContext';
-import { getHomeCategoryId, setHomeCategoryId, subscribeHomeCategory } from '@/catalog/home-filter';
+import {
+  assignHomeCategoryId,
+  getHomeCategoryId,
+  setHomeCategoryId,
+  subscribeHomeCategory,
+} from '@/catalog/home-filter';
 import { HomeHeader } from '@/components/HomeHeader';
+import { HomeProductGridItem } from '@/components/HomeProductGridItem';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { ProductCard } from '@/components/ProductCard';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { env } from '@/config/env';
@@ -79,10 +86,8 @@ export default function HomeScreen() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const painted = useRef(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const listRef = useRef<FlatList<Product>>(null);
   const chipsRef = useRef<ScrollView>(null);
-  const gridSectionY = useRef(0);
-  const productAnchorY = useRef<Record<string, number>>({});
   const [highlightProductId, setHighlightProductId] = useState<string | null>(null);
   const [highlightFromPush, setHighlightFromPush] = useState(false);
   const [pushCatalogLoading, setPushCatalogLoading] = useState(false);
@@ -102,7 +107,7 @@ export default function HomeScreen() {
 
   const onSearchChange = (text: string) => {
     setQuery(text);
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
     const term = text.trim().toLowerCase();
     if (!term || !categoriesEnabled || !categoryId) {
       return;
@@ -111,8 +116,8 @@ export default function HomeScreen() {
       (product) => product.category_id === categoryId && matchesSearch(product, term),
     );
     if (!inCategory && products.some((product) => matchesSearch(product, term))) {
-      setHomeCategoryId('');
-      setCategoryId('');
+      assignHomeCategoryId('');
+      startTransition(() => setCategoryId(''));
       chipsRef.current?.scrollTo({ x: 0, animated: true });
     }
   };
@@ -189,7 +194,6 @@ export default function HomeScreen() {
     let clearHighlightTimer: ReturnType<typeof setTimeout> | undefined;
     pendingFocusProductId.current = focusProductId;
     didScrollToHighlight.current = false;
-    productAnchorY.current = {};
 
     const fromPush = fromAvailablePush === '1';
     if (fromPush) {
@@ -282,12 +286,16 @@ export default function HomeScreen() {
     if (openingFromAvailablePush) {
       return;
     }
-    return subscribeHomeCategory(() => setCategoryId(getHomeCategoryId()));
+    return subscribeHomeCategory(() => {
+      startTransition(() => setCategoryId(getHomeCategoryId()));
+    });
   }, [openingFromAvailablePush]);
+
+  const sortedProducts = useMemo(() => sortProductsForDisplay(products), [products]);
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const filtered = products.filter((product) => {
+    return sortedProducts.filter((product) => {
       if (categoriesEnabled && categoryId && product.category_id !== categoryId) {
         return false;
       }
@@ -296,8 +304,21 @@ export default function HomeScreen() {
       }
       return matchesSearch(product, term);
     });
-    return sortProductsForDisplay(filtered);
-  }, [categoriesEnabled, categoryId, products, query]);
+  }, [categoriesEnabled, categoryId, sortedProducts, query]);
+
+  const selectCategory = useCallback(
+    (id: string) => {
+      if (id === categoryId) {
+        return;
+      }
+      assignHomeCategoryId(id);
+      startTransition(() => {
+        setCategoryId(id);
+      });
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    },
+    [categoryId],
+  );
 
   const quantityById = useMemo(() => {
     const map: Record<string, number> = {};
@@ -308,7 +329,7 @@ export default function HomeScreen() {
   }, [items]);
 
   const tryScrollToHighlightedProduct = useCallback(
-    (productId: string, layoutY: number) => {
+    (productId: string) => {
       if (
         didScrollToHighlight.current ||
         highlightProductId !== productId ||
@@ -316,16 +337,85 @@ export default function HomeScreen() {
       ) {
         return;
       }
+      const index = visibleProducts.findIndex((row) => row.id === productId);
+      if (index < 0) {
+        return;
+      }
       didScrollToHighlight.current = true;
       pendingFocusProductId.current = null;
       requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({
-          y: Math.max(0, gridSectionY.current + layoutY - 120),
-          animated: true,
-        });
+        listRef.current?.scrollToIndex({ index, animated: true, viewOffset: 100 });
       });
     },
-    [highlightProductId],
+    [highlightProductId, visibleProducts],
+  );
+
+  const listHeader = useMemo(
+    () =>
+      bannerUrl ? (
+        <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" />
+      ) : null,
+    [bannerUrl],
+  );
+
+  const listEmpty = useMemo(() => {
+    if (openingFromAvailablePush) {
+      return (
+        <View style={styles.emptyLoading}>
+          <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+      );
+    }
+    return (
+      <Text style={styles.empty}>
+        {offline && products.length === 0
+          ? 'Connect to the internet to load products.'
+          : query.trim() || categoryId
+            ? 'No products match this search.'
+            : 'No products to show yet.'}
+      </Text>
+    );
+  }, [categoryId, offline, openingFromAvailablePush, products.length, query]);
+
+  const renderProduct = useCallback<ListRenderItem<Product>>(
+    ({ item }) => (
+      <HomeProductGridItem
+        product={item}
+        quantity={quantityById[item.id] ?? 0}
+        highlighted={highlightProductId === item.id}
+        highlightFromPush={highlightFromPush}
+        notifyNotified={isNotified(item.id)}
+        notifyBusy={busyId === item.id}
+        onAddToCart={addToCart}
+        onIncrease={increase}
+        onDecrease={decrease}
+        onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
+        onLayout={
+          highlightProductId === item.id ? () => tryScrollToHighlightedProduct(item.id) : undefined
+        }
+      />
+    ),
+    [
+      addToCart,
+      busyId,
+      decrease,
+      highlightFromPush,
+      highlightProductId,
+      increase,
+      isNotified,
+      onNotifyPress,
+      quantityById,
+      tryScrollToHighlightedProduct,
+    ],
+  );
+
+  const listContentPadding = useMemo(
+    () => ({
+      paddingBottom: keyboardOpen
+        ? keyboardHeight + spacing.md
+        : viewCartScrollPadding(insets.bottom, itemCount > 0),
+    }),
+    [insets.bottom, itemCount, keyboardHeight, keyboardOpen],
   );
 
   if ((loading && !focusProductId) || pushCatalogLoading) {
@@ -398,32 +488,19 @@ export default function HomeScreen() {
           ) : null}
         </View>
       </View>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={[
-          styles.scroll,
-          {
-            paddingBottom: keyboardOpen
-              ? keyboardHeight + spacing.md
-              : viewCartScrollPadding(insets.bottom, itemCount > 0),
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        {categoriesEnabled && categories.length > 0 ? (
+      {categoriesEnabled && categories.length > 0 ? (
+        <View style={styles.chipsBar}>
           <ScrollView
             ref={chipsRef}
             horizontal
             nestedScrollEnabled
             showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={styles.chipsScroller}
             contentContainerStyle={styles.chips}
           >
             <Pressable
-              onPress={() => {
-                setHomeCategoryId('');
-                setCategoryId('');
-              }}
+              onPress={() => selectCategory('')}
               style={[styles.chip, !categoryId && styles.chipOn]}
               accessibilityRole="button"
             >
@@ -434,10 +511,7 @@ export default function HomeScreen() {
               return (
                 <Pressable
                   key={item.id}
-                  onPress={() => {
-                    setHomeCategoryId(item.id);
-                    setCategoryId(item.id);
-                  }}
+                  onPress={() => selectCategory(item.id)}
                   style={[styles.chip, on && styles.chipOn]}
                   accessibilityRole="button"
                 >
@@ -449,65 +523,36 @@ export default function HomeScreen() {
               );
             })}
           </ScrollView>
-        ) : null}
-        {bannerUrl ? (
-          <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" />
-        ) : null}
-        {visibleProducts.length === 0 ? (
-          openingFromAvailablePush ? (
-            <View style={styles.emptyLoading}>
-              <ActivityIndicator size="small" color={colors.primary} />
-            </View>
-          ) : (
-            <Text style={styles.empty}>
-              {offline && products.length === 0
-                ? 'Connect to the internet to load products.'
-                : query.trim() || categoryId
-                  ? 'No products match this search.'
-                  : 'No products to show yet.'}
-            </Text>
-          )
-        ) : (
-          <View
-            onLayout={(event) => {
-              gridSectionY.current = event.nativeEvent.layout.y;
-            }}
-          >
-            <View style={styles.grid}>
-            {visibleProducts.map((product) => (
-              <View
-                key={product.id}
-                style={[
-                  styles.gridItem,
-                  highlightProductId === product.id &&
-                    (highlightFromPush ? styles.gridItemHighlightFromPush : styles.gridItemHighlight),
-                ]}
-                onLayout={(event) => {
-                  const layoutY = event.nativeEvent.layout.y;
-                  productAnchorY.current[product.id] = layoutY;
-                  tryScrollToHighlightedProduct(product.id, layoutY);
-                }}
-              >
-                <ProductCard
-                  product={product}
-                  quantity={quantityById[product.id] ?? 0}
-                  onAddToCart={() => addToCart(product, 1)}
-                  onIncrease={() => increase(product.id)}
-                  onDecrease={() => decrease(product.id)}
-                  notifyNotified={isNotified(product.id)}
-                  notifyBusy={busyId === product.id}
-                  onNotifyPress={
-                    product.available === false
-                      ? () => void onNotifyPress(product.id, product.name)
-                      : undefined
-                  }
-                />
-              </View>
-            ))}
-            </View>
-          </View>
-        )}
-      </ScrollView>
+        </View>
+      ) : null}
+      <FlatList
+        ref={listRef}
+        data={visibleProducts}
+        keyExtractor={(item) => item.id}
+        renderItem={renderProduct}
+        numColumns={2}
+        columnWrapperStyle={visibleProducts.length > 0 ? styles.gridRow : undefined}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        style={styles.productScroll}
+        contentContainerStyle={[styles.scroll, listContentPadding]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        nestedScrollEnabled
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+        onScrollToIndexFailed={(info) => {
+          requestAnimationFrame(() => {
+            listRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true,
+              viewOffset: 100,
+            });
+          });
+        }}
+      />
       {keyboardOpen ? null : <ViewCartBar />}
     </View>
   );
@@ -522,10 +567,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  productScroll: {
+    flex: 1,
+  },
   scroll: {
     paddingHorizontal: spacing.md,
-    paddingTop: 4,
+    paddingTop: spacing.xs,
     gap: spacing.xs,
+  },
+  chipsBar: {
+    backgroundColor: colors.background,
+    paddingBottom: 4,
   },
   offlineWrap: {
     paddingHorizontal: spacing.md,
@@ -628,11 +680,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: -8,
   },
+  chipsScroller: {
+    flexGrow: 0,
+  },
   chips: {
+    flexDirection: 'row',
     gap: spacing.sm,
-    paddingTop: 0,
+    paddingHorizontal: spacing.md,
     paddingBottom: 4,
-    paddingRight: spacing.md,
+    alignItems: 'center',
   },
   chip: {
     height: 40,
@@ -644,6 +700,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 0,
   },
   chipOn: {
     backgroundColor: colors.primary,
@@ -678,29 +735,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     alignItems: 'center',
   },
-  grid: {
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'stretch',
     marginHorizontal: -4,
-  },
-  gridItem: {
-    width: '50%',
-    padding: 4,
-    alignItems: 'stretch',
-  },
-  gridItemHighlight: {
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  /** Distinct from default teal highlight — used when opening Home from “now available” push. */
-  gridItemHighlightFromPush: {
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(234, 88, 12, 0.14)',
-    borderWidth: 2,
-    borderColor: colors.warning,
   },
   centered: {
     flex: 1,

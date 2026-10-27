@@ -1,8 +1,9 @@
 # Farm2Flavour
 
-MVP ordering platform with two applications that share one Supabase backend:
+MVP ordering platform with client apps that share one Supabase backend:
 
 - `mobile/` — Expo React Native app for customers (Android first)
+- `delivery/` — Expo app for delivery staff (admin email login; optional)
 - `admin/` — Next.js web app for administrators
 - `supabase/` — database migrations and documentation
 
@@ -24,11 +25,13 @@ Both guides are written without a brand name, so they can be shared with any bus
 ```bash
 cd mobile && npm install
 cd ../admin && npm install
+cd ../delivery && npm install
 ```
 
 ```bash
 cp mobile/.env.example mobile/.env
 cp admin/.env.example admin/.env
+cp delivery/.env.example delivery/.env
 ```
 
 Use only the Supabase anon key in both apps. Never put the service-role key in either application.
@@ -54,3 +57,12 @@ npm run dev
 ```
 
 Open http://localhost:3000 — sign in at `/login` once Supabase env vars are set. Without those vars, the admin UI stays open for local mock data.
+
+Delivery app (staff):
+
+```bash
+cd delivery
+npx expo start
+```
+
+Sign in with an admin account (`profiles.role = admin`). Apply migration `20261027220000_business_upi_qr.sql` if you use UPI QR at delivery.
