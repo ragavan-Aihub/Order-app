@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache';
 
 import { isSupabaseConfigured } from '@/config/env';
+import { logAdminAudit } from '@/services/admin-audit';
 import type { CustomerAddress } from '@/services/customers';
 import { createServerSupabaseClient } from '@/services/supabase/server';
+import { formatOrderNumber } from '@/utils/format';
 import { ADMIN_CUSTOMER_SOURCE, CUSTOMER_SOURCES, normalizeMobile, type CustomerSource } from '@/types/customer';
 import { composeAddressLine, isValidPincode, stateFromPincode } from '@/types/address';
 import { ADMIN_ORDER_CHANNEL, type PaymentMethod } from '@/types/order';
@@ -22,6 +24,7 @@ export type ExistingCustomerMatch = {
 type AdminContext = {
   supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>;
   businessId: string;
+  adminUserId: string;
 };
 
 async function requireAdmin(): Promise<AdminContext | { error: string }> {
@@ -52,7 +55,11 @@ async function requireAdmin(): Promise<AdminContext | { error: string }> {
     return { error: 'You are not signed in as an admin.' };
   }
 
-  return { supabase, businessId: profile.business_id };
+  return { supabase, businessId: profile.business_id, adminUserId: user.id };
+}
+
+function auditCtx(ctx: AdminContext) {
+  return { supabase: ctx.supabase, businessId: ctx.businessId, adminUserId: ctx.adminUserId };
 }
 
 function revalidateCustomers(customerId?: string) {
@@ -217,6 +224,12 @@ export async function createCustomer(input: {
     addressId = book?.id;
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'customer.create',
+    entityType: 'customer',
+    entityId: data.id,
+    summary: `Added customer ${name} (${mobile})`,
+  });
   revalidateCustomers(data.id);
   return { error: null, id: data.id, addressId };
 }
@@ -267,6 +280,12 @@ export async function updateCustomer(
     await ctx.supabase.from('profiles').update({ name, mobile }).eq('id', data.auth_user_id).eq('role', 'customer');
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'customer.update',
+    entityType: 'customer',
+    entityId: customerId,
+    summary: `Updated customer ${name}`,
+  });
   revalidateCustomers(customerId);
   return { error: null };
 }
@@ -287,11 +306,24 @@ export async function deleteCustomer(customerId: string): Promise<{ error: strin
     return { error: 'This customer has orders. Cancel or keep the contact; do not delete it.' };
   }
 
+  const { data: doomed } = await ctx.supabase
+    .from('customers')
+    .select('name')
+    .eq('id', customerId)
+    .eq('business_id', ctx.businessId)
+    .maybeSingle();
+
   const { error } = await ctx.supabase.from('customers').delete().eq('id', customerId).eq('business_id', ctx.businessId);
   if (error) {
     return { error: error.message };
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'customer.delete',
+    entityType: 'customer',
+    entityId: customerId,
+    summary: `Deleted customer ${doomed?.name ?? 'contact'}`,
+  });
   revalidateCustomers();
   return { error: null };
 }
@@ -404,6 +436,12 @@ export async function saveCustomerAddress(
     return { error: result.error?.message ?? 'Could not save the address.' };
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: input.id ? 'customer.address_update' : 'customer.address_create',
+    entityType: 'customer',
+    entityId: customerId,
+    summary: input.id ? `Updated address for ${customer.name}` : `Added address for ${customer.name}`,
+  });
   revalidateCustomers(customerId);
   return { error: null, address: result.data as CustomerAddress };
 }
@@ -428,6 +466,12 @@ export async function deleteCustomerAddress(
     return { error: error.message };
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'customer.address_delete',
+    entityType: 'customer',
+    entityId: customerId,
+    summary: 'Removed a customer address',
+  });
   revalidateCustomers(customerId);
   return { error: null };
 }
@@ -579,7 +623,7 @@ export async function createAdminOrder(input: {
       payment_method: paymentMethod,
       ...(communityId ? { community_id: communityId } : {}),
     })
-    .select('id')
+    .select('id, order_number')
     .maybeSingle();
 
   if (orderError || !order) {
@@ -608,6 +652,13 @@ export async function createAdminOrder(input: {
     return { error: itemsError.message };
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'order.create_admin',
+    entityType: 'order',
+    entityId: order.id,
+    summary: `Created order #${formatOrderNumber(order.order_number ?? 0)} for ${customer.name}`,
+    details: { customer_id: customer.id, item_count: lines.length },
+  });
   revalidateCustomers(customer.id);
   revalidatePath(`/orders/${order.id}`);
   return { error: null, orderId: order.id };

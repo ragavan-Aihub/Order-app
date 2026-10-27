@@ -317,7 +317,7 @@ Customers do not use the delivery app.
 - Only accounts set up as admin for this business can sign in. Customer accounts see "Not authorized".
 - Use **Sign out** at the bottom of the menu when you finish on a shared computer.
 
-**Menu (left side):** Dashboard, Orders, Reports, Products, Customers. **Categories** opens from the Products page. **Communities** opens from the Customers page. On a phone, tap **Menu** at the top.
+**Menu (left side):** Dashboard, Orders, Reports, **Audit log**, Products, Customers. **Categories** opens from the Products page. **Communities** opens from the Customers page. On a phone, tap **Menu** at the top.
 
 ### 4.2 Dashboard
 
@@ -523,6 +523,16 @@ Notes:
 
 - Reports read up to 3,000 orders for one view. For longer periods, use smaller date ranges.
 - To download data, use **Export** on the Orders list.
+
+### 4.8 Audit log
+
+Title: "Who changed what in the admin panel".
+
+Use this when you need accountability: which admin changed an order status, edited a product, updated a customer, or changed business settings.
+
+**Filters:** date range (default last 7 days), area (orders, products, customers, and so on), and search on the summary text.
+
+Each row shows **when**, **who** (admin name or email), **area**, and a short **summary**. Order-related lines link to that order. Shop edits to order items (quantities and totals) appear here even when no separate note was added.
 
 ## 5. All business rules in one place
 

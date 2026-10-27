@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 
 import { PARTNER_CHANNELS, PARTNER_SCOPES } from '@/lib/partner-constants';
 import { isSupabaseConfigured } from '@/config/env';
+import { logAdminAudit } from '@/services/admin-audit';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 
 export type ApiKeyRow = {
@@ -25,18 +26,18 @@ function hashKey(value: string) {
 
 async function requireAdminClient() {
   if (!isSupabaseConfigured) {
-    return { error: 'Supabase is not configured.' as const, supabase: null, businessId: null };
+    return { error: 'Supabase is not configured.' as const, supabase: null, businessId: null, adminUserId: null };
   }
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
-    return { error: 'Supabase is not configured.' as const, supabase: null, businessId: null };
+    return { error: 'Supabase is not configured.' as const, supabase: null, businessId: null, adminUserId: null };
   }
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const user = session?.user;
   if (!user) {
-    return { error: 'You are not signed in as an admin.' as const, supabase: null, businessId: null };
+    return { error: 'You are not signed in as an admin.' as const, supabase: null, businessId: null, adminUserId: null };
   }
   const { data: profile } = await supabase
     .from('profiles')
@@ -44,9 +45,9 @@ async function requireAdminClient() {
     .eq('id', user.id)
     .maybeSingle();
   if (!profile || profile.role !== 'admin' || !profile.business_id) {
-    return { error: 'You are not signed in as an admin.' as const, supabase: null, businessId: null };
+    return { error: 'You are not signed in as an admin.' as const, supabase: null, businessId: null, adminUserId: null };
   }
-  return { error: null, supabase, businessId: profile.business_id as string };
+  return { error: null, supabase, businessId: profile.business_id as string, adminUserId: user.id };
 }
 
 export async function listApiKeys(): Promise<ApiKeyRow[]> {
@@ -96,6 +97,15 @@ export async function createApiKey(
     return { error: error.message };
   }
 
+  await logAdminAudit(
+    { supabase: auth.supabase, businessId: auth.businessId, adminUserId: auth.adminUserId! },
+    {
+      action: 'api_key.create',
+      entityType: 'api_key',
+      summary: `Created API key “${trimmed}” (${channel})`,
+    },
+  );
+
   revalidatePath('/settings/api');
   return { error: null, secret, prefix };
 }
@@ -111,7 +121,7 @@ export async function revokeApiKey(id: string): Promise<{ error: string | null }
     .update({ active: false, revoked_at: new Date().toISOString() })
     .eq('id', id)
     .eq('business_id', auth.businessId)
-    .select('id')
+    .select('id, name')
     .maybeSingle();
 
   if (error) {
@@ -120,6 +130,15 @@ export async function revokeApiKey(id: string): Promise<{ error: string | null }
   if (!data) {
     return { error: 'Could not revoke this key.' };
   }
+  await logAdminAudit(
+    { supabase: auth.supabase, businessId: auth.businessId, adminUserId: auth.adminUserId! },
+    {
+      action: 'api_key.revoke',
+      entityType: 'api_key',
+      entityId: id,
+      summary: `Revoked API key “${data.name}”`,
+    },
+  );
   revalidatePath('/settings/api');
   return { error: null };
 }

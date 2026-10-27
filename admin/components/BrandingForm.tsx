@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from 'react';
 
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { isSupabaseConfigured } from '@/config/env';
+import { updateBusinessBranding } from '@/services/business-actions';
 import { uploadBusinessBanner, uploadBusinessLogo } from '@/services/storage';
 import { createBrowserSupabaseClient } from '@/services/supabase/browser';
 import type { Business } from '@/types/business';
@@ -94,16 +95,14 @@ export function BrandingForm({ business }: { business: Business }) {
 
     setUploading(null);
 
-    const { error: saveError } = await supabase
-      .from('businesses')
-      .update({
-        logo_url: logoUrl,
-        banner_url: bannerUrl,
-      })
-      .eq('id', profile.business_id);
+    const result = await updateBusinessBranding({
+      businessId: profile.business_id,
+      logoUrl,
+      bannerUrl,
+    });
 
-    if (saveError) {
-      setError(saveError.message);
+    if (result.error) {
+      setError(result.error);
       setSubmitting(false);
       return;
     }

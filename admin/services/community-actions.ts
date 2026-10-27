@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { isSupabaseConfigured } from '@/config/env';
+import { logAdminAudit } from '@/services/admin-audit';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 
 type AdminContext = {
@@ -35,6 +36,10 @@ async function requireAdmin(): Promise<AdminContext | { error: string }> {
     return { error: 'You are not signed in as an admin.' };
   }
   return { supabase, businessId: profile.business_id, userId: user.id };
+}
+
+function auditCtx(ctx: AdminContext) {
+  return { supabase: ctx.supabase, businessId: ctx.businessId, adminUserId: ctx.userId };
 }
 
 function revalidateCommunities(communityId?: string) {
@@ -128,6 +133,12 @@ export async function setCommunitiesEnabled(enabled: boolean): Promise<{ error: 
     }
     return { error: error.message };
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'community.feature_toggle',
+    entityType: 'business',
+    entityId: ctx.businessId,
+    summary: enabled ? 'Communities enabled' : 'Communities disabled',
+  });
   revalidateCommunities();
   return { error: null };
 }
@@ -176,6 +187,12 @@ export async function saveCommunity(input: {
     return { error: result.error?.message ?? 'Could not save the community.' };
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: input.id ? 'community.update' : 'community.create',
+    entityType: 'community',
+    entityId: result.data.id,
+    summary: input.id ? `Updated community ${name}` : `Added community ${name}`,
+  });
   revalidateCommunities(result.data.id);
   return { error: null, id: result.data.id };
 }
@@ -192,14 +209,22 @@ export async function setCommunityActive(input: {
   if (gated) {
     return { error: gated };
   }
-  const { error } = await ctx.supabase
+  const { data, error } = await ctx.supabase
     .from('communities')
     .update({ active: input.active })
     .eq('id', input.id)
-    .eq('business_id', ctx.businessId);
-  if (error) {
-    return { error: error.message };
+    .eq('business_id', ctx.businessId)
+    .select('id, name')
+    .maybeSingle();
+  if (error || !data) {
+    return { error: error?.message ?? 'Could not update this community.' };
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'community.active',
+    entityType: 'community',
+    entityId: input.id,
+    summary: `${data.name} set ${input.active ? 'active' : 'inactive'}`,
+  });
   revalidateCommunities(input.id);
   return { error: null };
 }
@@ -278,6 +303,13 @@ export async function mapAddressToCommunity(input: {
   }
 
   await stampOrdersForAddress(ctx, input.addressId, community.id, community.name);
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'community.map_address',
+    entityType: 'community',
+    entityId: input.communityId,
+    summary: `Mapped an address to ${community.name}`,
+    details: { address_id: input.addressId },
+  });
   revalidateCommunities(input.communityId);
   if (address.community_id) {
     revalidateCommunities(address.community_id);
@@ -308,6 +340,13 @@ export async function unmapAddressFromCommunity(input: {
     return { error: error.message };
   }
   await stampOrdersForAddress(ctx, input.addressId, null, null);
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'community.unmap_address',
+    entityType: 'community',
+    entityId: input.communityId,
+    summary: 'Removed community mapping from an address',
+    details: { address_id: input.addressId },
+  });
   revalidateCommunities(input.communityId);
   return { error: null };
 }

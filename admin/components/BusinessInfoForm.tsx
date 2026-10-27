@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { isSupabaseConfigured } from '@/config/env';
-import { createBrowserSupabaseClient } from '@/services/supabase/browser';
+import { updateBusinessInfo } from '@/services/business-actions';
 import type { Business } from '@/types/business';
 
 export function BusinessInfoForm({ business }: { business: Business }) {
@@ -36,52 +36,19 @@ export function BusinessInfoForm({ business }: { business: Business }) {
     }
 
     setSubmitting(true);
-    const supabase = createBrowserSupabaseClient();
-    if (!supabase) {
-      setError('Supabase is not configured.');
+    const result = await updateBusinessInfo({
+      businessId: business.id,
+      name,
+      phone,
+      email,
+      address,
+      description,
+    });
+    if (result.error) {
+      setError(result.error);
       setSubmitting(false);
       return;
     }
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) {
-      setError('You are not signed in.');
-      setSubmitting(false);
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, business_id')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (!profile || profile.role !== 'admin' || profile.business_id !== business.id) {
-      setError('This account cannot change this business.');
-      setSubmitting(false);
-      return;
-    }
-
-    const { error: saveError } = await supabase
-      .from('businesses')
-      .update({
-        business_name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim() || null,
-        address: address.trim() || null,
-        description: description.trim() || null,
-      })
-      .eq('id', profile.business_id);
-
-    if (saveError) {
-      setError(saveError.message);
-      setSubmitting(false);
-      return;
-    }
-
     setSubmitting(false);
     notice.show('Business info saved');
   }

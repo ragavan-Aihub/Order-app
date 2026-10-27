@@ -3,12 +3,14 @@
 import { revalidatePath } from 'next/cache';
 
 import { isSupabaseConfigured } from '@/config/env';
+import { logAdminAudit } from '@/services/admin-audit';
 import { MAX_IMAGE_BYTES, uploadProductImageBytes } from '@/services/storage';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 
 type AdminContext = {
   supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>;
   businessId: string;
+  adminUserId: string;
 };
 
 async function requireAdmin(): Promise<AdminContext | { error: string }> {
@@ -34,7 +36,11 @@ async function requireAdmin(): Promise<AdminContext | { error: string }> {
   if (!profile || profile.role !== 'admin' || !profile.business_id) {
     return { error: 'You are not signed in as an admin.' };
   }
-  return { supabase, businessId: profile.business_id };
+  return { supabase, businessId: profile.business_id, adminUserId: user.id };
+}
+
+function auditCtx(ctx: AdminContext) {
+  return { supabase: ctx.supabase, businessId: ctx.businessId, adminUserId: ctx.adminUserId };
 }
 
 function revalidateCategories() {
@@ -72,6 +78,12 @@ export async function setCategoriesEnabled(enabled: boolean): Promise<{ error: s
     }
     return { error: error.message };
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'category.feature_toggle',
+    entityType: 'business',
+    entityId: ctx.businessId,
+    summary: enabled ? 'Product categories enabled' : 'Product categories disabled',
+  });
   revalidateCategories();
   return { error: null };
 }
@@ -158,6 +170,12 @@ export async function saveCategory(formData: FormData): Promise<{ error: string 
     return { error: result.error?.message ?? 'Could not save the category.' };
   }
 
+  await logAdminAudit(auditCtx(ctx), {
+    action: existing ? 'category.update' : 'category.create',
+    entityType: 'category',
+    entityId: result.data.id,
+    summary: existing ? `Updated category ${name}` : `Added category ${name}`,
+  });
   revalidateCategories();
   return { error: null, id: result.data.id };
 }
@@ -174,14 +192,22 @@ export async function setCategoryActive(input: {
   if (gated) {
     return { error: gated };
   }
-  const { error } = await ctx.supabase
+  const { data, error } = await ctx.supabase
     .from('product_categories')
     .update({ active: input.active })
     .eq('id', input.id)
-    .eq('business_id', ctx.businessId);
-  if (error) {
-    return { error: error.message };
+    .eq('business_id', ctx.businessId)
+    .select('id, name')
+    .maybeSingle();
+  if (error || !data) {
+    return { error: error?.message ?? 'Could not update this category.' };
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'category.active',
+    entityType: 'category',
+    entityId: input.id,
+    summary: `${data.name} set ${input.active ? 'active' : 'inactive'}`,
+  });
   revalidateCategories();
   return { error: null };
 }

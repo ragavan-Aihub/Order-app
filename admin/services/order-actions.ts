@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 
 import { isSupabaseConfigured } from '@/config/env';
 import { notifyOrderStatusPush } from '@/lib/order-status-push';
+import { logAdminAudit } from '@/services/admin-audit';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import { NEXT_STATUSES, ORDER_STATUSES, type OrderStatus, type PaymentMethod } from '@/types/order';
+import { formatOrderNumber } from '@/utils/format';
 
 function revalidateOrder(orderId: string) {
   revalidatePath('/');
@@ -57,7 +59,7 @@ export async function updateOrderStatus(
 
   const { data: current } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status')
+    .select('id, status, payment_method, refund_status, order_number')
     .eq('id', orderId)
     .eq('business_id', profile.business_id)
     .maybeSingle();
@@ -101,6 +103,20 @@ export async function updateOrderStatus(
 
   revalidateOrder(orderId);
   void notifyOrderStatusPush(orderId, status);
+  const orderLabel = formatOrderNumber(current.order_number ?? 0);
+  await logAdminAudit(
+    { supabase, businessId: profile.business_id, adminUserId: user.id },
+    {
+      action: options?.mode === 'correct' ? 'order.status_correct' : 'order.status_update',
+      entityType: 'order',
+      entityId: orderId,
+      summary:
+        options?.mode === 'correct'
+          ? `Order #${orderLabel} status corrected to ${status}`
+          : `Order #${orderLabel} → ${status}`,
+      details: { from: currentStatus, to: status, cancel_reason: cancelReason },
+    },
+  );
   return { error: null };
 }
 
@@ -141,7 +157,7 @@ export async function updateOrderPayment(
 
   const { data: current } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status')
+    .select('id, status, payment_method, refund_status, order_number')
     .eq('id', orderId)
     .eq('business_id', profile.business_id)
     .maybeSingle();
@@ -175,6 +191,16 @@ export async function updateOrderPayment(
   }
 
   revalidateOrder(orderId);
+  await logAdminAudit(
+    { supabase, businessId: profile.business_id, adminUserId: user.id },
+    {
+      action: 'order.payment_update',
+      entityType: 'order',
+      entityId: orderId,
+      summary: `Order #${formatOrderNumber(current.order_number ?? 0)} payment → ${paymentMethod}`,
+      details: { from: current.payment_method, to: paymentMethod },
+    },
+  );
   return { error: null };
 }
 
@@ -208,7 +234,7 @@ export async function updateOrderRefund(orderId: string): Promise<{ error: strin
 
   const { data: current } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status')
+    .select('id, status, payment_method, refund_status, order_number')
     .eq('id', orderId)
     .eq('business_id', profile.business_id)
     .maybeSingle();
@@ -241,6 +267,15 @@ export async function updateOrderRefund(orderId: string): Promise<{ error: strin
   }
 
   revalidateOrder(orderId);
+  await logAdminAudit(
+    { supabase, businessId: profile.business_id, adminUserId: user.id },
+    {
+      action: 'order.refund_marked',
+      entityType: 'order',
+      entityId: orderId,
+      summary: `Order #${formatOrderNumber(current.order_number ?? 0)} marked refunded`,
+    },
+  );
   return { error: null };
 }
 

@@ -23,7 +23,9 @@ notify pgrst, 'reload schema';
 ./supabase/scripts/deploy-push-functions.sh
 ```
 
-3. Set `SUPABASE_SERVICE_ROLE_KEY` on the **hosted admin** environment (never in mobile or delivery apps).
+   Edge functions `send-order-status-push` and `send-product-available-push` were deployed via CLI on 28 Oct 2026; redeploy after code changes.
+
+3. Set `SUPABASE_SERVICE_ROLE_KEY` on the **hosted admin** environment (never in mobile or delivery apps). See `admin/.env.example`.
 
 ## C. Admin on HTTPS
 

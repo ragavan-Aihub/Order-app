@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { notifyProductAvailablePush } from '@/lib/product-status-push';
 import { isSupabaseConfigured } from '@/config/env';
+import { logAdminAudit } from '@/services/admin-audit';
 import { createServerSupabaseClient } from '@/services/supabase/server';
 import { MAX_IMAGE_BYTES, uploadProductImageBytes } from '@/services/storage';
 
@@ -17,6 +18,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 type AdminContext = {
   supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>;
   businessId: string;
+  adminUserId: string;
 };
 
 async function requireAdmin(): Promise<AdminContext | { error: string }> {
@@ -41,7 +43,11 @@ async function requireAdmin(): Promise<AdminContext | { error: string }> {
   if (!profile || profile.role !== 'admin' || !profile.business_id) {
     return { error: 'You are not signed in as an admin.' };
   }
-  return { supabase, businessId: profile.business_id };
+  return { supabase, businessId: profile.business_id, adminUserId: user.id };
+}
+
+function auditCtx(ctx: AdminContext) {
+  return { supabase: ctx.supabase, businessId: ctx.businessId, adminUserId: ctx.adminUserId };
 }
 
 function parsePrice(raw: string): number | null {
@@ -72,7 +78,7 @@ export async function updateProductAvailability(
     .update({ available })
     .eq('id', productId)
     .eq('business_id', ctx.businessId)
-    .select('id')
+    .select('id, name')
     .maybeSingle();
   if (error || !data) {
     return { error: 'Could not update this product.' };
@@ -80,6 +86,12 @@ export async function updateProductAvailability(
   if (available) {
     await notifyProductAvailablePush(productId);
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'product.availability',
+    entityType: 'product',
+    entityId: productId,
+    summary: `${data.name} marked ${available ? 'available' : 'unavailable'}`,
+  });
   revalidatePath('/products');
   revalidatePath(`/products/${productId}`);
   return { error: null };
@@ -101,7 +113,7 @@ export async function updateProductActive(
     .update({ active })
     .eq('id', productId)
     .eq('business_id', ctx.businessId)
-    .select('id')
+    .select('id, name')
     .maybeSingle();
   if (error || !data) {
     if (error?.message?.includes('schema cache') || error?.code === 'PGRST204' || error?.code === 'PGRST205') {
@@ -112,6 +124,12 @@ export async function updateProductActive(
     }
     return { error: 'Could not update this product.' };
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'product.active',
+    entityType: 'product',
+    entityId: productId,
+    summary: `${data.name} set ${active ? 'active' : 'inactive'}`,
+  });
   revalidatePath('/products');
   return { error: null };
 }
@@ -127,7 +145,7 @@ export async function deleteProduct(productId: string): Promise<{ error: string 
 
   const { data: product } = await ctx.supabase
     .from('products')
-    .select('id, image_url')
+    .select('id, image_url, name')
     .eq('id', productId)
     .eq('business_id', ctx.businessId)
     .maybeSingle();
@@ -154,6 +172,12 @@ export async function deleteProduct(productId: string): Promise<{ error: string 
   if (error) {
     return { error: 'Could not delete this product.' };
   }
+  await logAdminAudit(auditCtx(ctx), {
+    action: 'product.delete',
+    entityType: 'product',
+    entityId: productId,
+    summary: `Deleted product ${product.name}`,
+  });
   revalidatePath('/products');
   revalidatePath(`/products/${productId}`);
   return { error: null };
@@ -246,14 +270,30 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
     ...(categoriesEnabled ? { category_id: categoryId } : {}),
   };
 
-  const query = existing
-    ? ctx.supabase.from('products').update(payload).eq('id', existing.id).eq('business_id', ctx.businessId)
-    : ctx.supabase.from('products').insert(payload);
-
-  const { error } = await query;
-  if (error) {
-    return { error: 'Could not save the product.' };
+  let savedId = existing?.id;
+  if (existing) {
+    const { error } = await ctx.supabase
+      .from('products')
+      .update(payload)
+      .eq('id', existing.id)
+      .eq('business_id', ctx.businessId);
+    if (error) {
+      return { error: 'Could not save the product.' };
+    }
+  } else {
+    const { data, error } = await ctx.supabase.from('products').insert(payload).select('id').maybeSingle();
+    if (error || !data) {
+      return { error: 'Could not save the product.' };
+    }
+    savedId = data.id;
   }
+
+  await logAdminAudit(auditCtx(ctx), {
+    action: existing ? 'product.update' : 'product.create',
+    entityType: 'product',
+    entityId: savedId ?? null,
+    summary: existing ? `Updated product ${name}` : `Added product ${name}`,
+  });
 
   revalidatePath('/products');
   revalidatePath('/');
@@ -603,6 +643,12 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
   }
 
   if (created > 0) {
+    await logAdminAudit(auditCtx(ctx), {
+      action: 'import.products_csv',
+      entityType: 'import',
+      summary: `Imported ${created} product${created === 1 ? '' : 's'} from CSV`,
+      details: { created, skipped },
+    });
     revalidatePath('/');
     revalidatePath('/products');
   }

@@ -51,5 +51,6 @@ Mark each file **done** in the Supabase SQL editor (or note date applied). Run i
 | [ ] | `20261019100000_product_notify_interests.sql` |
 | [ ] | `20261024100000_product_push_service_role_grants.sql` |
 | [ ] | `20261027220000_business_upi_qr.sql` |
+| [ ] | `20261028210000_admin_audit_log.sql` |
 
 If a migration fails because objects already exist, use the file’s `if not exists` / idempotent patterns; do not skip later files that depend on schema.
