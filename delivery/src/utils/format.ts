@@ -25,6 +25,7 @@ export function formatOrderListDate(value: string): string {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Asia/Kolkata',
     }).format(date);
   } catch {
     return date.toLocaleString('en-IN');

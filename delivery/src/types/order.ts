@@ -25,9 +25,11 @@ export type Order = {
 
 export type OrderItem = {
   id: string;
+  product_id?: string | null;
   product_name: string;
   quantity: number;
   subtotal: number;
+  image_url?: string | null;
 };
 
 export type OrderWithItems = Order & {

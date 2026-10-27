@@ -8,12 +8,14 @@ import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
+import { UpiPayBlock, UpiPayBlockLoading } from '@/components/UpiPayBlock';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { OrderItemsWithPlacedDiff } from '@/components/OrderItemsWithPlacedDiff';
 import {
   pickCustomerAdminOrderDiff,
   type CustomerAdminOrderDiff,
 } from '@/order-modifications/shop-modified';
+import { refreshBusiness } from '@/services/business';
 import { cancelMyOrder, getMyOrderById, getOrderModifications } from '@/services/orders';
 import {
   canCancelOrder,
@@ -34,6 +36,8 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [adminOrderDiff, setAdminOrderDiff] = useState<CustomerAdminOrderDiff | null>(null);
+  const [upiQrUrl, setUpiQrUrl] = useState<string | null>(null);
+  const [upiQrLoading, setUpiQrLoading] = useState(false);
 
   const refreshAdminModNotice = useCallback(async (orderId: string, items: OrderWithItems['order_items']) => {
     try {
@@ -59,6 +63,24 @@ export default function OrderDetailScreen() {
         setOrder(row);
         if (row) {
           await refreshAdminModNotice(row.id, row.order_items);
+          const needsUpi =
+            row.status === 'out_for_delivery' &&
+            row.payment_method !== 'cash' &&
+            row.payment_method !== 'upi';
+          if (needsUpi) {
+            setUpiQrLoading(true);
+            try {
+              const shop = await refreshBusiness();
+              const url = shop?.upi_qr_url?.trim();
+              setUpiQrUrl(url || null);
+            } catch {
+              setUpiQrUrl(null);
+            } finally {
+              setUpiQrLoading(false);
+            }
+          } else {
+            setUpiQrUrl(null);
+          }
         }
       } catch {
         if (!isRefresh) {
@@ -239,6 +261,21 @@ export default function OrderDetailScreen() {
             <Text style={styles.addressText}>{order.delivery_address}</Text>
             {order.pincode ? <Text style={styles.pincodeText}>Pincode {order.pincode}</Text> : null}
           </View>
+
+          {order.status === 'out_for_delivery' &&
+          order.payment_method !== 'cash' &&
+          order.payment_method !== 'upi' ? (
+            <>
+              <View style={styles.groupDivider} />
+              <View style={styles.groupSection}>
+                {upiQrLoading ? (
+                  <UpiPayBlockLoading />
+                ) : upiQrUrl ? (
+                  <UpiPayBlock qrUrl={upiQrUrl} amount={order.total_amount} />
+                ) : null}
+              </View>
+            </>
+          ) : null}
 
           <View style={styles.groupDivider} />
 

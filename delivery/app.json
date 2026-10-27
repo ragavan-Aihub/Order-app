@@ -7,13 +7,17 @@
     "icon": "./assets/images/icon.png",
     "scheme": "farm2flavour-delivery",
     "userInterfaceStyle": "light",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.farm2flavour.delivery"
     },
     "android": {
       "package": "com.farm2flavour.delivery",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F4F4F5",
         "foregroundImage": "./assets/images/icon.png"
@@ -22,13 +26,20 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow access to choose your shop UPI QR image."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#F5F5F4",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 180
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true

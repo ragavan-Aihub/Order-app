@@ -28,7 +28,7 @@ export default function DeliverLayout() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="index" options={{ title: "Today's deliveries" }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
     </Stack>
   );
