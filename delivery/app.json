@@ -16,13 +16,16 @@
       "bundleIdentifier": "com.farm2flavour.delivery"
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "package": "com.farm2flavour.delivery",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F4F4F5",
         "foregroundImage": "./assets/images/icon.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -44,6 +47,17 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "9289f5f2-592d-452d-b19d-94a9af1786b9"
+      }
+    },
+    "owner": "ragavananthan"
   }
 }
