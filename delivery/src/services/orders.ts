@@ -1,14 +1,28 @@
+import { logDeliveryAudit } from '@/services/admin-audit';
 import { enrichDeliveryOrderItems } from '@/services/order-item-images';
 import { notifyOrderStatusPush } from '@/services/order-status-push';
 import { getSupabaseClient } from '@/services/supabase';
+import { formatOrderNumber } from '@/utils/format';
 import { istTodayBounds } from '@/utils/ist-dates';
 import {
-  NEXT_STATUSES,
+  classifyStatusTransition,
+  isPaymentCollected,
+  normalizeOrderStatus,
+} from '@/services/order-status-flow';
+import {
   type Order,
   type OrderStatus,
   type OrderWithItems,
   type PaymentMethod,
 } from '@/types/order';
+
+export type DeliveryMutationResult = {
+  error: string | null;
+  /** No write needed — order already matches or moved ahead (e.g. admin updated). */
+  outcome?: 'ok' | 'already_applied' | 'updated_elsewhere';
+  currentStatus?: OrderStatus;
+  userMessage?: string;
+};
 
 /** Same queue as admin “Pending delivery”: new + confirmed + out for delivery (any date). */
 const LIST_STATUSES: OrderStatus[] = ['new', 'confirmed', 'out_for_delivery'];
@@ -100,7 +114,7 @@ export async function updateDeliveryOrderStatus(
   orderId: string,
   businessId: string,
   status: OrderStatus,
-): Promise<{ error: string | null }> {
+): Promise<DeliveryMutationResult> {
   const supabase = getSupabaseClient();
   if (!supabase) {
     return { error: 'Supabase is not configured.' };
@@ -108,7 +122,7 @@ export async function updateDeliveryOrderStatus(
 
   const { data: current, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status')
+    .select('id, status, payment_method, refund_status, order_number')
     .eq('id', orderId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -120,10 +134,15 @@ export async function updateDeliveryOrderStatus(
     return { error: 'Could not find this order.' };
   }
 
-  const rawStatus = current.status as string;
-  const currentStatus = (rawStatus === 'preparing' ? 'confirmed' : current.status) as OrderStatus;
-  if (!NEXT_STATUSES[currentStatus].includes(status)) {
-    return { error: 'That status change is not allowed.' };
+  const currentStatus = normalizeOrderStatus(current.status as string);
+  const conflict = classifyStatusTransition(currentStatus, status);
+  if (conflict) {
+    return {
+      error: conflict.outcome === 'blocked' ? conflict.message : null,
+      outcome: conflict.outcome,
+      currentStatus,
+      userMessage: conflict.message,
+    };
   }
 
   const paid = current.payment_method === 'cash' || current.payment_method === 'upi';
@@ -155,14 +174,26 @@ export async function updateDeliveryOrderStatus(
   }
 
   void notifyOrderStatusPush(orderId, status);
-  return { error: null };
+  const label = formatOrderNumber(current.order_number ?? 0);
+  const summary =
+    status === 'cancelled'
+      ? `[Delivery] Order #${label} cancelled (could not deliver)`
+      : `[Delivery] Order #${label} → ${status.replace(/_/g, ' ')}`;
+  await logDeliveryAudit(supabase, businessId, {
+    action: 'delivery.status_update',
+    entityType: 'order',
+    entityId: orderId,
+    summary,
+    details: { from: currentStatus, to: status },
+  });
+  return { error: null, outcome: 'ok', currentStatus: status };
 }
 
 export async function updateDeliveryOrderPayment(
   orderId: string,
   businessId: string,
   paymentMethod: PaymentMethod,
-): Promise<{ error: string | null }> {
+): Promise<DeliveryMutationResult> {
   if (paymentMethod !== 'cash' && paymentMethod !== 'upi' && paymentMethod !== 'pending') {
     return { error: 'Choose Cash, UPI or Not yet.' };
   }
@@ -174,7 +205,7 @@ export async function updateDeliveryOrderPayment(
 
   const { data: current, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status')
+    .select('id, status, payment_method, refund_status, order_number')
     .eq('id', orderId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -186,8 +217,22 @@ export async function updateDeliveryOrderPayment(
     return { error: 'Could not update this order.' };
   }
 
-  if (current.status === 'cancelled') {
-    return { error: 'Cannot record payment on a cancelled order.' };
+  const currentStatus = normalizeOrderStatus(current.status as string);
+  if (currentStatus === 'cancelled') {
+    return {
+      error: null,
+      outcome: 'updated_elsewhere',
+      currentStatus,
+      userMessage: 'This order was cancelled. Payment cannot be recorded here.',
+    };
+  }
+  if (current.payment_method === paymentMethod) {
+    return {
+      error: null,
+      outcome: 'already_applied',
+      currentStatus,
+      userMessage: 'Payment is already recorded for this order.',
+    };
   }
 
   const { data, error } = await supabase
@@ -205,20 +250,119 @@ export async function updateDeliveryOrderPayment(
     return { error: 'Could not update this order.' };
   }
 
-  return { error: null };
+  if (current.payment_method !== paymentMethod) {
+    await logDeliveryAudit(supabase, businessId, {
+      action: 'delivery.payment_update',
+      entityType: 'order',
+      entityId: orderId,
+      summary: `[Delivery] Order #${formatOrderNumber(current.order_number ?? 0)} payment → ${paymentMethod}`,
+      details: { from: current.payment_method, to: paymentMethod },
+    });
+  }
+
+  return { error: null, outcome: 'ok', currentStatus };
+}
+
+async function fetchOrderDeliverySnapshot(
+  orderId: string,
+  businessId: string,
+): Promise<
+  | { error: string }
+  | { status: OrderStatus; payment_method: PaymentMethod; order_number: number }
+> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return { error: 'Supabase is not configured.' };
+  }
+  const { data, error } = await supabase
+    .from('orders')
+    .select('status, payment_method, order_number')
+    .eq('id', orderId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+  if (error) {
+    return { error: error.message };
+  }
+  if (!data) {
+    return { error: 'Could not find this order.' };
+  }
+  return {
+    status: normalizeOrderStatus(data.status as string),
+    payment_method: data.payment_method as PaymentMethod,
+    order_number: data.order_number ?? 0,
+  };
+}
+
+/** Record cash/UPI after the order is already delivered (e.g. marked in admin). */
+export async function recordDeliveryPaymentOnly(
+  orderId: string,
+  businessId: string,
+  payment: 'cash' | 'upi' | 'pending',
+): Promise<DeliveryMutationResult> {
+  const snapshot = await fetchOrderDeliverySnapshot(orderId, businessId);
+  if ('error' in snapshot) {
+    return { error: snapshot.error };
+  }
+  if (snapshot.status !== 'delivered') {
+    return {
+      error: 'This order is not delivered yet. Use the delivery swipe on the order screen.',
+    };
+  }
+  if (isPaymentCollected(snapshot.payment_method)) {
+    return {
+      error: null,
+      outcome: 'already_applied',
+      currentStatus: 'delivered',
+      userMessage: 'Payment is already recorded for this delivered order.',
+    };
+  }
+  if (payment === 'pending') {
+    return {
+      error: null,
+      outcome: 'already_applied',
+      currentStatus: 'delivered',
+      userMessage:
+        'This order is already marked delivered. Outstanding payment must be updated in admin if needed.',
+    };
+  }
+  return updateDeliveryOrderPayment(orderId, businessId, payment);
 }
 
 export async function deliverOrderWithPayment(
   orderId: string,
   businessId: string,
   payment: 'cash' | 'upi' | 'pending',
-): Promise<{ error: string | null }> {
+): Promise<DeliveryMutationResult> {
+  const snapshot = await fetchOrderDeliverySnapshot(orderId, businessId);
+  if ('error' in snapshot) {
+    return { error: snapshot.error };
+  }
+
+  if (snapshot.status === 'delivered') {
+    if (isPaymentCollected(snapshot.payment_method)) {
+      return {
+        error: null,
+        outcome: 'already_applied',
+        currentStatus: 'delivered',
+        userMessage:
+          'This order was already marked delivered with payment recorded (for example in admin).',
+      };
+    }
+    return recordDeliveryPaymentOnly(orderId, businessId, payment);
+  }
+
   const statusResult = await updateDeliveryOrderStatus(orderId, businessId, 'delivered');
   if (statusResult.error) {
     return statusResult;
   }
+  if (
+    statusResult.outcome === 'updated_elsewhere' &&
+    statusResult.currentStatus !== 'delivered'
+  ) {
+    return statusResult;
+  }
   if (payment === 'pending') {
-    return { error: null };
+    return { error: null, outcome: 'ok', currentStatus: 'delivered' };
   }
   return updateDeliveryOrderPayment(orderId, businessId, payment);
 }

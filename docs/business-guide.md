@@ -532,7 +532,7 @@ Use this when you need accountability: which admin changed an order status, edit
 
 **Filters:** date range (default last 7 days), area (orders, products, customers, and so on), and search on the summary text.
 
-Each row shows **when**, **who** (admin name or email), **area**, and a short **summary**. Order-related lines link to that order. Shop edits to order items (quantities and totals) appear here even when no separate note was added.
+Each row shows **when**, **who** (admin name or email), **area**, and a short **summary**. Order-related lines link to that order. Shop edits to order items (quantities and totals) appear here even when no separate note was added. Changes from the **delivery app** (status, payment, mark delivered) appear with **[Delivery]** in the summary.
 
 ## 5. All business rules in one place
 

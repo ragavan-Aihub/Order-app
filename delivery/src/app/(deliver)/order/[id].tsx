@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/AuthContext';
 import { DeliverPaymentModal } from '@/components/DeliverPaymentModal';
+import { OrderUpdateNotice } from '@/components/OrderUpdateNotice';
 import { DeliveryMapThumb } from '@/components/DeliveryMapThumb';
 import { OrderItemThumb } from '@/components/OrderItemThumb';
 import { OrderStatusBadge } from '@/components/OrderStatusBadge';
@@ -24,6 +25,7 @@ import { SectionCard } from '@/components/SectionCard';
 import { SwipeActionButton, type SwipeActionKind } from '@/components/SwipeActionButton';
 import { colors, radius, spacing } from '@/config/theme';
 import { getDeliveryOrder, updateDeliveryOrderStatus } from '@/services/orders';
+import { isPaymentCollected, normalizeOrderStatus } from '@/services/order-status-flow';
 import { NEXT_STATUSES, type OrderStatus, type OrderWithItems } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
 
@@ -93,7 +95,13 @@ export default function DeliveryOrderScreen() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliverModalOpen, setDeliverModalOpen] = useState(false);
+  const [paymentOnlyModal, setPaymentOnlyModal] = useState(false);
   const [confirmedBanner, setConfirmedBanner] = useState(false);
+  const [notice, setNotice] = useState<{
+    variant: 'info' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!profile?.business_id || !orderId) {
@@ -111,13 +119,24 @@ export default function DeliveryOrderScreen() {
     }
   }, [orderId, profile?.business_id]);
 
-  useEffect(() => {
-    void (async () => {
-      setLoading(true);
-      await load();
-      setLoading(false);
-    })();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.business_id || !orderId) {
+        return;
+      }
+      let active = true;
+      void (async () => {
+        setLoading(true);
+        await load();
+        if (active) {
+          setLoading(false);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [load, orderId, profile?.business_id]),
+  );
 
   useEffect(() => {
     if (!confirmedBanner) {
@@ -132,12 +151,31 @@ export default function DeliveryOrderScreen() {
       return;
     }
     setUpdating(true);
-    const { error: updateError } = await updateDeliveryOrderStatus(order.id, profile.business_id, next);
+    const result = await updateDeliveryOrderStatus(order.id, profile.business_id, next);
     setUpdating(false);
-    if (updateError) {
-      Alert.alert('Could not update', updateError);
+
+    if (result.error) {
+      await load();
+      setNotice({
+        variant: 'error',
+        title: 'Could not update',
+        message: result.error,
+      });
       return;
     }
+
+    if (result.outcome === 'already_applied' || result.outcome === 'updated_elsewhere') {
+      await load();
+      setNotice({
+        variant: 'info',
+        title: result.outcome === 'already_applied' ? 'Already up to date' : 'Updated in admin',
+        message:
+          result.userMessage ??
+          'This order changed while you were on this screen. The latest status is shown below.',
+      });
+      return;
+    }
+
     if (next === 'delivered') {
       router.back();
       return;
@@ -148,12 +186,68 @@ export default function DeliveryOrderScreen() {
     await load();
   }
 
-  function onSwipeComplete(next: OrderStatus) {
+  async function onSwipeComplete(next: OrderStatus) {
+    if (!profile?.business_id || !orderId) {
+      return;
+    }
+    setUpdating(true);
+    let fresh: OrderWithItems | null = null;
+    try {
+      fresh = await getDeliveryOrder(orderId, profile.business_id);
+      if (fresh) {
+        setOrder(fresh);
+      }
+    } catch {
+      /* keep local copy */
+    }
+    setUpdating(false);
+
+    const status = normalizeOrderStatus((fresh ?? order)?.status ?? 'new');
+
     if (next === 'delivered') {
+      if (status === 'delivered') {
+        if (isPaymentCollected((fresh ?? order)!.payment_method)) {
+          setNotice({
+            variant: 'info',
+            title: 'Already delivered',
+            message:
+              'This order was marked delivered in admin and payment is already recorded. No further updates here.',
+          });
+          return;
+        }
+        setPaymentOnlyModal(true);
+        setDeliverModalOpen(true);
+        return;
+      }
+      if (status !== 'out_for_delivery') {
+        setNotice({
+          variant: 'info',
+          title: 'Updated in admin',
+          message: `This order is now ${status.replace(/_/g, ' ')}. The screen has been refreshed.`,
+        });
+        return;
+      }
+      setPaymentOnlyModal(false);
       setDeliverModalOpen(true);
       return;
     }
+
+    const expectedNext = primaryNextAction(status);
+    if (expectedNext !== next) {
+      setNotice({
+        variant: 'info',
+        title: 'Updated in admin',
+        message: 'That delivery step no longer applies. The latest status is shown below.',
+      });
+      return;
+    }
+
     void applyStatus(next);
+  }
+
+  function openPaymentModal() {
+    setPaymentOnlyModal(true);
+    setDeliverModalOpen(true);
   }
 
   async function copyAddress() {
@@ -180,16 +274,23 @@ export default function DeliveryOrderScreen() {
     );
   }
 
-  const rawStatus = order.status as string;
-  const normalizedStatus = (rawStatus === 'preparing' ? 'confirmed' : order.status) as OrderStatus;
-  const nextAction = primaryNextAction(normalizedStatus);
+  const normalizedStatus = normalizeOrderStatus(order.status as string);
+  const nextAction = normalizedStatus === 'delivered' ? null : primaryNextAction(normalizedStatus);
   const swipeLabel = swipeLabelForNext(nextAction);
+  const paymentStillPending = !isPaymentCollected(order.payment_method);
+  const showRecordPayment = normalizedStatus === 'delivered' && paymentStillPending;
   const itemCount = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
   const lineCount = order.order_items.length;
   const addressText = fullAddress(order);
-  const needsScroll = lineCount > ITEM_SCROLL_THRESHOLD || addressText.length > 120;
-  const compact = !needsScroll;
-  const footerPad = nextAction ? (compact ? 88 : 120) + insets.bottom : spacing.xl;
+  const hasFooter = Boolean((nextAction && swipeLabel) || showRecordPayment);
+  const needsScroll =
+    lineCount > ITEM_SCROLL_THRESHOLD ||
+    addressText.length > 120 ||
+    (normalizedStatus === 'delivered' && !hasFooter);
+  const compact = !needsScroll && normalizedStatus !== 'delivered';
+  const footerPad = hasFooter
+    ? (compact ? 88 : 120) + Math.max(insets.bottom, 6)
+    : Math.max(insets.bottom, spacing.lg);
 
   const body = (
     <>
@@ -293,7 +394,12 @@ export default function DeliveryOrderScreen() {
 
         <ScrollView
           style={styles.bodyScroll}
-          contentContainerStyle={[styles.scroll, compact && styles.scrollCompact, { paddingBottom: footerPad }]}
+          contentContainerStyle={[
+            styles.scroll,
+            compact && styles.scrollCompact,
+            !hasFooter && styles.scrollContentFill,
+            { paddingBottom: footerPad },
+          ]}
           scrollEnabled={needsScroll}
           showsVerticalScrollIndicator={needsScroll}
           bounces={needsScroll}
@@ -311,8 +417,20 @@ export default function DeliveryOrderScreen() {
               disabled={updating}
               compact={compact}
               variant={nextAction === 'delivered' ? 'success' : 'primary'}
-              onComplete={() => onSwipeComplete(nextAction)}
+              onComplete={() => void onSwipeComplete(nextAction)}
             />
+          </View>
+        ) : showRecordPayment ? (
+          <View style={[styles.footer, compact && styles.footerCompact, { paddingBottom: Math.max(insets.bottom, 6) }]}>
+            {!compact ? <Text style={styles.footerTitle}>Payment</Text> : null}
+            <Pressable
+              onPress={openPaymentModal}
+              style={({ pressed }) => [styles.recordPayBtn, pressed && styles.actionPressed]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.recordPayLabel}>Record payment collected</Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -323,13 +441,28 @@ export default function DeliveryOrderScreen() {
           businessId={profile.business_id}
           orderId={order.id}
           amount={order.total_amount}
-          onClose={() => setDeliverModalOpen(false)}
+          paymentOnly={paymentOnlyModal}
+          onClose={() => {
+            setDeliverModalOpen(false);
+            setPaymentOnlyModal(false);
+          }}
+          onRefreshOrder={() => load()}
           onDelivered={() => {
             setDeliverModalOpen(false);
+            setPaymentOnlyModal(false);
             router.back();
           }}
         />
       ) : null}
+
+      <OrderUpdateNotice
+        visible={notice !== null}
+        variant={notice?.variant ?? 'info'}
+        title={notice?.title ?? ''}
+        message={notice?.message ?? ''}
+        actionLabel="Got it"
+        onAction={() => setNotice(null)}
+      />
     </>
   );
 }
@@ -356,6 +489,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollCompact: {
+    flexGrow: 1,
+  },
+  scrollContentFill: {
     flexGrow: 1,
   },
   backBtn: {
@@ -549,6 +685,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.success,
+  },
+  recordPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+  },
+  recordPayLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
   },
   error: {
     color: colors.danger,

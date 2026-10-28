@@ -16,7 +16,7 @@ import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMet
 import { UpiQrPanel } from '@/components/UpiQrPanel';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { getBusinessUpiQrUrl, uploadBusinessUpiQrFromPickerAsset } from '@/services/business';
-import { deliverOrderWithPayment } from '@/services/orders';
+import { deliverOrderWithPayment, recordDeliveryPaymentOnly } from '@/services/orders';
 import { formatPrice } from '@/utils/format';
 
 type Props = {
@@ -26,6 +26,9 @@ type Props = {
   amount: number;
   onClose: () => void;
   onDelivered: () => void;
+  onRefreshOrder?: () => void | Promise<void>;
+  /** Order already delivered (e.g. in admin) — only collect payment. */
+  paymentOnly?: boolean;
 };
 
 export function DeliverPaymentModal({
@@ -35,6 +38,8 @@ export function DeliverPaymentModal({
   amount,
   onClose,
   onDelivered,
+  onRefreshOrder,
+  paymentOnly = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [payChoice, setPayChoice] = useState<PaymentChoice | null>(null);
@@ -43,6 +48,7 @@ export function DeliverPaymentModal({
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
 
   const loadQr = useCallback(async () => {
     setLoadingQr(true);
@@ -60,6 +66,7 @@ export function DeliverPaymentModal({
     if (!visible) {
       setPayChoice(null);
       setError(null);
+      setConflict(null);
       return;
     }
     void loadQr();
@@ -105,11 +112,23 @@ export function DeliverPaymentModal({
     }
     setSubmitting(true);
     setError(null);
+    setConflict(null);
     const payment = payChoice === 'later' ? 'pending' : payChoice;
-    const result = await deliverOrderWithPayment(orderId, businessId, payment);
+    const result = paymentOnly
+      ? await recordDeliveryPaymentOnly(orderId, businessId, payment)
+      : await deliverOrderWithPayment(orderId, businessId, payment);
     setSubmitting(false);
     if (result.error) {
       setError(result.error);
+      await onRefreshOrder?.();
+      return;
+    }
+    if (result.outcome === 'already_applied' || result.outcome === 'updated_elsewhere') {
+      setConflict(
+        result.userMessage ??
+          'This order was updated elsewhere. Close this screen and check the latest status.',
+      );
+      await onRefreshOrder?.();
       return;
     }
     onDelivered();
@@ -125,9 +144,11 @@ export function DeliverPaymentModal({
             <Ionicons name="chevron-back" size={28} color={colors.text} />
           </Pressable>
           <View style={styles.headerText}>
-            <Text style={styles.title}>Mark delivered</Text>
+            <Text style={styles.title}>{paymentOnly ? 'Record payment' : 'Mark delivered'}</Text>
             <Text style={styles.subtitle}>
-              Total {formatPrice(amount)} · payment collected?
+              {paymentOnly
+                ? `Order already delivered · total ${formatPrice(amount)}`
+                : `Total ${formatPrice(amount)} · payment collected?`}
             </Text>
           </View>
         </View>
@@ -169,36 +190,63 @@ export function DeliverPaymentModal({
             </View>
           ) : null}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {conflict ? (
+            <View style={styles.conflictCard}>
+              <Ionicons name="sync-circle-outline" size={26} color={colors.primary} />
+              <View style={styles.conflictTextWrap}>
+                <Text style={styles.conflictTitle}>Order changed</Text>
+                <Text style={styles.conflictBody}>{conflict}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {error ? (
+            <View style={styles.errorCard}>
+              <Ionicons name="alert-circle-outline" size={22} color={colors.danger} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-          <Pressable
-            onPress={onClose}
-            style={({ pressed }) => [styles.cancelBtn, pressed && styles.btnPressed]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.cancelLabel}>Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void confirmDeliver()}
-            disabled={!canSubmit}
-            style={({ pressed }) => [
-              styles.confirmBtn,
-              !canSubmit && styles.confirmDisabled,
-              pressed && canSubmit && styles.btnPressed,
-            ]}
-            accessibilityRole="button"
-          >
-            {submitting ? (
-              <ActivityIndicator color={colors.surface} />
-            ) : (
-              <>
-                <Text style={styles.confirmLabel}>Mark delivered</Text>
-                <Ionicons name="checkmark-circle" size={22} color={colors.surface} />
-              </>
-            )}
-          </Pressable>
+          {conflict ? (
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [styles.confirmBtn, styles.conflictBtn, pressed && styles.btnPressed]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.confirmLabel}>Close and review order</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [styles.cancelBtn, pressed && styles.btnPressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.cancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void confirmDeliver()}
+                disabled={!canSubmit}
+                style={({ pressed }) => [
+                  styles.confirmBtn,
+                  !canSubmit && styles.confirmDisabled,
+                  pressed && canSubmit && styles.btnPressed,
+                ]}
+                accessibilityRole="button"
+              >
+                {submitting ? (
+                  <ActivityIndicator color={colors.surface} />
+                ) : (
+                  <>
+                    <Text style={styles.confirmLabel}>{paymentOnly ? 'Save payment' : 'Mark delivered'}</Text>
+                    <Ionicons name="checkmark-circle" size={22} color={colors.surface} />
+                  </>
+                )}
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -310,10 +358,48 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 16,
   },
-  error: {
+  conflictCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  conflictTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  conflictTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primaryDark,
+  },
+  conflictBody: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.text,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: '#FEF2F2',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    flex: 1,
     color: colors.danger,
-    textAlign: 'center',
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  conflictBtn: {
+    flex: 1,
   },
   loader: {
     marginVertical: spacing.lg,
