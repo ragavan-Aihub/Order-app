@@ -687,6 +687,8 @@ Steps:
 
 **Production hosting:** [Vercel](https://vercel.com) — Git import **`Order-app`**, **Root Directory `admin`**, `admin/vercel.json` pins Next.js build. Operator guide: [docs/vercel-admin-deploy.md](vercel-admin-deploy.md).
 
+**Version:** `admin/config/admin-version.ts` (shown on sign-in and in the menu). Bug fix bumps the last number (`1.0.1`); a new feature bumps the middle number (`1.1.0`). This is not a Play Store version. See [release-versions.md](release-versions.md).
+
 Requirements:
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and (for push) `SUPABASE_SERVICE_ROLE_KEY` in Vercel env.

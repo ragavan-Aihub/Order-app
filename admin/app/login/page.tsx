@@ -1,4 +1,5 @@
 import { LoginForm } from '@/components/LoginForm';
+import { ADMIN_PANEL_VERSION } from '@/config/admin-version';
 
 export default function LoginPage() {
   return (
@@ -25,6 +26,7 @@ export default function LoginPage() {
             Sign in with the email and password shared by the developer.
           </p>
           <LoginForm />
+          <p className="mt-8 text-center text-xs text-stone-500">Version {ADMIN_PANEL_VERSION}</p>
         </div>
       </div>
     </div>

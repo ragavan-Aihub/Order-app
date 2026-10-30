@@ -1,6 +1,6 @@
 # Feature and bug-fix versions
 
-How to ship a **bug fix** or a **new feature** so customers and delivery staff get the right app. Admin website changes do not use these numbers: deploy admin on Vercel and it is live for everyone who refreshes the browser.
+How to ship a **bug fix** or a **new feature**. The customer and delivery apps use Play or APK version codes. The **admin panel has its own version** and is not on the Play Store.
 
 ## Two numbers on each phone app
 
@@ -17,12 +17,23 @@ Rules:
 - Never reuse a version code. Play Store rejects an upload that is not higher than the last one.
 - Changing only the admin website or the database does **not** need a new phone app, unless the phone screens changed.
 
+## Admin panel (website only)
+
+One number, in `admin/config/admin-version.ts` (also `admin/package.json`). Staff see **Version 1.0.0** on the sign-in page and at the bottom of the menu. There is no Play Store version code and no update popup. After you deploy on Vercel, a browser refresh shows the new version.
+
+| Kind | Example |
+|------|---------|
+| Bug fix | `1.0.0` → `1.0.1` |
+| New feature | `1.0.1` → `1.1.0` |
+
+Change that number in the same commit as the admin fix or feature, then deploy. Customers do not install anything.
+
 ## What each release needs
 
 | Change | Customer app | Delivery app | Admin website |
 |--------|----------------|--------------|----------------|
 | Screen, button, or app bug | New build (APK for testing, AAB for Play) | New APK if that app changed | No |
-| Shop website only | No | No | Deploy on Vercel |
+| Shop website only | No | No | Bump admin version, then deploy on Vercel |
 | Database only | No, unless the app must force an update | No | No |
 
 Preview APKs do not update themselves. People install the new file. After the customer app is on Play, people update from the Play Store.
@@ -55,6 +66,7 @@ Add a row each time you ship. Copy the “What’s new” line into Play Console
 |------|-----|------|---------|--------------|------------|
 | — | Customer | — | 1.0.0 | 23 | Current build in the repo (not yet a Play production release). |
 | — | Delivery | — | 1.0.0 | 3 | Current preview APK in the repo. |
+| — | Admin panel | — | 1.0.0 | — | Website version. Not a Play Store build. |
 
 ## Related
 

@@ -18,6 +18,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/LogoutButton';
 import { PageSkeleton } from '@/components/PageSkeleton';
+import { ADMIN_PANEL_VERSION } from '@/config/admin-version';
 
 const ICON = { size: 18, strokeWidth: 2, className: 'shrink-0', 'aria-hidden': true } as const;
 
@@ -208,6 +209,7 @@ export function AdminShell({
             <p className="truncate px-3 text-sm font-medium text-stone-700" title={adminLabel}>
               {adminLabel}
             </p>
+            <p className="px-3 text-xs text-stone-500">Version {ADMIN_PANEL_VERSION}</p>
             <LogoutButton />
           </div>
         </aside>
