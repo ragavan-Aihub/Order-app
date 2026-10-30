@@ -7,7 +7,7 @@
 -- AFTER THIS SCRIPT (manual — see docs/go-live-checklist.md):
 --   1. Storage: delete objects under product-images/{business_id}/ when re-importing images.
 --   2. Auth: delete customer test users (Authentication → Users). Keep admin email accounts.
---   3. Remove Supabase SMS test OTP pairs; configure Twilio when ready.
+--   3. Remove Supabase SMS test OTP pairs; configure 2Factor.in Send SMS hook when ready.
 --   4. Re-import products (admin CSV) and re-create communities if used.
 --   5. Test phones: clear app storage or reinstall APK.
 

@@ -63,6 +63,50 @@ Send the email and password to the owner through a private channel. They sign in
 
 Never share the service-role key, database password, or dashboard access.
 
+## 6. Change admin login email
+
+Login uses **Supabase Auth email + password** (same for the **delivery** app). There is no “change email” screen in the admin panel yet — update in Supabase, then keep `profiles` in sync.
+
+### Option A — Dashboard (recommended)
+
+1. Supabase → **Authentication** → **Users** → open the admin user.
+2. **Edit** → set the new **Email** → save (auto-confirm if you tick confirm email, or the user confirms via link if your project requires it).
+3. Run in the **SQL editor** (replace UUID and email):
+
+```sql
+update public.profiles
+set email = 'new-owner@example.com'
+where id = 'AUTH_USER_UUID' and role = 'admin';
+```
+
+4. Sign in on the admin panel and delivery app with the **new email** and the **same password** (unless you also reset password in step 2).
+
+### Option B — New user
+
+If you replace the Auth user (delete old + add new):
+
+1. **Deleting** the old user also **deletes** their `profiles` row (`on delete cascade`).
+2. Create the new user in Authentication (auto-confirm email).
+3. **Required:** run step **4** again — `insert into public.profiles …` with the **new** user UUID and your existing `business_id`. Template: `supabase/scripts/create-admin-profile.sql`.
+
+Without that insert, login succeeds in Auth but the app shows **This account is not authorized for the admin panel.**
+
+### Change display name only
+
+To change the label in `profiles.name` (not login email):
+
+```sql
+update public.profiles
+set name = 'Shop manager name'
+where id = 'AUTH_USER_UUID' and role = 'admin';
+```
+
+### Change password
+
+Authentication → Users → admin user → **Send password recovery** or set a new password in the dashboard. Share the new password privately.
+
+Template script: `supabase/scripts/change-admin-email.sql`.
+
 ## Apps
 
 Use only the anon key in:
@@ -72,4 +116,4 @@ Use only the anon key in:
 
 ## Customer OTP
 
-Phone login is configured in the dashboard, not in the apps. See `supabase/documentation/phone-otp.md`. Keep the test number; add Twilio (not Twilio Verify) for live SMS.
+Phone login is configured in the dashboard, not in the apps. See `supabase/documentation/phone-otp.md`. Keep the test number; use the Send SMS hook with 2Factor.in for live SMS (not Twilio).

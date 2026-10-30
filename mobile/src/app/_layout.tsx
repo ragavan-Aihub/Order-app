@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CartProvider } from '@/cart/CartContext';
+import { AppUpdatePrompt } from '@/components/AppUpdatePrompt';
 import { loadAddressBook } from '@/cart/address-book';
 import { loadCart } from '@/cart/cart-storage';
 import { OfflineScreen } from '@/components/OfflineScreen';
@@ -77,6 +78,7 @@ export default function RootLayout() {
       <CartProvider>
         <NetworkProvider>
           <StatusBar style="dark" />
+          <AppUpdatePrompt />
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: colors.surface },

@@ -181,7 +181,7 @@ li {
 <h1>Ordering App: Technical Guide</h1>
 <p class="subtitle">Architecture, code, database and operations for developers and technical architects.</p>
 
-<p class="meta">Version 1 &middot; Last updated 4 October 2026</p>
+<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
 
 </div>
 
@@ -262,18 +262,17 @@ li {
 </tr>
 </tbody></table>
 <h2>1. Architecture</h2>
-<p>Three parts share one Supabase project:</p>
-<pre><code>+---------------------------+          +---------------------------+
-|  Customer app (mobile/)   |          |  Admin panel (admin/)     |
-|  Expo / React Native      |          |  Next.js (App Router)     |
-|  Android APK              |          |  Server components and    |
-|                           |          |  server actions           |
-+-------------+-------------+          +------+-------------+------+
-              |                               |             |
-              | supabase-js (anon key)        | supabase-js | /api/v1  (Partner API)
-              | phone OTP session             | (anon key)  | /api/sam (voice)
-              |                               | email login |
-              v                               v             v
+<p>Three client apps share one Supabase project:</p>
+<pre><code>+---------------------------+  +---------------------------+  +---------------------------+
+|  Customer app (mobile/)   |  |  Delivery app (delivery/) |  |  Admin panel (admin/)     |
+|  Expo / React Native      |  |  Expo / React Native      |  |  Next.js (App Router)     |
+|  Android APK              |  |  Android APK (staff)      |  |  Server components and    |
+|  Phone OTP                |  |  Email login (admin role) |  |  server actions           |
++-------------+-------------+  +-------------+-------------+  +------+-------------+------+
+              |                            |                          |             |
+              | supabase-js (anon key)     | supabase-js (anon key)   | supabase-js | /api/v1
+              |                            |                          | (anon key)  | /api/sam
+              v                            v                          v             v
 +-------------------------------------------------------------------+
 |                         Supabase                                  |
 |  Auth: phone OTP (customers, SMS by Twilio), email (admins)       |
@@ -331,18 +330,24 @@ li {
     app.json, app.config.js, eas.json
     src/
       app/                  Expo Router screens (file = route)
-        (shop)/             Tab group: home, buy-again, orders, cart, account, ...
-        order/[id].tsx      Order details
+        (shop)/             Tab group: home, buy-again, orders; hidden: cart, account, categories
+        order/[id].tsx      Order details (progress cards, UPI QR when applicable)
         address/form.tsx    Add or edit an address
         confirmation.tsx, new-order.tsx, checkout.tsx, login.tsx, verify.tsx, sam.tsx
       cart/                 Cart state, edit mode, address book, submit and limits
-      catalog/              ShopCatalogContext (products, categories, business)
-      components/           UI components (ProductCard, ModifyOrderBar, OrderProgress, ...)
+      catalog/              ShopCatalogContext, home-filter (category selection)
+      components/           ProductCard, HomeProductGridItem, OrderProgress, PaymentBadge, UpiPayBlock, ...
       services/             Supabase calls (orders, addresses, auth, products, ...)
       sam/                  Voice ordering client and NewOrderAddressPicker
       network/              NetworkProvider (online or offline)
       config/               env.ts, constants.ts, theme.ts
       types/, utils/
+  delivery/                 Delivery staff app (Expo, admin email login)
+    src/
+      app/(deliver)/        Queue list, order detail, swipe status actions
+      auth/                 AuthContext (profiles.role = admin)
+      components/           DeliverPaymentModal, UpiQrPanel, SwipeActionButton, ...
+      services/             orders.ts (delivery queue), business.ts (upi_qr_url upload)
   admin/                    Admin panel (Next.js)
     proxy.ts                Session refresh and login redirect (replaces middleware)
     app/
@@ -395,6 +400,11 @@ li {
 <td></td>
 <td>AsyncStorage</td>
 <td>for session, cart and catalog cache</td>
+</tr>
+<tr>
+<td>Delivery app</td>
+<td>Same Expo / RN stack as customer app</td>
+<td>shares patterns, separate <code>app.json</code> and package</td>
 </tr>
 <tr>
 <td>Admin panel</td>
@@ -470,6 +480,11 @@ cp admin/.env.example admin/.env
 <td>Customer app</td>
 <td><code>npm run mobile</code> (root) or <code>cd mobile &amp;&amp; npx expo start</code></td>
 <td>Open in Expo Go or a development build</td>
+</tr>
+<tr>
+<td>Delivery app</td>
+<td><code>cd delivery &amp;&amp; npx expo start</code></td>
+<td>Admin email login; copy <code>delivery/.env.example</code> to <code>.env</code></td>
 </tr>
 <tr>
 <td>PDF guides</td>
@@ -575,6 +590,11 @@ cp admin/.env.example admin/.env
 <td>Supabase anon key</td>
 </tr>
 <tr>
+<td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+<td>Recommended (hosted)</td>
+<td>Server-only; invokes Edge Functions for order/product push after admin actions. Never expose to Expo apps.</td>
+</tr>
+<tr>
 <td><code>OLLAMA_URL</code></td>
 <td>No</td>
 <td>Local AI server for voice ordering, for example <code>http://127.0.0.1:11434</code></td>
@@ -598,7 +618,7 @@ cp admin/.env.example admin/.env
 <tbody><tr>
 <td><code>businesses</code></td>
 <td>One row per shop</td>
-<td><code>business_name</code>, <code>logo_url</code>, <code>banner_url</code>, <code>phone</code>, <code>email</code>, <code>address</code>, <code>description</code>, <code>communities_enabled</code>, <code>categories_enabled</code></td>
+<td><code>business_name</code>, <code>logo_url</code>, <code>banner_url</code>, <code>upi_qr_url</code>, <code>phone</code>, <code>email</code>, <code>address</code>, <code>description</code>, <code>communities_enabled</code>, <code>categories_enabled</code></td>
 </tr>
 <tr>
 <td><code>profiles</code></td>
@@ -1083,20 +1103,30 @@ cp admin/.env.example admin/.env
 <td><code>order_modifications</code></td>
 <td><code>orders.items_revision</code>, <code>order_modifications</code> audit table, shared pricing helpers, <code>admin_replace_order_items</code>, customer replace extended with audit + optimistic locking, RLS for customers and admins to read history</td>
 </tr>
+<tr>
+<td>…</td>
+<td>(see <code>supabase/migrations/</code>)</td>
+<td>Push notifications, product notify interests, link app addresses to customer, admin revert snapshots, etc.</td>
+</tr>
+<tr>
+<td>47</td>
+<td><code>business_upi_qr</code></td>
+<td><code>businesses.upi_qr_url</code> for pay-at-delivery UPI QR (customer order detail + delivery app upload)</td>
+</tr>
 </tbody></table>
-<p><strong>Note:</strong> <code>supabase/documentation/admin-setup.md</code> lists migrations only up to <code>admin_customers</code>. Use the folder as the source of truth.</p>
+<p><strong>Note:</strong> <code>supabase/documentation/admin-setup.md</code> lists migrations only up to <code>admin_customers</code>. Use the folder as the source of truth (47 files as of Oct 2026).</p>
 <h2>6. Customer app internals</h2>
 <h3>6.1 Navigation (Expo Router)</h3>
 <pre><code>_layout.tsx  (providers: Network, ShopCatalog, Cart)
   index.tsx              Entry: decides welcome, login or home
   login.tsx, verify.tsx  Phone OTP
   (shop)/  tabs
-     home                Visible tab
-     buy-again           Visible tab
-     orders              Visible tab (My orders)
-     cart                Hidden tab (stays mounted, opened by View cart)
-     account             Hidden tab
-     categories          Hidden (Phase 2)
+     home                Visible tab; category chips fixed under search; product grid FlatList 2 columns
+     buy-again           Visible tab (&quot;Order again&quot; label)
+     orders              Visible tab; screen title &quot;Your Orders&quot;; list cards without order #
+     cart                Hidden tab (opened by View cart)
+     account             Hidden tab (avatar on Home)
+     categories          Hidden route (categories also on Home when enabled)
      reorder             Hidden, redirects
   checkout.tsx           &quot;Saved addresses&quot;
   address/form.tsx       Add or edit address
@@ -1257,13 +1287,24 @@ cp admin/.env.example admin/.env
 <li><code>src/cart/address-book.ts</code> switches the address at once (optimistic update), saves in the background and reloads if the save fails.</li>
 <li>City and state come from <code>api.postalpincode.in</code> by pincode.</li>
 </ul>
-<h3>6.7 Order tracking</h3>
+<h3>6.7 Order tracking and UPI at delivery</h3>
+<ul>
+<li><strong>List:</strong> <code>(shop)/orders.tsx</code> — headline from <code>formatOrderListHeadline</code>, product thumbs via <code>getMyOrdersWithItems</code> + image enrichment; payment badge below thumbs when pending/refund.</li>
+<li><strong>Detail:</strong> <code>order/[id].tsx</code> — section cards, <code>OrderProgress</code>, <code>PaymentBadge</code>, deliver-to inset; loads <code>upi_qr_url</code> from <code>refreshBusiness()</code> when status is <code>out_for_delivery</code> and payment is not collected (<code>UpiPayBlock</code>).</li>
+<li><strong>Helpers:</strong> <code>formatOrderListHeadline</code>, <code>formatPlacedAtLine</code> in <code>utils/format.ts</code>.</li>
+</ul>
 <p><code>src/components/OrderProgress.tsx</code> draws Placed, Confirmed, Out for delivery and Delivered, with the time of each step from <code>order_status_events</code> (<code>getMyOrderById</code> loads them). If the events cannot be read (migration 34 not run), only the placed time shows.</p>
-<h3>6.8 App configuration</h3>
+<h3>6.8 Home catalog performance</h3>
+<ul>
+<li>Products sorted once (<code>sortProductsForDisplay</code> on catalog load); category and search only filter.</li>
+<li>Category selection: <code>catalog/home-filter.ts</code> (<code>assignHomeCategoryId</code> avoids duplicate subscriber updates on chip tap); <code>startTransition</code> for filter state.</li>
+<li>Product grid: <code>FlatList</code> with <code>numColumns={2}</code>, memoized <code>HomeProductGridItem</code> and <code>ProductCard</code>; grid cells use <code>width: &#39;50%&#39;</code> so an odd last row does not stretch full width.</li>
+</ul>
+<h3>6.9 App configuration</h3>
 <ul>
 <li><code>app.json</code>: app name, slug, URL scheme, Android package (<code>com.&lt;business&gt;.app</code>) and <code>versionCode</code>.</li>
 <li><code>app.config.js</code>: when <code>EXPO_PUBLIC_VOICE_ORDERING</code> is not <code>true</code>, removes the speech plugin and blocks the <code>RECORD_AUDIO</code> permission.</li>
-<li><code>expo-location</code> and <code>react-native-maps</code> are installed but not used (map entry was dropped).</li>
+<li><code>expo-location</code> and <code>react-native-maps</code> are installed in the customer app but not used for address entry (map entry was dropped). The delivery app uses <code>react-native-maps</code> for a map preview on order detail.</li>
 </ul>
 <h2>7. Admin panel internals</h2>
 <h3>7.1 Request flow</h3>
@@ -1360,7 +1401,37 @@ cp admin/.env.example admin/.env
 <td>Hides next-step buttons on the orders list</td>
 </tr>
 </tbody></table>
-<h3>7.4 Order actions (<code>services/order-actions.ts</code>)</h3>
+<h3>7.4 Delivery app internals (<code>delivery/</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Auth</td>
+<td><code>AuthContext</code> loads <code>profiles</code> with <code>role = &#39;admin&#39;</code> and <code>business_id</code>; same Supabase email session as admin panel</td>
+</tr>
+<tr>
+<td>Queue</td>
+<td><code>listDeliveryOrders</code>: statuses <code>new</code>, <code>confirmed</code>, <code>out_for_delivery</code>; <code>listTodayDeliveredOrders</code>: <code>delivered</code> with <code>updated_at</code> in IST today</td>
+</tr>
+<tr>
+<td>Status</td>
+<td><code>updateDeliveryOrderStatus</code> via admin RLS; optional <code>notifyOrderStatusPush</code> after change</td>
+</tr>
+<tr>
+<td>UPI QR</td>
+<td><code>businesses.upi_qr_url</code>; upload to <code>business-logos</code> bucket at <code>{businessId}/upi-qr/</code> from <code>uploadBusinessUpiQrFromPickerAsset</code></td>
+</tr>
+<tr>
+<td>UX</td>
+<td>SwipeActionButton for next status; DeliverPaymentModal on mark delivered; Call/Map on list cards</td>
+</tr>
+</tbody></table>
+<p>Env: <code>EXPO_PUBLIC_SUPABASE_URL</code>, <code>EXPO_PUBLIC_SUPABASE_ANON_KEY</code> (no business id in env; taken from admin profile).</p>
+<h3>7.5 Order actions (<code>services/order-actions.ts</code>)</h3>
 <ul>
 <li><strong>Status change:</strong> sets the new status. Cancelling a paid order sets <code>refund_status = &#39;pending&#39;</code>. The trigger writes the status event.</li>
 <li><strong>Payment:</strong> <code>cash</code>, <code>upi</code> or <code>pending</code> (Not yet). Refund: <code>pending</code> to <code>refunded</code>.</li>
@@ -1550,20 +1621,24 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <td>Google Play</td>
 </tr>
 </tbody></table>
+<p>Play prep: <a href="play-store-checklist.md">play-store-checklist.md</a>. Production builds do not declare microphone permission; voice ordering (Phase 2) requires re-adding the <code>expo-speech-recognition</code> config plugin in <code>app.json</code> and updating the privacy policy.</p>
 <p>Steps:</p>
 <ol>
 <li>Increase <code>android.versionCode</code> in <code>mobile/app.json</code>.</li>
 <li>Make sure the EAS <code>preview</code> environment has the three required <code>EXPO_PUBLIC_*</code> values. Leave <code>EXPO_PUBLIC_VOICE_ORDERING</code> unset.</li>
 <li>From <code>mobile/</code>: <code>npx eas-cli build -p android --profile preview</code>.</li>
 </ol>
+<p><strong>Delivery app (<code>delivery/</code>):</strong> Same <code>preview</code> profile in <code>eas.json</code>. EAS project slug <code>farm2flavour-delivery</code> (see <code>delivery/app.json</code> → <code>extra.eas.projectId</code>). Set <code>EXPO_PUBLIC_SUPABASE_URL</code> and <code>EXPO_PUBLIC_SUPABASE_ANON_KEY</code> in the delivery project&#39;s <strong>preview</strong> environment on expo.dev before cloud builds. Staff sign-in uses admin <code>profiles</code> (same as web admin).</p>
 <h3>11.2 Admin panel</h3>
-<p><strong>Hosting is to be decided.</strong> There is no hosting configuration in the repo yet. Any Node.js host that supports Next.js 16 works (for example Vercel). Requirements:</p>
+<p><strong>Production hosting:</strong> <a href="https://vercel.com">Vercel</a> — Git import <strong><code>Order-app</code></strong>, <strong>Root Directory <code>admin</code></strong>, <code>admin/vercel.json</code> pins Next.js build. Operator guide: <a href="vercel-admin-deploy.md">docs/vercel-admin-deploy.md</a>.</p>
+<p>Requirements:</p>
 <ul>
-<li>Set <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.</li>
-<li>Use HTTPS (session cookies are marked secure behind HTTPS).</li>
-<li>Fix the known type errors first, because <code>next build</code> may fail on them (section 14).</li>
-<li>The CSV import reads image files from the server&#39;s disk. On a cloud host this works only for files on that host.</li>
+<li><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, and (for push) <code>SUPABASE_SERVICE_ROLE_KEY</code> in Vercel env.</li>
+<li>HTTPS (session cookies are secure behind HTTPS).</li>
+<li>Run <code>cd admin &amp;&amp; npm run build</code> before deploy; fix any TypeScript errors that block the build.</li>
+<li>CSV product import with <strong>local file paths</strong> only works when that path exists on the build/runtime machine; on Vercel use uploaded images / Storage, not laptop paths in CSV.</li>
 </ul>
+<p><strong>Audit log:</strong> <code>/audit</code> reads <code>admin_audit_log</code> plus admin <code>order_modifications</code>. Rows show <strong>App</strong> (admin panel vs delivery app) from <code>details.app</code> (<code>admin</code> / <code>delivery</code>); delivery summaries may still use a <code>[Delivery]</code> prefix for search. Filter <code>?app=delivery_app|admin_panel</code>. Migration: <code>20261028210000_admin_audit_log.sql</code>.</p>
 <h3>11.3 Database changes</h3>
 <ol>
 <li>Add a new file in <code>supabase/migrations/</code> named <code>YYYYMMDDHHMMSS_description.sql</code>.</li>
@@ -1690,10 +1765,11 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <h2>14. Tech debt, switched-off features and dropped items</h2>
 <p>The live list, including future ideas, is <code>docs/pending-and-future-scope.md</code>. Update that file when anything changes. This section lists only what exists in the code today.</p>
 <h3>14.1 Must do before go-live</h3>
+<p>See <a href="go-live-checklist.md">go-live-checklist.md</a> and <a href="pending-and-future-scope.md">pending-and-future-scope.md</a>.</p>
 <ul>
-<li>Run migrations 27 to 35 in production (listed in the pending file).</li>
-<li>Build a new APK with the latest app changes.</li>
-<li>Decide and set up admin hosting.</li>
+<li>Run all required migrations on hosted Supabase (through UPI QR; add <code>20261028210000_admin_audit_log.sql</code> for Audit log).</li>
+<li>Build and install customer + delivery preview APKs (or use Expo Go until EAS cloud quota resets).</li>
+<li>Admin hosting: <strong>Vercel</strong> — <a href="vercel-admin-deploy.md">vercel-admin-deploy.md</a> (done for Oct 2026 production smoke test).</li>
 </ul>
 <h3>14.2 Tech debt and risks</h3>
 <table>

@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">Architecture, code, database and operations for developers and technical architects.</p>
 
-<p class="meta">Version 1.1 &middot; Last updated 28 October 2026</p>
+<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
 
 </div>
 
@@ -76,7 +76,7 @@ Three client apps share one Supabase project:
               v                            v                          v             v
 +-------------------------------------------------------------------+
 |                         Supabase                                  |
-|  Auth: phone OTP (customers, SMS by Twilio), email (admins)       |
+|  Auth: phone OTP (customers, SMS via 2Factor.in hook), email (admins) |
 |  Postgres: tables, RLS policies, triggers, RPC functions          |
 |  Storage: product-images, business-logos (public read)            |
 +-------------------------------------------------------------------+
@@ -161,7 +161,7 @@ order-app/
 | | Tailwind CSS | 4 |
 | | `@supabase/ssr` and `@supabase/supabase-js` | supabase-js 2.114 |
 | Backend | Supabase (Postgres, Auth, Storage) | hosted |
-| SMS | Twilio (through Supabase phone auth) | |
+| SMS OTP | 2Factor.in via Edge Function `send-auth-sms` (Supabase Send SMS hook) | |
 | Builds | EAS Build (Android) | CLI >= 16.17.0 |
 | Docs | md-to-pdf | latest through `npx` |
 
@@ -182,7 +182,7 @@ Then:
 
 1. Create a Supabase project. Run every file in `supabase/migrations/` in the SQL editor, **in name order** (see 5.6).
 2. Create the business, the admin auth user and the admin profile. Follow `supabase/documentation/admin-setup.md`.
-3. Set up phone OTP with Twilio. Follow `supabase/documentation/phone-otp.md`. For testing, add a test phone number and fixed OTP in Supabase Auth (format `91XXXXXXXXXX=123456`), so no real SMS is sent.
+3. Set up phone OTP with 2Factor.in (Send SMS hook). Follow `supabase/documentation/phone-otp.md`. For testing, add a test phone number and fixed OTP in Supabase Auth (format `91XXXXXXXXXX=123456`), so no real SMS is sent.
 4. Fill in the `.env` files (below).
 
 ### 4.2 Run
@@ -234,6 +234,7 @@ Moving these values into environment variables or the `businesses` table is list
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Recommended (hosted) | Server-only; invokes Edge Functions for order/product push after admin actions. Never expose to Expo apps. |
 | `OLLAMA_URL` | No | Local AI server for voice ordering, for example `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | No | AI model name. Default `llama3.2`. |
 
@@ -671,20 +672,29 @@ Reply { text, draft, ... }  -> app speaks the reply and shows product cards
 | `preview` | APK | Testing and current distribution |
 | `production` | App bundle (AAB) | Google Play |
 
+Play prep: [play-store-checklist.md](play-store-checklist.md). Production builds do not declare microphone permission; voice ordering (Phase 2) requires re-adding the `expo-speech-recognition` config plugin in `app.json` and updating the privacy policy.
+
 Steps:
 
-1. Increase `android.versionCode` in `mobile/app.json`.
+1. Bump versions using [release-versions.md](release-versions.md): **bug fix** `1.0.0` → `1.0.1`, **feature** `1.0.1` → `1.1.0`, and always increase `android.versionCode` by 1 (customer and delivery apps separately).
 2. Make sure the EAS `preview` environment has the three required `EXPO_PUBLIC_*` values. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset.
-3. From `mobile/`: `npx eas-cli build -p android --profile preview`.
+3. From `mobile/`: `npx eas-cli build -p android --profile preview` (or `production` for Play).
+4. After the customer build is on Play or a shared APK link, set the Supabase version row (`supabase/scripts/set-customer-app-version.sql`) so installed apps can prompt to update. Migration: `20261030233000_customer_app_version.sql`.
+
+**Delivery app (`delivery/`):** Same `preview` profile in `eas.json`. EAS project slug `farm2flavour-delivery` (see `delivery/app.json` → `extra.eas.projectId`). Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` in the delivery project's **preview** environment on expo.dev before cloud builds. Staff sign-in uses admin `profiles` (same as web admin).
 
 ### 11.2 Admin panel
 
-**Hosting is to be decided.** There is no hosting configuration in the repo yet. Any Node.js host that supports Next.js 16 works (for example Vercel). Requirements:
+**Production hosting:** [Vercel](https://vercel.com) — Git import **`Order-app`**, **Root Directory `admin`**, `admin/vercel.json` pins Next.js build. Operator guide: [docs/vercel-admin-deploy.md](vercel-admin-deploy.md).
 
-- Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-- Use HTTPS (session cookies are marked secure behind HTTPS).
-- Fix the known type errors first, because `next build` may fail on them (section 14).
-- The CSV import reads image files from the server's disk. On a cloud host this works only for files on that host.
+Requirements:
+
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and (for push) `SUPABASE_SERVICE_ROLE_KEY` in Vercel env.
+- HTTPS (session cookies are secure behind HTTPS).
+- Run `cd admin && npm run build` before deploy; fix any TypeScript errors that block the build.
+- CSV product import with **local file paths** only works when that path exists on the build/runtime machine; on Vercel use uploaded images / Storage, not laptop paths in CSV.
+
+**Audit log:** `/audit` reads `admin_audit_log` plus admin `order_modifications`. Rows show **App** (admin panel vs delivery app) from `details.app` (`admin` / `delivery`); delivery summaries may still use a `[Delivery]` prefix for search. Filter `?app=delivery_app|admin_panel`. Migration: `20261028210000_admin_audit_log.sql`.
 
 ### 11.3 Database changes
 
@@ -718,7 +728,7 @@ There are no automated tests yet. Before each change, run:
 | Saved addresses fail to load or save | Migration 30 not run (`city` missing) | Run `address_city` |
 | App shows only the Placed time | Migration 34 not run | Run `order_status_events_customer_read` |
 | "Could not find the function ..." from the API | Schema cache is old | Run `notify pgrst, 'reload schema';` |
-| OTP SMS not received | Twilio setup, DLT template or sender id | Check `supabase/documentation/phone-otp.md`. Use the test number for development. |
+| OTP SMS not received | 2Factor.in balance, DLT/sender, or Send SMS hook | Check `supabase/documentation/phone-otp.md` and Edge Function logs for `send-auth-sms`. Use the test number for development. |
 | "Wait about a minute, then request a new OTP." | Supabase OTP rate limit | Wait, or use the test number |
 | Admin shows "Not authorized" | Profile is not `role = 'admin'` or has no `business_id` | Fix the profile row (see `admin-setup.md`) |
 | Admin shows mock data | Supabase variables missing in `admin/.env` | Set them and restart |
@@ -735,9 +745,11 @@ The live list, including future ideas, is `docs/pending-and-future-scope.md`. Up
 
 ### 14.1 Must do before go-live
 
-- Run migrations 27 to 35 in production (listed in the pending file).
-- Build a new APK with the latest app changes.
-- Decide and set up admin hosting.
+See [go-live-checklist.md](go-live-checklist.md) and [pending-and-future-scope.md](pending-and-future-scope.md).
+
+- Run all required migrations on hosted Supabase (through UPI QR; add `20261028210000_admin_audit_log.sql` for Audit log).
+- Build and install customer + delivery preview APKs (or use Expo Go until EAS cloud quota resets).
+- Admin hosting: **Vercel** — [vercel-admin-deploy.md](vercel-admin-deploy.md) (done for Oct 2026 production smoke test).
 
 ### 14.2 Tech debt and risks
 

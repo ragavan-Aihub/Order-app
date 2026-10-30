@@ -23,9 +23,7 @@
         "backgroundColor": "#F4F4F5",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": []
     },
     "plugins": [
       "expo-router",

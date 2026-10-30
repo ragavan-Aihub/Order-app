@@ -17,7 +17,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <ActionNoticeProvider>
-      <AdminShell>{children}</AdminShell>
+      <AdminShell
+        adminLabel={
+          session.profile.name?.trim() ||
+          session.profile.email?.trim() ||
+          'Admin'
+        }
+      >
+        {children}
+      </AdminShell>
     </ActionNoticeProvider>
   );
 }

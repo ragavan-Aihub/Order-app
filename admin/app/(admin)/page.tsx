@@ -16,6 +16,7 @@ import {
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { MobileOrderRowCard } from '@/components/MobileOrderRowCard';
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
 import { TableScroll } from '@/components/TableScroll';
 import { getDashboardData } from '@/services/reports';
@@ -88,7 +89,7 @@ function KpiCard({
         </span>
       </div>
       <p
-        className={`mt-3 text-3xl font-semibold tabular-nums tracking-tight ${
+        className={`mt-3 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl ${
           attention ? 'text-amber-800' : 'text-stone-900'
         }`}
       >
@@ -276,6 +277,38 @@ export default async function DashboardPage() {
             <p className="text-sm">New orders will show up here.</p>
           </div>
         ) : (
+          <>
+          <div className="space-y-3 md:hidden">
+            {data.recent.map((order) => (
+              <MobileOrderRowCard
+                key={order.id}
+                orderId={order.id}
+                orderNumber={order.order_number}
+                customerName={order.customer_name}
+                totalAmount={order.total_amount}
+                status={order.status}
+                paymentMethod={order.payment_method ?? 'pending'}
+                refundStatus={order.refund_status}
+                timeLabel="Placed"
+                timeValue={order.created_at}
+                badges={
+                  <>
+                    {order.admin_modified_from_placed ? (
+                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-950">
+                        Shop
+                      </span>
+                    ) : null}
+                    {order.customer_modified_after_confirm ? (
+                      <span className="rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-950">
+                        Customer
+                      </span>
+                    ) : null}
+                  </>
+                }
+              />
+            ))}
+          </div>
+          <div className="hidden md:block">
           <TableScroll>
             <table className="min-w-full text-left text-sm">
               <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
@@ -344,6 +377,8 @@ export default async function DashboardPage() {
               </tbody>
             </table>
           </TableScroll>
+          </div>
+          </>
         )}
       </section>
     </div>

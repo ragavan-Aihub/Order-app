@@ -123,8 +123,8 @@ export default function VerifyScreen() {
         <Text style={styles.message}>OTP sent to {mobile}</Text>
         {__DEV__ ? (
           <Text style={styles.testHint}>
-            Test number 9940206706 uses code 121212 (no SMS). Other numbers need Twilio SMS to
-            India — not Twilio Verify.
+            Test number 9940206706 uses code 121212 (no SMS). Other numbers use 2Factor.in via
+            Supabase Send SMS hook.
           </Text>
         ) : null}
         <TextInput

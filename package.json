@@ -7,12 +7,15 @@
     "mobile": "npm start --prefix mobile",
     "delivery": "npm start --prefix delivery",
     "docs:pdf": "node scripts/generate-docs-pdf.mjs && node scripts/generate-docs-html.mjs",
+    "docs:privacy-pdf": "node scripts/generate-privacy-policy-pdf.mjs",
+    "docs:qa-xlsx": "node scripts/generate-qa-test-cases-xlsx.mjs",
     "docs:html": "node scripts/generate-docs-html.mjs"
   },
   "devDependencies": {
     "marked": "^15.0.12",
     "md-to-pdf": "^5.2.4",
     "puppeteer": "^24.9.0",
-    "supabase": "^2.122.0"
+    "supabase": "^2.122.0",
+    "xlsx": "^0.18.5"
   }
 }

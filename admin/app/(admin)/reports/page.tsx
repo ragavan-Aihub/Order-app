@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { MobileOrderRowCard } from '@/components/MobileOrderRowCard';
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
 import { ReportsFilters, ScrollToOutstanding } from '@/components/ReportsFilters';
 import { TableScroll } from '@/components/TableScroll';
@@ -105,7 +106,7 @@ export default async function ReportsPage({
         communitiesEnabled={communitiesEnabled}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <SummaryCard label="Total orders" value={String(summary.totalOrders)} />
         <SummaryCard label="Total sales" value={formatPrice(summary.totalSales)} />
         <SummaryCard label="Delivered sales" value={formatPrice(summary.deliveredSales)} />
@@ -128,50 +129,69 @@ export default async function ReportsPage({
           <p className="mt-4 text-stone-600">No outstanding payments in this period.</p>
         ) : (
           <div className="mt-4">
-            <TableScroll>
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-stone-200 text-stone-500">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Order No</th>
-                    <th className="px-3 py-2 font-medium">Customer</th>
-                    <th className="px-3 py-2 font-medium">Phone</th>
-                    <th className="px-3 py-2 font-medium">Delivered</th>
-                    <th className="px-3 py-2 font-medium">Amount</th>
-                    <th className="px-3 py-2 font-medium">Payment</th>
-                    {communitiesEnabled ? <th className="px-3 py-2 font-medium">Community</th> : null}
-                    <th className="px-3 py-2 font-medium">
-                      <span className="sr-only">View</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100 bg-white">
-                  {outstanding.map((order) => (
-                    <tr key={order.id}>
-                      <td className="px-3 py-2 font-semibold">{formatOrderNumber(order.order_number)}</td>
-                      <td className="px-3 py-2">{order.customer_name}</td>
-                      <td className="px-3 py-2">{order.mobile}</td>
-                      <td className="px-3 py-2 text-stone-500">{formatDateTime(order.deliveredAt)}</td>
-                      <td className="px-3 py-2">{formatPrice(order.total_amount)}</td>
-                      <td className="px-3 py-2">
-                        <PaymentStatusBadge
-                          status={order.status}
-                          paymentMethod={order.payment_method}
-                          refundStatus={order.refund_status}
-                        />
-                      </td>
-                      {communitiesEnabled ? (
-                        <td className="px-3 py-2">{order.community_name || '—'}</td>
-                      ) : null}
-                      <td className="px-3 py-2">
-                        <Link href={`/orders/${order.id}`} className="font-medium text-emerald-800">
-                          View
-                        </Link>
-                      </td>
+            <div className="space-y-3 md:hidden">
+              {outstanding.map((order) => (
+                <MobileOrderRowCard
+                  key={order.id}
+                  orderId={order.id}
+                  orderNumber={order.order_number}
+                  customerName={order.customer_name}
+                  totalAmount={order.total_amount}
+                  status={order.status}
+                  paymentMethod={order.payment_method ?? 'pending'}
+                  refundStatus={order.refund_status}
+                  subtitle={order.mobile}
+                  timeLabel="Delivered"
+                  timeValue={order.deliveredAt}
+                />
+              ))}
+            </div>
+            <div className="hidden md:block">
+              <TableScroll>
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-stone-200 text-stone-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Order No</th>
+                      <th className="px-3 py-2 font-medium">Customer</th>
+                      <th className="px-3 py-2 font-medium">Phone</th>
+                      <th className="px-3 py-2 font-medium">Delivered</th>
+                      <th className="px-3 py-2 font-medium">Amount</th>
+                      <th className="px-3 py-2 font-medium">Payment</th>
+                      {communitiesEnabled ? <th className="px-3 py-2 font-medium">Community</th> : null}
+                      <th className="px-3 py-2 font-medium">
+                        <span className="sr-only">View</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableScroll>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 bg-white">
+                    {outstanding.map((order) => (
+                      <tr key={order.id}>
+                        <td className="px-3 py-2 font-semibold">{formatOrderNumber(order.order_number)}</td>
+                        <td className="px-3 py-2">{order.customer_name}</td>
+                        <td className="px-3 py-2">{order.mobile}</td>
+                        <td className="px-3 py-2 text-stone-500">{formatDateTime(order.deliveredAt)}</td>
+                        <td className="px-3 py-2">{formatPrice(order.total_amount)}</td>
+                        <td className="px-3 py-2">
+                          <PaymentStatusBadge
+                            status={order.status}
+                            paymentMethod={order.payment_method}
+                            refundStatus={order.refund_status}
+                          />
+                        </td>
+                        {communitiesEnabled ? (
+                          <td className="px-3 py-2">{order.community_name || '—'}</td>
+                        ) : null}
+                        <td className="px-3 py-2">
+                          <Link href={`/orders/${order.id}`} className="font-medium text-emerald-800">
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableScroll>
+            </div>
           </div>
         )}
       </section>
@@ -182,6 +202,26 @@ export default async function ReportsPage({
           <p className="mt-3 text-stone-600">No orders match these filters.</p>
         ) : (
           <>
+            <div className="mt-3 space-y-3 md:hidden">
+              {orders.map((order) => (
+                <MobileOrderRowCard
+                  key={order.id}
+                  orderId={order.id}
+                  orderNumber={order.order_number}
+                  customerName={order.customer_name}
+                  totalAmount={order.total_amount}
+                  status={order.status}
+                  paymentMethod={order.payment_method ?? 'pending'}
+                  refundStatus={order.refund_status}
+                  subtitle={`${paymentModeLabel(order.payment_method)} · ${orderChannelLabel(order.channel ?? 'app')}${
+                    communitiesEnabled && order.community_name ? ` · ${order.community_name}` : ''
+                  }`}
+                  timeLabel="Placed"
+                  timeValue={order.created_at}
+                />
+              ))}
+            </div>
+            <div className="hidden md:block">
             <TableScroll>
               <table className="min-w-full mt-3 text-left text-sm">
                 <thead className="border-b border-stone-200 text-stone-500">
@@ -232,6 +272,7 @@ export default async function ReportsPage({
                 </tbody>
               </table>
             </TableScroll>
+            </div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600">
               <p>
                 {from}–{to} of {data.totalMatching}

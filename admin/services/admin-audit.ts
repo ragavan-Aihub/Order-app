@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { isSupabaseConfigured } from '@/config/env';
 import { createServerSupabaseClient } from '@/services/supabase/server';
-import type { AuditEntityType, AuditLogRow, AuditReportFilters } from '@/types/audit';
+import type { AuditAppSource, AuditEntityType, AuditLogRow, AuditReportFilters } from '@/types/audit';
 import { istRangeForCustom, istRangeForPreset, type DayRange } from '@/utils/ist-dates';
 import { formatOrderNumber } from '@/utils/format';
 
@@ -59,7 +59,7 @@ export async function logAdminAudit(
     entity_type: event.entityType,
     entity_id: event.entityId ?? null,
     summary: event.summary.slice(0, 500),
-    details: event.details ?? null,
+    details: { app: 'admin', ...(event.details ?? {}) },
   });
   if (error) {
     console.error('[admin_audit_log]', error.message);
@@ -79,15 +79,20 @@ function auditRange(filters: AuditReportFilters, now = new Date()): DayRange {
   return istRangeForPreset('7d', now);
 }
 
-function adminLabel(name: string | null | undefined, email: string | null | undefined): string {
-  const n = name?.trim();
-  if (n && n.toLowerCase() !== 'admin') {
-    return n;
+function appSourceFromAuditRow(summary: string, details: unknown): AuditAppSource {
+  if (details && typeof details === 'object' && !Array.isArray(details)) {
+    const app = (details as Record<string, unknown>).app;
+    if (app === 'delivery') {
+      return 'delivery_app';
+    }
+    if (app === 'admin') {
+      return 'admin_panel';
+    }
   }
-  if (email?.trim()) {
-    return email.trim();
+  if (summary.startsWith('[Delivery]')) {
+    return 'delivery_app';
   }
-  return 'Admin';
+  return 'admin_panel';
 }
 
 export async function getAdminAuditReport(filters: AuditReportFilters): Promise<{
@@ -108,7 +113,7 @@ export async function getAdminAuditReport(filters: AuditReportFilters): Promise<
 
   let auditQuery = ctx.supabase
     .from('admin_audit_log')
-    .select('id, admin_user_id, action, entity_type, entity_id, summary, created_at')
+    .select('id, action, entity_type, entity_id, summary, details, created_at')
     .eq('business_id', ctx.businessId)
     .gte('created_at', range.startIso)
     .lte('created_at', range.endIso)
@@ -151,32 +156,13 @@ export async function getAdminAuditReport(filters: AuditReportFilters): Promise<
     }
   }
 
-  const adminIds = new Set<string>();
-  for (const row of auditRows ?? []) {
-    if (row.admin_user_id) {
-      adminIds.add(row.admin_user_id);
-    }
-  }
-  for (const row of modRows ?? []) {
-    if (row.actor_id) {
-      adminIds.add(row.actor_id);
-    }
-  }
-
-  const labelById = new Map<string, string>();
-  if (adminIds.size > 0) {
-    const { data: profiles } = await ctx.supabase
-      .from('profiles')
-      .select('id, name, email')
-      .in('id', [...adminIds]);
-    for (const p of profiles ?? []) {
-      labelById.set(p.id, adminLabel(p.name, p.email));
-    }
-  }
-
   const unified: AuditLogRow[] = [];
 
   for (const row of auditRows ?? []) {
+    const appSource = appSourceFromAuditRow(row.summary, row.details);
+    if (filters.appSource !== 'all' && appSource !== filters.appSource) {
+      continue;
+    }
     if (needle && !row.summary.toLowerCase().includes(needle) && !row.action.toLowerCase().includes(needle)) {
       continue;
     }
@@ -184,8 +170,7 @@ export async function getAdminAuditReport(filters: AuditReportFilters): Promise<
       id: row.id,
       source: 'audit_log',
       created_at: row.created_at,
-      admin_user_id: row.admin_user_id,
-      admin_label: row.admin_user_id ? (labelById.get(row.admin_user_id) ?? 'Admin') : 'Admin',
+      app_source: appSource,
       action: row.action,
       entity_type: row.entity_type,
       entity_id: row.entity_id,
@@ -204,6 +189,9 @@ export async function getAdminAuditReport(filters: AuditReportFilters): Promise<
     const summary = reason
       ? `Order #${formatOrderNumber(orderNumber ?? 0)} items updated (${reason})`
       : `Order #${formatOrderNumber(orderNumber ?? 0)} items updated by shop`;
+    if (filters.appSource !== 'all' && filters.appSource !== 'admin_panel') {
+      continue;
+    }
     if (needle && !summary.toLowerCase().includes(needle)) {
       continue;
     }
@@ -211,8 +199,7 @@ export async function getAdminAuditReport(filters: AuditReportFilters): Promise<
       id: row.id,
       source: 'order_modification',
       created_at: row.created_at,
-      admin_user_id: row.actor_id,
-      admin_label: row.actor_id ? (labelById.get(row.actor_id) ?? 'Admin') : 'Admin',
+      app_source: 'admin_panel',
       action: row.reason === 'reverted_to_placed' ? 'order.revert_placed' : 'order.items_replace',
       entity_type: 'order',
       entity_id: row.order_id,

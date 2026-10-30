@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Spinner } from '@/components/ActionNotice';
-import { AUDIT_ENTITY_OPTIONS, type AuditReportFilters } from '@/types/audit';
+import { AUDIT_APP_SOURCE_OPTIONS, AUDIT_ENTITY_OPTIONS, type AuditReportFilters } from '@/types/audit';
 
 const fieldClass = 'min-h-10 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
 
@@ -28,6 +28,9 @@ function hrefFrom(next: AuditReportFilters) {
   }
   if (next.entityType !== 'all') {
     params.set('entity', next.entityType);
+  }
+  if (next.appSource !== 'all') {
+    params.set('app', next.appSource);
   }
   if (next.query) {
     params.set('q', next.query);
@@ -123,6 +126,21 @@ export function AuditFilters({
           onChange={(event) => go({ entityType: event.target.value as AuditReportFilters['entityType'] })}
         >
           {AUDIT_ENTITY_OPTIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block text-sm text-stone-600">
+        App
+        <select
+          className={`${fieldClass} mt-1 w-full`}
+          value={view.appSource}
+          onChange={(event) => go({ appSource: event.target.value as AuditReportFilters['appSource'] })}
+        >
+          {AUDIT_APP_SOURCE_OPTIONS.map((item) => (
             <option key={item.value} value={item.value}>
               {item.label}
             </option>

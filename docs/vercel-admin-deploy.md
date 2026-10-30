@@ -24,7 +24,9 @@ Copy from local `admin/.env` if already working locally. Never commit `.env`.
 
 ## 3. Deploy
 
-Click **Deploy**. When the build succeeds, open **Visit** — that URL is your admin HTTPS link (e.g. `https://order-app-xxx.vercel.app`).
+Click **Deploy**. When the build succeeds, open **Visit** — that URL is your admin HTTPS link.
+
+**Important:** Use only the hostname shown under **Settings → Domains** for this project. A generic name like `order-app.vercel.app` returns 404 unless Vercel assigned it to your project (often the URL includes your team slug, e.g. `order-app-ragavan-aihubs-projects.vercel.app`).
 
 ## 4. Later releases
 

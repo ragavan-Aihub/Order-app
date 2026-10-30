@@ -1,0 +1,98 @@
+/* Readable privacy policy PDF (md-to-pdf / print). */
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  font-size: 12pt;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000000;
+  background: #ffffff;
+  line-height: 1.55;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+h1 {
+  font-size: 20pt;
+  color: #14532d;
+  margin: 0 0 12px;
+  line-break-after: avoid;
+}
+
+h2 {
+  font-size: 15pt;
+  color: #14532d;
+  margin: 24px 0 10px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #16a34a;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 12.5pt;
+  color: #166534;
+  margin: 18px 0 8px;
+  page-break-after: avoid;
+}
+
+p,
+li,
+td,
+th {
+  font-size: 11pt;
+  color: #000000;
+}
+
+p {
+  margin: 8px 0;
+}
+
+ul {
+  padding-left: 22px;
+}
+
+blockquote {
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  margin: 16px 0;
+  padding: 10px 14px;
+  font-size: 11pt;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  border: 1px solid #6b7280;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #ecfdf5;
+  font-weight: bold;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #9ca3af;
+  margin: 20px 0;
+}
+
+em {
+  font-style: italic;
+}
+
+strong {
+  font-weight: bold;
+}

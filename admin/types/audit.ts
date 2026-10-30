@@ -8,12 +8,13 @@ export type AuditEntityType =
   | 'api_key'
   | 'import';
 
+export type AuditAppSource = 'admin_panel' | 'delivery_app';
+
 export type AuditLogRow = {
   id: string;
   source: 'audit_log' | 'order_modification';
   created_at: string;
-  admin_user_id: string | null;
-  admin_label: string;
+  app_source: AuditAppSource;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -27,8 +28,15 @@ export type AuditReportFilters = {
   fromYmd: string;
   toYmd: string;
   entityType: 'all' | AuditEntityType;
+  appSource: 'all' | AuditAppSource;
   query: string;
 };
+
+export const AUDIT_APP_SOURCE_OPTIONS: { value: AuditReportFilters['appSource']; label: string }[] = [
+  { value: 'all', label: 'All apps' },
+  { value: 'admin_panel', label: 'Admin panel' },
+  { value: 'delivery_app', label: 'Delivery app' },
+];
 
 export const AUDIT_ENTITY_OPTIONS: { value: AuditReportFilters['entityType']; label: string }[] = [
   { value: 'all', label: 'All areas' },
@@ -54,11 +62,16 @@ export function parseAuditFilters(searchParams: Record<string, string | string[]
   const entityType = AUDIT_ENTITY_OPTIONS.some((o) => o.value === entityRaw)
     ? (entityRaw as AuditReportFilters['entityType'])
     : 'all';
+  const appRaw = one('app') ?? 'all';
+  const appSource = AUDIT_APP_SOURCE_OPTIONS.some((o) => o.value === appRaw)
+    ? (appRaw as AuditReportFilters['appSource'])
+    : 'all';
   return {
     preset,
     fromYmd: one('from') ?? '',
     toYmd: one('to') ?? '',
     entityType,
+    appSource,
     query: (one('q') ?? '').trim(),
   };
 }

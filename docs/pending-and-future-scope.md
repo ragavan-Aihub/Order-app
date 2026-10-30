@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 28 Oct 2026 (go-live checklist and migration audit added).
+Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EAS quota note).
 
 ## Must do before go-live
 
@@ -36,11 +36,24 @@ Last updated: 28 Oct 2026 (go-live checklist and migration audit added).
   12. **Push notifications:** `20261011010000_push_notifications.sql`, then `20261018000000_push_service_role_grants.sql` (required for Edge Function reads). Deploy `send-order-status-push`, set `SUPABASE_SERVICE_ROLE_KEY` on admin, install preview APK (not Expo Go). See `supabase/documentation/push-notifications.md`.
   13. **Notify me:** `20261019100000_product_notify_interests.sql`. Deploy `send-product-available-push` (same service role auth as order push). Admin triggers it when a product flips from Coming soon to Available.
   14. **UPI QR at delivery:** `20261027220000_business_upi_qr.sql` (`businesses.upi_qr_url`). Used by the delivery app upload and the customer order detail when out for delivery and unpaid.
+  15. **Audit log:** `20261028210000_admin_audit_log.sql`. Required for admin **Audit log** page and for delivery-app rows in that report.
+
+### Admin on HTTPS
+
+- **Status:** Done (Oct 2026)
+- **What:** Admin deployed on **Vercel** (repo `Order-app`, root `admin`). Env: `NEXT_PUBLIC_SUPABASE_*` + `SUPABASE_SERVICE_ROLE_KEY` for push from admin. Order + push smoke test passed on production URL (use **Visit** / Domains hostname, not an unassigned `*.vercel.app` guess).
+- **Docs:** [vercel-admin-deploy.md](vercel-admin-deploy.md), [go-live-checklist.md](go-live-checklist.md) §C.
+
+### Admin audit log
+
+- **Status:** Done (code). **Pending:** run migration `20261028210000_admin_audit_log.sql` on hosted Supabase if the Audit log page errors.
+- **What:** `/audit` with filters; merges `admin_audit_log` and admin order item edits. Delivery app logs status/payment with `[Delivery]` prefix.
+- **Docs:** Business Guide §4.8; Technical Guide §11.2.
 
 ### Preview APK for demos
 
-- **Status:** **Pending:** preview build with `android.versionCode` 21+ (Your Orders, Home FlatList, order detail polish) and delivery APK (`delivery/eas.json` added). See [go-live-checklist.md](go-live-checklist.md) §D.
-- **How:** Bump `android.versionCode` in `mobile/app.json`, then run `npx eas-cli build -p android --profile preview` from `mobile/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset so voice stays hidden.
+- **Status:** **Pending** — repo ready (`mobile` versionCode **23**, `delivery` versionCode **3**, EAS projects linked). **Oct 2026:** Expo Free Android cloud quota exhausted until ~monthly reset; use Expo Go for QA until then, or `eas build --local`, or upgrade plan.
+- **How:** Set `EXPO_PUBLIC_*` on each EAS **preview** environment (delivery project: `farm2flavour-delivery`). Then `npx eas-cli build -p android --profile preview` from `mobile/` and `delivery/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset. See [go-live-checklist.md](go-live-checklist.md) §D.
 
 ## After demo feedback (agreed, not all built)
 
@@ -72,9 +85,9 @@ Last updated: 28 Oct 2026 (go-live checklist and migration audit added).
 
 ### Delivery app (staff) and UPI QR
 
-- **Status:** Done (code). **Pending:** run `20261027220000_business_upi_qr.sql` on hosted Supabase; build/install `delivery/` APK for drivers; upload UPI QR once from the delivery app.
-- **What:** `delivery/` Expo app with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. Customer order detail shows QR when out for delivery and unpaid.
-- **Docs:** Business Guide §3.11; Technical Guide §7.4.
+- **Status:** Done (code). **Pending:** run UPI + audit migrations on hosted Supabase if not applied; install delivery preview APK when EAS quota allows.
+- **What:** `delivery/` Expo app with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. If admin already marked **Delivered**, the app refreshes and offers **record payment only** (no duplicate deliver). Conflicts with admin updates show an in-app notice instead of a generic error alert. Actions appear in admin **Audit log** with `[Delivery]`.
+- **Docs:** Business Guide §3.11; Technical Guide §7.4 and §11.1.
 
 ### Customer app — Your Orders and Home polish
 
@@ -172,6 +185,7 @@ Last updated: 28 Oct 2026 (go-live checklist and migration audit added).
 
 - **Business Guide:** `docs/business-guide.md`. Written for the business owner and staff. It covers only what is live today: customer app, admin panel, business rules and FAQ. It does not cover the Partner API, WhatsApp, features that are switched off, dropped features or future ideas. Those live in the Technical Guide and in this file.
 - **Technical Guide:** `docs/technical-guide.md`. Covers what is present in the code: architecture, setup, new business setup, database and migrations, app internals, order lifecycle, Partner API, voice, switched-off features, build and deploy, troubleshooting, tech debt. Future ideas live only in this file.
+- **Google Play (customer app):** [docs/play-store-checklist.md](play-store-checklist.md), privacy draft [docs/privacy-policy-template.md](privacy-policy-template.md), share PDF via `npm run docs:privacy-pdf` → [docs/pdf/Privacy-Policy-For-Review.pdf](pdf/Privacy-Policy-For-Review.pdf). Delivery app is APK-only, not Play.
 - **PDF:** run `npm run docs:pdf` from the repo root. Output goes to `docs/pdf/Business-Guide.pdf` and `docs/pdf/Technical-Guide.pdf`. Styling is in `docs/pdf-style.css`.
 - **No brand name:** both guides are written for any business using this product. Keep them that way.
 - **Keep them current:** when a feature, rule or migration changes, update the matching guide in the same change.

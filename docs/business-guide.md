@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">How the customer app and the admin panel work, written for the business owner, staff and product managers.</p>
 
-<p class="meta">Version 1.1 &middot; Last updated 28 October 2026</p>
+<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
 
 </div>
 
@@ -300,6 +300,7 @@ Each order card shows the customer, address, total, status, payment chip, and qu
 - Customer, address, map preview, items, and payment.
 - When marking **Delivered**, staff choose **Cash**, **UPI**, or **Not yet** (same rules as the admin panel).
 - For **UPI**, staff can show the shop's **UPI QR** to the customer and upload or replace that QR image from the phone (stored once per business for the customer app and delivery app).
+- If **admin** already moved the order forward (for example **Delivered** in the web panel), the delivery app **refreshes** and does not offer a duplicate deliver step; staff may only **record payment** if it is still outstanding.
 
 Customers do not use the delivery app.
 
@@ -313,11 +314,11 @@ Customers do not use the delivery app.
 
 ### 4.1 Signing in
 
-- Open the admin website and sign in with the **email and password** given by the developer.
+- Open the admin website (hosted on HTTPS, e.g. Vercel) and sign in with the **email and password** given by the developer.
 - Only accounts set up as admin for this business can sign in. Customer accounts see "Not authorized".
 - Use **Sign out** at the bottom of the menu when you finish on a shared computer.
 
-**Menu (left side):** Dashboard, Orders, Reports, **Audit log**, Products, Customers. **Categories** opens from the Products page. **Communities** opens from the Customers page. On a phone, tap **Menu** at the top.
+**Menu (left side):** Dashboard, Orders, Reports, **Audit log**, Products, Customers. **Categories** opens from the Products page. **Communities** opens from the Customers page. On a phone, tap **Menu** at the top. Lists on Dashboard, Reports, and Orders show as **cards** on a small screen (tap to open an order). Use a laptop for heavy work such as product import.
 
 ### 4.2 Dashboard
 
@@ -526,13 +527,13 @@ Notes:
 
 ### 4.8 Audit log
 
-Title: "Who changed what in the admin panel".
+Title: "Changes from the admin panel and delivery app".
 
-Use this when you need accountability: which admin changed an order status, edited a product, updated a customer, or changed business settings.
+Use this when you need a record of what changed: order status, products, customers, business settings, and delivery actions.
 
-**Filters:** date range (default last 7 days), area (orders, products, customers, and so on), and search on the summary text.
+**Filters:** date range (default last 7 days), **app** (all, admin panel only, or delivery app only), area (orders, products, customers, and so on), and search on the summary text.
 
-Each row shows **when**, **who** (admin name or email), **area**, and a short **summary**. Order-related lines link to that order. Shop edits to order items (quantities and totals) appear here even when no separate note was added. Changes from the **delivery app** (status, payment, mark delivered) appear with **[Delivery]** in the summary.
+Each row shows **when**, **app** (admin panel or delivery app), **area**, and a short **summary**. Order-related lines link to that order. Shop edits to order items (quantities and totals) from the admin panel appear here even when no separate note was added.
 
 ## 5. All business rules in one place
 
@@ -558,7 +559,7 @@ Each row shows **when**, **who** (admin name or email), **area**, and a short **
 | Communities | Optional. Never shown to customers. |
 | Categories | Optional. Shown to customers as a fixed chip row under search on Home. |
 | UPI QR | Optional. One image per business for pay-at-delivery UPI; upload from the delivery app (customer sees it on order detail when out for delivery and unpaid). |
-| Delivery app | Optional Android app for staff; admin login; delivery queue and swipe status updates. |
+| Delivery app | Optional Android app for staff; admin login; delivery queue and swipe status updates. If admin already delivered the order, staff can only record payment. |
 | Times | All "today" and date filters use India Standard Time. |
 
 ## 6. Frequently asked questions

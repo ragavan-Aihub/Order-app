@@ -23,10 +23,10 @@ function mapOtpError(message: string) {
     return 'That OTP is invalid or expired. Request a new code and try again.';
   }
   if (lower.includes('unsupported phone provider')) {
-    return 'Phone SMS is not enabled in Supabase. Enable Phone and choose Twilio (not Twilio Verify).';
+    return 'Phone SMS is not enabled in Supabase. Enable Phone and configure the Send SMS hook (2Factor.in).';
   }
   if (lower.includes('sms provider') || lower.includes('error sending confirmation sms')) {
-    return 'Twilio is connected but the SMS was not delivered. On a Twilio trial, the number must be verified in Twilio. For India, enable geo permissions and a DLT-approved sender. Use Twilio SMS, not Twilio Verify.';
+    return 'The login SMS could not be sent. Check 2Factor.in balance, DLT/sender setup, and the send-auth-sms Edge Function logs.';
   }
   return message;
 }
@@ -42,7 +42,7 @@ export async function requestOtp(mobile: string) {
   }
 
   // Test phones (Supabase Auth → Phone → Test OTP) skip the SMS provider.
-  // All other numbers use Twilio (or Textlocal) once it is connected in the dashboard.
+  // All other numbers use the Send SMS hook (2Factor.in) once configured in Supabase.
   try {
     const { error } = await supabase.auth.signInWithOtp({
       phone: toE164India(mobile),

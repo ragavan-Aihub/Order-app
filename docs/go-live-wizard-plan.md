@@ -51,7 +51,7 @@
 
 ## Out of scope for v1
 
-- Automating Twilio / Auth dashboard settings
+- Automating 2Factor.in / Auth hook dashboard settings
 - Mobile app blocking orders in test mode (admin-only indicator is enough unless added later)
 - Reverting live → test
 

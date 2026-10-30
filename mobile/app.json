@@ -15,10 +15,10 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 22,
+      "versionCode": 23,
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
-      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"],
+      "permissions": ["POST_NOTIFICATIONS"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "backgroundColor": "#F4F4F5",
@@ -45,17 +45,6 @@
           "color": "#047857",
           "defaultChannel": "order-updates",
           "sounds": []
-        }
-      ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow Farm2Flavour to hear your voice order.",
-          "speechRecognitionPermission": "Allow Farm2Flavour to turn your voice order into text.",
-          "androidSpeechServicePackages": [
-            "com.google.android.googlequicksearchbox",
-            "com.google.android.tts"
-          ]
         }
       ]
     ],

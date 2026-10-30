@@ -34,11 +34,14 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-4">
       <div>
-        <Link href="/orders" className="text-sm font-medium text-emerald-800">
+        <Link
+          href="/orders"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-emerald-800"
+        >
           ← Orders
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold">Order {formatOrderNumber(order.order_number)}</h1>
+        <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
+          <h1 className="text-xl font-bold sm:text-2xl">Order {formatOrderNumber(order.order_number)}</h1>
           <StatusBadge status={order.status} size="lg" />
           {order.modification_summary?.modifiedFromPlaced ? (
             <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-950">
@@ -68,7 +71,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4">
+        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 max-lg:order-1">
           <OrderWorkflow
             orderId={order.id}
             orderNumber={`#${formatOrderNumber(order.order_number)}`}
@@ -80,7 +83,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
             placedAt={order.created_at}
           />
         </div>
-        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4">
+        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 max-lg:order-2">
           <OrderPaymentForm
             orderId={order.id}
             orderNumber={`#${formatOrderNumber(order.order_number)}`}

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
+import { recordSuccessfulPlacementAndMaybeAskForReview } from '@/services/store-review';
 import { canCancelOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
 import {
   ORDER_AWAITING_SHOP_NOTE,
@@ -112,6 +113,15 @@ export default function OrderStatusScreen() {
       load(false).catch(() => undefined);
     }, [load]),
   );
+
+  const storeReviewHandled = useRef(false);
+  useEffect(() => {
+    if (storeReviewHandled.current || fresh !== 'placed' || !order || order.status === 'cancelled') {
+      return;
+    }
+    storeReviewHandled.current = true;
+    recordSuccessfulPlacementAndMaybeAskForReview().catch(() => undefined);
+  }, [fresh, order]);
 
   const status = order?.status ?? first(params.status) ?? 'new';
   const orderNumber = order?.order_number ?? first(params.orderNumber) ?? first(params.number);

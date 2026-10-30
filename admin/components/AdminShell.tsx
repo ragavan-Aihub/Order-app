@@ -102,7 +102,13 @@ function NavLinks({
   );
 }
 
-export function AdminShell({ children }: { children: ReactNode }) {
+export function AdminShell({
+  children,
+  adminLabel = 'Admin',
+}: {
+  children: ReactNode;
+  adminLabel?: string;
+}) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
@@ -199,7 +205,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <NavLinks pathname={pathname} onNavigate={() => setNavigating(true)} />
           </nav>
           <div className="mt-auto space-y-2 border-t border-stone-100 pt-6">
-            <p className="px-3 text-sm font-medium text-stone-700">Admin</p>
+            <p className="truncate px-3 text-sm font-medium text-stone-700" title={adminLabel}>
+              {adminLabel}
+            </p>
             <LogoutButton />
           </div>
         </aside>
