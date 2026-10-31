@@ -4,6 +4,39 @@ import { prepareUpiQrBytes } from '@/utils/upi-qr-image';
 
 const BUCKET = 'business-logos';
 
+export type BusinessBillHeader = {
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  logoUrl: string | null;
+};
+
+export async function getBusinessBillHeader(businessId: string): Promise<BusinessBillHeader> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('business_name, phone, email, address, logo_url')
+    .eq('id', businessId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    name: data?.business_name?.trim() || 'Farm2Flavours',
+    phone: data?.phone?.trim() || null,
+    email: data?.email?.trim() || null,
+    address: data?.address?.trim() || null,
+    logoUrl: data?.logo_url?.trim() || null,
+  };
+}
+
 export async function getBusinessUpiQrUrl(businessId: string): Promise<string | null> {
   const supabase = getSupabaseClient();
   if (!supabase) {

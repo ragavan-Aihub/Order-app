@@ -84,5 +84,6 @@ export async function updateBusinessBranding(input: {
   });
 
   revalidatePath('/settings/branding');
+  revalidatePath('/settings/business-info');
   return { error: null };
 }

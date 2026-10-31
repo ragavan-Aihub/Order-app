@@ -37,6 +37,7 @@ const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/audit', label: 'Audit log', icon: ScrollText },
   { href: '/products', label: 'Products', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/settings/business-info', label: 'Profile', icon: Store },
   ...(SHOW_LATER_PHASE_MENUS ? laterPhaseLinks : []),
 ];
 

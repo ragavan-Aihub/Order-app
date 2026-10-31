@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as StoreReview from 'expo-store-review';
 
 const PLACEMENT_COUNT_KEY = '@farm2flavour/successful_order_placements';
 const REVIEW_REQUESTED_KEY = '@farm2flavour/store_review_requested';
@@ -32,6 +31,7 @@ export async function recordSuccessfulPlacementAndMaybeAskForReview(): Promise<v
       return;
     }
 
+    const StoreReview = await import('expo-store-review');
     const available = await StoreReview.isAvailableAsync();
     if (!available) {
       return;

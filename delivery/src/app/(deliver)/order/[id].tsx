@@ -24,6 +24,7 @@ import { PaymentStatusChip } from '@/components/PaymentStatusChip';
 import { SectionCard } from '@/components/SectionCard';
 import { SwipeActionButton, type SwipeActionKind } from '@/components/SwipeActionButton';
 import { colors, radius, spacing } from '@/config/theme';
+import { shareDeliveryBill } from '@/services/delivery-bill';
 import { getDeliveryOrder, updateDeliveryOrderStatus } from '@/services/orders';
 import { isPaymentCollected, normalizeOrderStatus } from '@/services/order-status-flow';
 import { NEXT_STATUSES, type OrderStatus, type OrderWithItems } from '@/types/order';
@@ -97,6 +98,7 @@ export default function DeliveryOrderScreen() {
   const [deliverModalOpen, setDeliverModalOpen] = useState(false);
   const [paymentOnlyModal, setPaymentOnlyModal] = useState(false);
   const [confirmedBanner, setConfirmedBanner] = useState(false);
+  const [sharingBill, setSharingBill] = useState(false);
   const [notice, setNotice] = useState<{
     variant: 'info' | 'error';
     title: string;
@@ -250,6 +252,21 @@ export default function DeliveryOrderScreen() {
     setDeliverModalOpen(true);
   }
 
+  async function shareBill() {
+    if (!order || !profile?.business_id || sharingBill) {
+      return;
+    }
+    setSharingBill(true);
+    try {
+      await shareDeliveryBill(order, profile.business_id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not share the bill.';
+      setNotice({ variant: 'error', title: 'Bill not shared', message });
+    } finally {
+      setSharingBill(false);
+    }
+  }
+
   async function copyAddress() {
     if (!order) {
       return;
@@ -282,6 +299,7 @@ export default function DeliveryOrderScreen() {
   const itemCount = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
   const lineCount = order.order_items.length;
   const addressText = fullAddress(order);
+  const canShareBill = normalizedStatus === 'out_for_delivery' || normalizedStatus === 'delivered';
   const hasFooter = Boolean((nextAction && swipeLabel) || showRecordPayment);
   const needsScroll =
     lineCount > ITEM_SCROLL_THRESHOLD ||
@@ -334,6 +352,26 @@ export default function DeliveryOrderScreen() {
             <Ionicons name="location-outline" size={compact ? 16 : 18} color="#FFFFFF" />
             <Text style={[styles.actionBtnLabelSolid, compact && styles.actionBtnLabelCompact]}>Maps</Text>
           </Pressable>
+          {canShareBill ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                compact && styles.actionBtnCompact,
+                styles.actionBtnSoft,
+                pressed && styles.actionPressed,
+                sharingBill && styles.actionPressed,
+              ]}
+              onPress={() => void shareBill()}
+              disabled={sharingBill}
+              accessibilityRole="button"
+              accessibilityLabel="Share bill"
+            >
+              <Ionicons name="document-text-outline" size={compact ? 16 : 18} color={colors.primaryDark} />
+              <Text style={[styles.actionBtnLabel, compact && styles.actionBtnLabelCompact]}>
+                {sharingBill ? '…' : 'Bill'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
         <View style={[styles.addressBox, compact && styles.addressBoxCompact]}>
           <DeliveryMapThumb
@@ -447,6 +485,12 @@ export default function DeliveryOrderScreen() {
             setPaymentOnlyModal(false);
           }}
           onRefreshOrder={() => load()}
+          onShareBill={async (payment) => {
+            if (!order || !profile.business_id) {
+              return;
+            }
+            await shareDeliveryBill(order, profile.business_id, payment);
+          }}
           onDelivered={() => {
             setDeliverModalOpen(false);
             setPaymentOnlyModal(false);

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Farm2Flavour Delivery",
     "slug": "farm2flavour-delivery",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "farm2flavour-delivery",
@@ -16,7 +16,7 @@
       "bundleIdentifier": "com.farm2flavour.delivery"
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 4,
       "package": "com.farm2flavour.delivery",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -36,9 +36,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F5F5F4",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180
+          "backgroundColor": "#F7F6EF",
+          "image": "./assets/images/brand-mark.png",
+          "imageWidth": 240
         }
       ],
       "expo-image"

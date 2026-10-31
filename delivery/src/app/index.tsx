@@ -1,8 +1,7 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
-import { colors } from '@/config/theme';
+import { DeliveryBootScreen } from '@/components/DeliveryBootScreen';
 import { isSupabaseConfigured } from '@/config/env';
 
 export default function IndexScreen() {
@@ -13,11 +12,7 @@ export default function IndexScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <DeliveryBootScreen />;
   }
 
   if (profile) {
@@ -26,12 +21,3 @@ export default function IndexScreen() {
 
   return <Redirect href="/login" />;
 }
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-});

@@ -17,6 +17,7 @@ import { UpiQrPanel } from '@/components/UpiQrPanel';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { getBusinessUpiQrUrl, uploadBusinessUpiQrFromPickerAsset } from '@/services/business';
 import { deliverOrderWithPayment, recordDeliveryPaymentOnly } from '@/services/orders';
+import type { PaymentMethod } from '@/types/order';
 import { formatPrice } from '@/utils/format';
 
 type Props = {
@@ -26,6 +27,8 @@ type Props = {
   amount: number;
   onClose: () => void;
   onDelivered: () => void;
+  /** After a successful delivery, offer to send the PDF bill. */
+  onShareBill?: (payment: PaymentMethod) => Promise<void>;
   onRefreshOrder?: () => void | Promise<void>;
   /** Order already delivered (e.g. in admin) — only collect payment. */
   paymentOnly?: boolean;
@@ -39,6 +42,7 @@ export function DeliverPaymentModal({
   onClose,
   onDelivered,
   onRefreshOrder,
+  onShareBill,
   paymentOnly = false,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -49,6 +53,9 @@ export function DeliverPaymentModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
+  const [offerShare, setOfferShare] = useState(false);
+  const [savedPayment, setSavedPayment] = useState<PaymentMethod>('pending');
+  const [sharing, setSharing] = useState(false);
 
   const loadQr = useCallback(async () => {
     setLoadingQr(true);
@@ -67,6 +74,8 @@ export function DeliverPaymentModal({
       setPayChoice(null);
       setError(null);
       setConflict(null);
+      setOfferShare(false);
+      setSharing(false);
       return;
     }
     void loadQr();
@@ -131,24 +140,58 @@ export function DeliverPaymentModal({
       await onRefreshOrder?.();
       return;
     }
+    if (!paymentOnly && onShareBill) {
+      setSavedPayment(payment);
+      setOfferShare(true);
+      return;
+    }
     onDelivered();
+  }
+
+  async function shareThenLeave() {
+    if (sharing) {
+      return;
+    }
+    setSharing(true);
+    setError(null);
+    try {
+      await onShareBill?.(savedPayment);
+      onDelivered();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not share the bill.');
+      setSharing(false);
+    }
   }
 
   const canSubmit = payChoice !== null && !(payChoice === 'upi' && !qrUrl) && !submitting;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={offerShare ? onDelivered : onClose}
+    >
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Pressable onPress={onClose} style={styles.backBtn} accessibilityRole="button" hitSlop={8}>
+          <Pressable
+            onPress={offerShare ? onDelivered : onClose}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            hitSlop={8}
+          >
             <Ionicons name="chevron-back" size={28} color={colors.text} />
           </Pressable>
           <View style={styles.headerText}>
-            <Text style={styles.title}>{paymentOnly ? 'Record payment' : 'Mark delivered'}</Text>
+            <Text style={styles.title}>
+              {offerShare ? 'Order delivered' : paymentOnly ? 'Record payment' : 'Mark delivered'}
+            </Text>
             <Text style={styles.subtitle}>
-              {paymentOnly
-                ? `Order already delivered · total ${formatPrice(amount)}`
-                : `Total ${formatPrice(amount)} · payment collected?`}
+              {offerShare
+                ? `Total ${formatPrice(amount)} is saved.`
+                : paymentOnly
+                  ? `Order already delivered · total ${formatPrice(amount)}`
+                  : `Total ${formatPrice(amount)} · payment collected?`}
             </Text>
           </View>
         </View>
@@ -158,16 +201,23 @@ export function DeliverPaymentModal({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <PaymentMethodPicker value={payChoice} onChange={setPayChoice} />
+          {offerShare ? (
+            <View style={styles.infoCard}>
+              <Ionicons name="logo-whatsapp" size={28} color="#15803D" />
+              <Text style={styles.infoText}>Share this bill on WhatsApp for the customer?</Text>
+            </View>
+          ) : null}
 
-          {payChoice === 'cash' ? (
+          {offerShare ? null : <PaymentMethodPicker value={payChoice} onChange={setPayChoice} />}
+
+          {!offerShare && payChoice === 'cash' ? (
             <View style={styles.infoCard}>
               <Ionicons name="cash-outline" size={28} color={colors.primary} />
               <Text style={styles.infoText}>Confirm you collected {formatPrice(amount)} in cash.</Text>
             </View>
           ) : null}
 
-          {payChoice === 'upi' ? (
+          {!offerShare && payChoice === 'upi' ? (
             loadingQr ? (
               <ActivityIndicator color={colors.primary} style={styles.loader} />
             ) : (
@@ -181,7 +231,7 @@ export function DeliverPaymentModal({
             )
           ) : null}
 
-          {payChoice === 'later' ? (
+          {!offerShare && payChoice === 'later' ? (
             <View style={[styles.infoCard, styles.infoCardLater]}>
               <Ionicons name="hourglass-outline" size={28} color={colors.warning} />
               <Text style={styles.infoText}>
@@ -209,7 +259,33 @@ export function DeliverPaymentModal({
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-          {conflict ? (
+          {offerShare ? (
+            <>
+              <Pressable
+                onPress={onDelivered}
+                disabled={sharing}
+                style={({ pressed }) => [styles.cancelBtn, pressed && styles.btnPressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.cancelLabel}>Not now</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void shareThenLeave()}
+                disabled={sharing}
+                style={({ pressed }) => [styles.confirmBtn, pressed && styles.btnPressed]}
+                accessibilityRole="button"
+              >
+                {sharing ? (
+                  <ActivityIndicator color={colors.surface} />
+                ) : (
+                  <>
+                    <Text style={styles.confirmLabel}>WhatsApp</Text>
+                    <Ionicons name="share-outline" size={20} color={colors.surface} />
+                  </>
+                )}
+              </Pressable>
+            </>
+          ) : conflict ? (
             <Pressable
               onPress={onClose}
               style={({ pressed }) => [styles.confirmBtn, styles.conflictBtn, pressed && styles.btnPressed]}

@@ -27,6 +27,7 @@ export type OrderItem = {
   id: string;
   product_id?: string | null;
   product_name: string;
+  product_price?: number | null;
   quantity: number;
   subtotal: number;
   image_url?: string | null;
