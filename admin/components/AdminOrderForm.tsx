@@ -98,12 +98,21 @@ type ProductRow =
   | { id: string; kind: 'search'; query: string }
   | { id: string; kind: 'line'; productId: string; quantity: number };
 
-function filterProductsForQuery(products: Product[], query: string) {
+function groupProductsForQuery(products: Product[], query: string) {
   const needle = query.trim().toLowerCase();
+  const named = needle
+    ? products.filter((product) => product.name.toLowerCase().includes(needle))
+    : products.filter((product) => product.available && product.active !== false);
+
   if (!needle) {
-    return products;
+    return { available: named, comingSoon: [] as Product[], inactive: [] as Product[] };
   }
-  return products.filter((product) => product.name.toLowerCase().includes(needle));
+
+  return {
+    available: named.filter((product) => product.available && product.active !== false),
+    comingSoon: named.filter((product) => product.active !== false && !product.available),
+    inactive: named.filter((product) => product.active === false),
+  };
 }
 
 function ensureTrailingSearch(rows: ProductRow[], createSearchRowId: () => string): ProductRow[] {
@@ -880,7 +889,7 @@ export function AdminOrderForm({
                     );
                   }
 
-                  const matches = filterProductsForQuery(products, row.query);
+                  const groups = groupProductsForQuery(products, row.query);
                   const dropdownOpen = openSearchRowId === row.id;
 
                   return (
@@ -914,8 +923,8 @@ export function AdminOrderForm({
                                   return;
                                 }
                                 event.preventDefault();
-                                if (matches.length === 1) {
-                                  pickProduct(row.id, matches[0]);
+                                if (groups.available.length === 1) {
+                                  pickProduct(row.id, groups.available[0]);
                                 }
                               }}
                               name={`q-prod-${row.id}`}
@@ -934,36 +943,65 @@ export function AdminOrderForm({
                               role="listbox"
                               className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-md"
                             >
-                              {matches.length === 0 ? (
+                              {groups.available.length === 0 && groups.comingSoon.length === 0 && groups.inactive.length === 0 ? (
                                 <li className="px-3 py-2.5 text-sm text-stone-500">No products match that search.</li>
                               ) : (
-                                matches.map((product) => {
-                                  const blocked = !product.available || product.active === false;
-                                  return (
+                                <>
+                                  {groups.available.map((product) => (
                                     <li key={product.id} role="option">
                                       <button
                                         type="button"
                                         onMouseDown={(event) => event.preventDefault()}
                                         onClick={() => pickProduct(row.id, product)}
-                                        disabled={blocked}
-                                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-stone-50 disabled:opacity-40"
+                                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-stone-50"
                                       >
                                         <div className="min-w-0">
                                           <p className="truncate font-semibold text-stone-900">{product.name}</p>
-                                          <p className="text-xs tabular-nums text-stone-400">
-                                            {formatPrice(product.price)}
-                                            {product.active === false
-                                              ? ' · Inactive'
-                                              : !product.available
-                                                ? ' · Coming soon'
-                                                : ''}
-                                          </p>
+                                          <p className="text-xs tabular-nums text-stone-400">{formatPrice(product.price)}</p>
                                         </div>
                                         <Plus size={14} className="shrink-0 text-emerald-700" aria-hidden />
                                       </button>
                                     </li>
-                                  );
-                                })
+                                  ))}
+                                  {groups.comingSoon.length > 0 ? (
+                                    <li className="px-3 pb-1 pt-2 text-xs font-semibold text-stone-400">Coming soon</li>
+                                  ) : null}
+                                  {groups.comingSoon.map((product) => (
+                                    <li key={product.id} role="option">
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm disabled:opacity-40"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="truncate font-semibold text-stone-900">{product.name}</p>
+                                          <p className="text-xs tabular-nums text-stone-400">
+                                            {formatPrice(product.price)} · Coming soon
+                                          </p>
+                                        </div>
+                                      </button>
+                                    </li>
+                                  ))}
+                                  {groups.inactive.length > 0 ? (
+                                    <li className="px-3 pb-1 pt-2 text-xs font-semibold text-stone-400">Inactive</li>
+                                  ) : null}
+                                  {groups.inactive.map((product) => (
+                                    <li key={product.id} role="option">
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm disabled:opacity-40"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="truncate font-semibold text-stone-900">{product.name}</p>
+                                          <p className="text-xs tabular-nums text-stone-400">
+                                            {formatPrice(product.price)} · Inactive
+                                          </p>
+                                        </div>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </>
                               )}
                             </ul>
                           ) : null}

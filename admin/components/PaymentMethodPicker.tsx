@@ -39,8 +39,10 @@ export function PaymentMethodPicker<T extends PaymentChoice>({
         const className = segmented
           ? `flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors ${
               selected
-                ? `bg-white shadow-sm ring-1 ring-stone-200 ${later ? 'text-amber-700' : 'text-emerald-700'}`
-                : 'text-stone-600 hover:text-stone-900'
+                ? later
+                  ? 'bg-amber-500 text-white shadow-sm'
+                  : 'bg-emerald-600 text-white shadow-sm'
+                : 'text-stone-600 hover:bg-white/80 hover:text-stone-900'
             }`
           : `flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 text-sm font-semibold ${
               selected
