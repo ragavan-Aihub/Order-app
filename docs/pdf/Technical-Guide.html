@@ -275,7 +275,7 @@ li {
               v                            v                          v             v
 +-------------------------------------------------------------------+
 |                         Supabase                                  |
-|  Auth: phone OTP (customers, SMS by Twilio), email (admins)       |
+|  Auth: phone OTP (customers, SMS via 2Factor.in hook), email (admins) |
 |  Postgres: tables, RLS policies, triggers, RPC functions          |
 |  Storage: product-images, business-logos (public read)            |
 +-------------------------------------------------------------------+
@@ -432,8 +432,8 @@ li {
 <td>hosted</td>
 </tr>
 <tr>
-<td>SMS</td>
-<td>Twilio (through Supabase phone auth)</td>
+<td>SMS OTP</td>
+<td>2Factor.in via Edge Function <code>send-auth-sms</code> (Supabase Send SMS hook)</td>
 <td></td>
 </tr>
 <tr>
@@ -459,7 +459,7 @@ cp admin/.env.example admin/.env
 <ol>
 <li>Create a Supabase project. Run every file in <code>supabase/migrations/</code> in the SQL editor, <strong>in name order</strong> (see 5.6).</li>
 <li>Create the business, the admin auth user and the admin profile. Follow <code>supabase/documentation/admin-setup.md</code>.</li>
-<li>Set up phone OTP with Twilio. Follow <code>supabase/documentation/phone-otp.md</code>. For testing, add a test phone number and fixed OTP in Supabase Auth (format <code>91XXXXXXXXXX=123456</code>), so no real SMS is sent.</li>
+<li>Set up phone OTP with 2Factor.in (Send SMS hook). Follow <code>supabase/documentation/phone-otp.md</code>. For testing, add a test phone number and fixed OTP in Supabase Auth (format <code>91XXXXXXXXXX=123456</code>), so no real SMS is sent.</li>
 <li>Fill in the <code>.env</code> files (below).</li>
 </ol>
 <h3>4.2 Run</h3>
@@ -1393,7 +1393,7 @@ cp admin/.env.example admin/.env
 <tbody><tr>
 <td><code>SHOW_LATER_PHASE_MENUS = false</code></td>
 <td><code>components/AdminShell.tsx</code></td>
-<td>Hides Settings from the menu</td>
+<td>Hides API and branding. <strong>Profile</strong> stays in the main menu (<code>/settings/business-info</code>)</td>
 </tr>
 <tr>
 <td><code>LIST_QUICK_ACTIONS = false</code></td>
@@ -1426,8 +1426,12 @@ cp admin/.env.example admin/.env
 <td><code>businesses.upi_qr_url</code>; upload to <code>business-logos</code> bucket at <code>{businessId}/upi-qr/</code> from <code>uploadBusinessUpiQrFromPickerAsset</code></td>
 </tr>
 <tr>
+<td>Bill</td>
+<td><code>shareDeliveryBill</code> builds an invoice PDF (<code>expo-print</code>) and opens the share sheet (<code>expo-sharing</code>). File name is <code>{business name}-{order number}.pdf</code>. Header comes from <code>businesses</code> (name, phone, email, address, logo). Line unit price is <code>order_items.product_price</code>. After a successful mark-delivered (not payment-only), the modal asks WhatsApp or Not now. <strong>Bill</strong> is also on orders that are out for delivery or delivered. The PDF is not sent automatically.</td>
+</tr>
+<tr>
 <td>UX</td>
-<td>SwipeActionButton for next status; DeliverPaymentModal on mark delivered; Call/Map on list cards</td>
+<td>SwipeActionButton for next status; DeliverPaymentModal on mark delivered; Call/Map on list cards; cream boot screen while auth loads</td>
 </tr>
 </tbody></table>
 <p>Env: <code>EXPO_PUBLIC_SUPABASE_URL</code>, <code>EXPO_PUBLIC_SUPABASE_ANON_KEY</code> (no business id in env; taken from admin profile).</p>
@@ -1624,13 +1628,15 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <p>Play prep: <a href="play-store-checklist.md">play-store-checklist.md</a>. Production builds do not declare microphone permission; voice ordering (Phase 2) requires re-adding the <code>expo-speech-recognition</code> config plugin in <code>app.json</code> and updating the privacy policy.</p>
 <p>Steps:</p>
 <ol>
-<li>Increase <code>android.versionCode</code> in <code>mobile/app.json</code>.</li>
+<li>Bump versions using <a href="release-versions.md">release-versions.md</a>: <strong>bug fix</strong> <code>1.0.0</code> → <code>1.0.1</code>, <strong>feature</strong> <code>1.0.1</code> → <code>1.1.0</code>, and always increase <code>android.versionCode</code> by 1 (customer and delivery apps separately).</li>
 <li>Make sure the EAS <code>preview</code> environment has the three required <code>EXPO_PUBLIC_*</code> values. Leave <code>EXPO_PUBLIC_VOICE_ORDERING</code> unset.</li>
-<li>From <code>mobile/</code>: <code>npx eas-cli build -p android --profile preview</code>.</li>
+<li>From <code>mobile/</code>: <code>npx eas-cli build -p android --profile preview</code> (or <code>production</code> for Play).</li>
+<li>After the customer build is on Play or a shared APK link, set the Supabase version row (<code>supabase/scripts/set-customer-app-version.sql</code>) so installed apps can prompt to update. Migration: <code>20261030233000_customer_app_version.sql</code>.</li>
 </ol>
 <p><strong>Delivery app (<code>delivery/</code>):</strong> Same <code>preview</code> profile in <code>eas.json</code>. EAS project slug <code>farm2flavour-delivery</code> (see <code>delivery/app.json</code> → <code>extra.eas.projectId</code>). Set <code>EXPO_PUBLIC_SUPABASE_URL</code> and <code>EXPO_PUBLIC_SUPABASE_ANON_KEY</code> in the delivery project&#39;s <strong>preview</strong> environment on expo.dev before cloud builds. Staff sign-in uses admin <code>profiles</code> (same as web admin).</p>
 <h3>11.2 Admin panel</h3>
 <p><strong>Production hosting:</strong> <a href="https://vercel.com">Vercel</a> — Git import <strong><code>Order-app</code></strong>, <strong>Root Directory <code>admin</code></strong>, <code>admin/vercel.json</code> pins Next.js build. Operator guide: <a href="vercel-admin-deploy.md">docs/vercel-admin-deploy.md</a>.</p>
+<p><strong>Version:</strong> <code>admin/config/admin-version.ts</code> (shown on sign-in and in the menu). Bug fix bumps the last number (<code>1.0.1</code>); a new feature bumps the middle number (<code>1.1.0</code>). This is not a Play Store version. See <a href="release-versions.md">release-versions.md</a>.</p>
 <p>Requirements:</p>
 <ul>
 <li><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, and (for push) <code>SUPABASE_SERVICE_ROLE_KEY</code> in Vercel env.</li>
@@ -1713,8 +1719,8 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 </tr>
 <tr>
 <td>OTP SMS not received</td>
-<td>Twilio setup, DLT template or sender id</td>
-<td>Check <code>supabase/documentation/phone-otp.md</code>. Use the test number for development.</td>
+<td>2Factor.in balance, DLT/sender, or Send SMS hook</td>
+<td>Check <code>supabase/documentation/phone-otp.md</code> and Edge Function logs for <code>send-auth-sms</code>. Use the test number for development.</td>
 </tr>
 <tr>
 <td>&quot;Wait about a minute, then request a new OTP.&quot;</td>

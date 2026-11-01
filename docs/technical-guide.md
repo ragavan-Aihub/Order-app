@@ -539,7 +539,7 @@ Browser -> proxy.ts           refreshes the Supabase session cookie;
 
 | Switch | File | Effect |
 |---|---|---|
-| `SHOW_LATER_PHASE_MENUS = false` | `components/AdminShell.tsx` | Hides Settings from the menu |
+| `SHOW_LATER_PHASE_MENUS = false` | `components/AdminShell.tsx` | Hides API and branding. **Profile** stays in the main menu (`/settings/business-info`) |
 | `LIST_QUICK_ACTIONS = false` | `components/OrdersBoard.tsx` | Hides next-step buttons on the orders list |
 
 ### 7.4 Delivery app internals (`delivery/`)
@@ -550,7 +550,8 @@ Browser -> proxy.ts           refreshes the Supabase session cookie;
 | Queue | `listDeliveryOrders`: statuses `new`, `confirmed`, `out_for_delivery`; `listTodayDeliveredOrders`: `delivered` with `updated_at` in IST today |
 | Status | `updateDeliveryOrderStatus` via admin RLS; optional `notifyOrderStatusPush` after change |
 | UPI QR | `businesses.upi_qr_url`; upload to `business-logos` bucket at `{businessId}/upi-qr/` from `uploadBusinessUpiQrFromPickerAsset` |
-| UX | SwipeActionButton for next status; DeliverPaymentModal on mark delivered; Call/Map on list cards |
+| Bill | `shareDeliveryBill` builds an invoice PDF (`expo-print`) and opens the share sheet (`expo-sharing`). File name is `{business name}-{order number}.pdf`. Header comes from `businesses` (name, phone, email, address, logo). Line unit price is `order_items.product_price`. After a successful mark-delivered (not payment-only), the modal asks WhatsApp or Not now. **Bill** is also on orders that are out for delivery or delivered. The PDF is not sent automatically. |
+| UX | SwipeActionButton for next status; DeliverPaymentModal on mark delivered; Call/Map on list cards; cream boot screen while auth loads |
 
 Env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (no business id in env; taken from admin profile).
 

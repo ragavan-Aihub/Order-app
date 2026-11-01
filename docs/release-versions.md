@@ -6,8 +6,8 @@ How to ship a **bug fix** or a **new feature**. The customer and delivery apps u
 
 | | Customer app (`mobile/app.json`) | Delivery app (`delivery/app.json`) |
 |--|----------------------------------|-------------------------------------|
-| **Version** (people see this) | `expo.version` — today **1.0.0** | `expo.version` — today **1.0.0** |
-| **Version code** (Play Store only) | `android.versionCode` — today **23** | `android.versionCode` — today **3** |
+| **Version** (people see this) | `expo.version` — today **1.0.0** | `expo.version` — today **1.1.0** |
+| **Version code** (Play Store only) | `android.versionCode` — today **23** | `android.versionCode` — today **4** |
 
 Rules:
 
@@ -65,7 +65,7 @@ Add a row each time you ship. Copy the “What’s new” line into Play Console
 | Date | App | Kind | Version | Version code | What’s new |
 |------|-----|------|---------|--------------|------------|
 | — | Customer | — | 1.0.0 | 23 | Current build in the repo (not yet a Play production release). |
-| — | Delivery | — | 1.0.0 | 3 | Current preview APK in the repo. |
+| — | Delivery | Feature | 1.1.0 | 4 | Delivery invoice PDF (unit price, shop profile, WhatsApp share after delivered) and cream loading screen. Needs a new APK. |
 | — | Admin panel | — | 1.0.0 | — | Website version. Not a Play Store build. |
 
 ## Related

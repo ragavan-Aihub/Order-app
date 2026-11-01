@@ -15,7 +15,7 @@
 
 do $$
 declare
-  v_business_id uuid := '00000000-0000-0000-0000-000000000000'; -- replace
+  v_business_id uuid := '5edd83fc-c18f-4043-a028-c777be88f30d'; -- replace
 begin
   update public.businesses
   set

@@ -46,14 +46,14 @@ notify pgrst, 'reload schema';
 
 **Delivery** (`delivery/`):
 
-- `android.versionCode` in repo (currently **3**)
+- `android.versionCode` in repo (currently **4**, app version **1.1.0** — bill PDF and loading screen)
 - EAS project: [farm2flavour-delivery](https://expo.dev/accounts/ragavananthan/projects/farm2flavour-delivery) — set **preview** env vars (`EXPO_PUBLIC_SUPABASE_*`) before first cloud build
 - Admin email/password on device (same as web admin)
 - `cd delivery && npx eas-cli build -p android --profile preview`
 
 **EAS Free plan:** Android cloud builds reset monthly. If quota is exhausted, wait for reset, upgrade Expo, or use `eas build --local`.
 
-**QA loop:** place order → confirm → out for delivery → customer sees progress / UPI QR → delivered + payment → Reports outstanding clear.
+**QA loop:** place order → confirm → out for delivery → customer sees progress / UPI QR → delivered + payment → optional delivery bill PDF → Reports outstanding clear. Create order: Coming soon products appear only when searched, grouped at the bottom. Selected payment fills the whole button. Profile logo, phone, and address print on the bill.
 
 **Test case sheet (share with testers):** [qa-test-cases.xlsx](qa-test-cases.xlsx) — sheet **How to use**, then **Test cases** in order from admin sign-in (Step 1). Columns include *Use case*, *What to do*, and *What you should see*. Run every **P0** row and Step 57 before launch ([qa-test-cases.md](qa-test-cases.md)).
 

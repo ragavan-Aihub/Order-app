@@ -95,6 +95,7 @@ export default function RootLayout() {
           <Stack.Screen name="sam" options={{ headerShown: false }} />
           <Stack.Screen name="new-order" options={{ headerShown: false }} />
           <Stack.Screen name="checkout" options={{ title: 'Saved addresses' }} />
+          <Stack.Screen name="faqs" options={{ title: 'FAQs' }} />
           <Stack.Screen name="address/form" options={{ title: 'Add Address Details' }} />
           <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />
           <Stack.Screen name="confirmation" options={{ title: 'Order status' }} />

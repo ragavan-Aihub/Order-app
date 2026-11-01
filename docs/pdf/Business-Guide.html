@@ -504,8 +504,11 @@ li {
 <li>Swipe actions to move the order forward (<strong>Confirm</strong>, <strong>Start delivery</strong>, <strong>Mark delivered</strong>), with a short confirmation banner when appropriate.</li>
 <li>Customer, address, map preview, items, and payment.</li>
 <li>When marking <strong>Delivered</strong>, staff choose <strong>Cash</strong>, <strong>UPI</strong>, or <strong>Not yet</strong> (same rules as the admin panel).</li>
+<li>After that payment is saved and the order is marked <strong>Delivered</strong>, the app asks whether to share the bill on WhatsApp. <strong>WhatsApp</strong> opens the phone share sheet with a PDF. <strong>Not now</strong> closes without sending. The app does not send the PDF by itself. The file name is the shop name, a hyphen, and the order number (for example <code>Farm2Flavour-100111.pdf</code>).</li>
+<li>The PDF is an invoice: shop logo, name, phone, email, and address from <strong>Profile</strong>, the date, the order number, the customer, items with quantity, unit price, and amount, <strong>To pay</strong>, the payment method just chosen, and a thank-you line. It starts at the top of the page.</li>
+<li>On an order that is <strong>Out for delivery</strong> or <strong>Delivered</strong>, <strong>Bill</strong> opens the same share sheet.</li>
 <li>For <strong>UPI</strong>, staff can show the shop&#39;s <strong>UPI QR</strong> to the customer and upload or replace that QR image from the phone (stored once per business for the customer app and delivery app).</li>
-<li>If <strong>admin</strong> already moved the order forward (for example <strong>Delivered</strong> in the web panel), the delivery app <strong>refreshes</strong> and does not offer a duplicate deliver step; staff may only <strong>record payment</strong> if it is still outstanding.</li>
+<li>If <strong>admin</strong> already moved the order forward (for example <strong>Delivered</strong> in the web panel), the delivery app <strong>refreshes</strong> and does not offer a duplicate deliver step; staff may only <strong>record payment</strong> if it is still outstanding. Sharing the bill is offered when staff mark the order delivered, not on that payment-only step.</li>
 </ul>
 <p>Customers do not use the delivery app.</p>
 <h3>3.12 When there is no internet</h3>
@@ -521,7 +524,7 @@ li {
 <li>Only accounts set up as admin for this business can sign in. Customer accounts see &quot;Not authorized&quot;.</li>
 <li>Use <strong>Sign out</strong> at the bottom of the menu when you finish on a shared computer.</li>
 </ul>
-<p><strong>Menu (left side):</strong> Dashboard, Orders, Reports, <strong>Audit log</strong>, Products, Customers. <strong>Categories</strong> opens from the Products page. <strong>Communities</strong> opens from the Customers page. On a phone, tap <strong>Menu</strong> at the top.</p>
+<p><strong>Menu (left side):</strong> Dashboard, Orders, Reports, <strong>Audit log</strong>, Products, Customers, <strong>Profile</strong>. The bottom of the menu shows the admin website version. <strong>Categories</strong> opens from the Products page. <strong>Communities</strong> opens from the Customers page. On a phone, tap <strong>Menu</strong> at the top. Lists on Dashboard, Reports, and Orders show as <strong>cards</strong> on a small screen (tap to open an order). Use a laptop for heavy work such as product import.</p>
 <h3>4.2 Dashboard</h3>
 <p>The page opens with a greeting (Good morning, afternoon or evening) and today&#39;s date, then &quot;What needs your attention today&quot;. &quot;Today&quot; means today in IST.</p>
 <p>If any orders are still <strong>Placed</strong>, a teal banner at the top says how many are waiting to be confirmed. Tap it to open the Orders list already showing the <strong>Placed</strong> tab. It disappears when nothing is waiting.</p>
@@ -671,8 +674,8 @@ li {
 </ul>
 </li>
 <li><strong>Delivery address:</strong> use a saved address, or tap <strong>Change / add address</strong> to type one. A typed address is used for this order only. It is saved to the address book only for a brand-new customer.</li>
-<li><strong>Products:</strong> search by name (press space to list all), tap <strong>Add</strong>, set quantities. Inactive and Coming soon products cannot be added.</li>
-<li><strong>Payment:</strong> Cash, UPI or <strong>Not yet</strong> (default).</li>
+<li><strong>Products:</strong> tap the search. The open list shows products you can sell. Coming soon and inactive products stay out of that list. Search a Coming soon name and it appears at the bottom under <strong>Coming soon</strong>. Search an inactive name and it appears under <strong>Inactive</strong>. Neither can be added. Tap a product you can sell, then set the quantity.</li>
+<li><strong>Payment:</strong> Cash, UPI or <strong>Not yet</strong> (default). The choice you tap fills the whole button (green for Cash and UPI, amber for Not yet).</li>
 <li><strong>Notes (optional):</strong> shown with the delivery details.</li>
 <li>Tap <strong>Create order</strong>.</li>
 </ol>
@@ -793,6 +796,13 @@ li {
 <p>Use this when you need a record of what changed: order status, products, customers, business settings, and delivery actions.</p>
 <p><strong>Filters:</strong> date range (default last 7 days), <strong>app</strong> (all, admin panel only, or delivery app only), area (orders, products, customers, and so on), and search on the summary text.</p>
 <p>Each row shows <strong>when</strong>, <strong>app</strong> (admin panel or delivery app), <strong>area</strong>, and a short <strong>summary</strong>. Order-related lines link to that order. Shop edits to order items (quantities and totals) from the admin panel appear here even when no separate note was added.</p>
+<h3>4.9 Profile</h3>
+<p>Open <strong>Profile</strong> in the menu to set what prints on the delivery bill.</p>
+<ul>
+<li><strong>Logo</strong> (JPG, PNG, WebP or GIF), <strong>business name</strong>, <strong>phone</strong>, <strong>email</strong>, and <strong>address</strong>.</li>
+<li>Tap <strong>Save</strong>. You see <strong>Saved successfully</strong>, then the page closes and you are back on the Dashboard.</li>
+<li>The customer app still uses the business name. The logo, phone, email, and address on the bill come from this page.</li>
+</ul>
 <h2>5. All business rules in one place</h2>
 <table>
 <thead>
@@ -882,8 +892,16 @@ li {
 <td>Optional. One image per business for pay-at-delivery UPI; upload from the delivery app (customer sees it on order detail when out for delivery and unpaid).</td>
 </tr>
 <tr>
+<td>Shop profile</td>
+<td>Logo, phone, email, and address on Profile. <strong>Save</strong> shows “Saved successfully” and returns to the Dashboard. These details print on the delivery bill.</td>
+</tr>
+<tr>
+<td>Delivery bill</td>
+<td>After the driver marks Delivered, they can share a PDF invoice on WhatsApp. The file name is shop name plus order number. Unit price is on the bill. The app does not send it automatically.</td>
+</tr>
+<tr>
 <td>Delivery app</td>
-<td>Optional Android app for staff; admin login; delivery queue and swipe status updates. If admin already delivered the order, staff can only record payment.</td>
+<td>Optional Android app for staff (version 1.1.0); admin login; delivery queue and swipe status updates. If admin already delivered the order, staff can only record payment.</td>
 </tr>
 <tr>
 <td>Times</td>

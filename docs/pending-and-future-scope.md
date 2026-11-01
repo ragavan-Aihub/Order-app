@@ -52,7 +52,7 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
 
 ### Preview APK for demos
 
-- **Status:** **Pending** — repo ready (`mobile` versionCode **23**, `delivery` versionCode **3**, EAS projects linked). **Oct 2026:** Expo Free Android cloud quota exhausted until ~monthly reset; use Expo Go for QA until then, or `eas build --local`, or upgrade plan.
+- **Status:** **Pending** — repo ready (`mobile` versionCode **23**, `delivery` version **1.1.0** / versionCode **4**, EAS projects linked). **Oct 2026:** Expo Free Android cloud quota exhausted until ~monthly reset; use Expo Go for QA until then, or `eas build --local`, or upgrade plan.
 - **How:** Set `EXPO_PUBLIC_*` on each EAS **preview** environment (delivery project: `farm2flavour-delivery`). Then `npx eas-cli build -p android --profile preview` from `mobile/` and `delivery/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset. See [go-live-checklist.md](go-live-checklist.md) §D.
 
 ## After demo feedback (agreed, not all built)
@@ -86,7 +86,7 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
 ### Delivery app (staff) and UPI QR
 
 - **Status:** Done (code). **Pending:** run UPI + audit migrations on hosted Supabase if not applied; install delivery preview APK when EAS quota allows.
-- **What:** `delivery/` Expo app with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. If admin already marked **Delivered**, the app refreshes and offers **record payment only** (no duplicate deliver). Conflicts with admin updates show an in-app notice instead of a generic error alert. Actions appear in admin **Audit log** with `[Delivery]`.
+- **What:** `delivery/` Expo app (1.1.0 / versionCode 4) with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. After mark-delivered, staff can share an invoice PDF (shop profile, unit price) through the phone share sheet. If admin already marked **Delivered**, the app refreshes and offers **record payment only** (no duplicate deliver, no bill prompt). Conflicts with admin updates show an in-app notice instead of a generic error alert. Actions appear in admin **Audit log** with `[Delivery]`. Admin **Profile** stores the logo, phone, email, and address used on that bill.
 - **Docs:** Business Guide §3.11; Technical Guide §7.4 and §11.1.
 
 ### Customer app — Your Orders and Home polish

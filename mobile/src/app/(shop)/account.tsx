@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import Constants from 'expo-constants';
+import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTopInset } from '@/utils/safe-area';
@@ -14,19 +16,37 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
+import { LABEL_ICONS } from '@/components/AddressPickerSheet';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { signOut } from '@/services/auth';
+import { getBusiness } from '@/services/business';
 import { getCustomerProfile } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
+import type { Business } from '@/types/business';
+import type { AddressLabel } from '@/utils/address';
 
 function formatMobile(value: string | null) {
   const digits = (value ?? '').replace(/\D/g, '').slice(-10);
   return digits.length === 10 ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}` : value;
 }
 
+function shopDigits(phone: string | null | undefined) {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+  if (digits.length >= 11 && digits.length <= 15) {
+    return digits;
+  }
+  return '';
+}
+
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
+
 export default function AccountScreen() {
   const router = useRouter();
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const topInset = useTopInset();
   const { clearCart, refreshOpenOrder } = useCart();
@@ -34,11 +54,14 @@ export default function AccountScreen() {
   const [name, setName] = useState<string | null>(null);
   const [mobile, setMobile] = useState<string | null>(null);
   const [delivery, setDelivery] = useState<SavedAddress | null>(null);
+  const [shop, setShop] = useState<Business | null>(null);
 
   const load = useCallback(async () => {
     const user = await getSignedInUser();
     setSignedIn(Boolean(user));
     await loadAddressBook();
+    const business = await getBusiness().catch(() => null);
+    setShop(business);
     if (!user) {
       setName(null);
       setMobile(null);
@@ -62,97 +85,199 @@ export default function AccountScreen() {
 
   const initial = signedIn && name?.trim() ? name.trim().charAt(0).toUpperCase() : null;
   const addressLine = delivery ? formatSavedAddressLine(delivery) : '';
+  const addressLabel = (delivery?.label ?? 'home') as AddressLabel;
+  const supportPhone = shopDigits(shop?.phone);
+  const supportEmail = shop?.email?.trim() || '';
+
+  function openAddress() {
+    if (signedIn) {
+      router.push('/checkout');
+      return;
+    }
+    router.push({ pathname: '/login', params: { next: 'checkout' } });
+  }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: topInset + spacing.md }]}
-    >
-      <View style={styles.profile}>
-        <View style={styles.profileGlow} pointerEvents="none" />
-        <View style={styles.avatar}>
-          {initial ? (
-            <Text style={styles.avatarLabel}>{initial}</Text>
-          ) : (
-            <Ionicons name="person" size={26} color={colors.primaryText} />
-          )}
-        </View>
-        <View style={styles.profileText}>
-          <Text style={styles.name} numberOfLines={1}>
-            {signedIn ? name || 'Welcome' : 'Welcome'}
-          </Text>
-          {signedIn ? (
-            <View style={styles.phoneRow}>
-              <Ionicons name="call-outline" size={13} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.phone} numberOfLines={1}>
-                {formatMobile(mobile) || 'Signed in'}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.phone} numberOfLines={2}>
-              Sign in to see orders and save your profile.
-            </Text>
-          )}
-        </View>
-      </View>
-
-      <Text style={styles.sectionLabel}>Delivery</Text>
-      <Pressable
-        style={({ pressed }) => [styles.delivery, pressed && styles.pressed]}
-        onPress={() =>
-          signedIn
-            ? router.push('/checkout')
-            : router.push({ pathname: '/login', params: { next: 'checkout' } })
-        }
-        accessibilityRole="button"
-        accessibilityLabel={delivery ? 'Change delivery address' : 'Add delivery address'}
+    <View style={styles.screen}>
+      {focused ? <StatusBar style="light" /> : null}
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg }}
       >
-        <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.pin} />
-        <View style={styles.deliveryBody}>
-          {delivery ? (
-            <>
-              <Text style={styles.deliveryTitle} numberOfLines={1}>
-                {formatSavedAddressLabel(delivery.label)}
-                <Text style={styles.deliveryDefault}> · Default</Text>
+        <View style={[styles.header, { paddingTop: topInset + spacing.md }]}>
+          <View style={styles.headerGlow} pointerEvents="none" />
+          <View style={styles.avatar}>
+            {initial ? (
+              <Text style={styles.avatarLabel}>{initial}</Text>
+            ) : (
+              <Ionicons name="person" size={28} color={colors.primary} />
+            )}
+          </View>
+          <View style={styles.profileText}>
+            <Text style={styles.name} numberOfLines={1}>
+              {signedIn ? name || 'Welcome' : 'Welcome'}
+            </Text>
+            {signedIn ? (
+              <View style={styles.phoneRow}>
+                <Ionicons name="call" size={13} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.phone} numberOfLines={1}>
+                  {formatMobile(mobile) || 'Signed in'}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.phone} numberOfLines={2}>
+                Sign in to see orders and save your profile.
               </Text>
-              <Text style={styles.address} numberOfLines={2}>
-                {addressLine}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.deliveryTitle}>No address yet</Text>
-              <Text style={styles.address}>Add one at checkout.</Text>
-            </>
-          )}
+            )}
+          </View>
+          {signedIn ? (
+            <Pressable
+              onPress={openAddress}
+              style={styles.editBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Edit delivery details"
+              hitSlop={8}
+            >
+              <Ionicons name="pencil" size={18} color={colors.primaryText} />
+            </Pressable>
+          ) : null}
         </View>
-        <Text style={styles.change}>{delivery ? 'Change' : 'Add'}</Text>
-      </Pressable>
 
-      <View style={styles.spacer} />
+        <View style={styles.body}>
+          <Text style={styles.sectionTitle}>Delivery Address</Text>
+          <Pressable
+            style={({ pressed }) => [styles.delivery, pressed && styles.pressed]}
+            onPress={openAddress}
+            accessibilityRole="button"
+            accessibilityLabel={delivery ? 'Change delivery address' : 'Add delivery address'}
+          >
+            <View style={styles.deliveryIcon}>
+              <Ionicons name={LABEL_ICONS[addressLabel]} size={18} color={colors.primary} />
+            </View>
+            <View style={styles.deliveryBody}>
+              {delivery ? (
+                <>
+                  <View style={styles.deliveryTitleRow}>
+                    <Text style={styles.deliveryTitle} numberOfLines={1}>
+                      {formatSavedAddressLabel(delivery.label)}
+                    </Text>
+                    <View style={styles.defaultPill}>
+                      <Text style={styles.defaultPillText}>Default</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.address} numberOfLines={3}>
+                    {addressLine}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.deliveryTitle}>No address yet</Text>
+                  <Text style={styles.address}>Add one before you place an order.</Text>
+                </>
+              )}
+            </View>
+            <View style={styles.changePill}>
+              <Text style={styles.change}>{delivery ? 'Change' : 'Add'}</Text>
+            </View>
+          </Pressable>
 
-      {signedIn ? (
-        <Pressable
-          onPress={async () => {
-            await signOut();
-            clearCart();
-            refreshOpenOrder();
-            await load();
-          }}
-          style={({ pressed }) => [styles.signOutButton, pressed && styles.signOutPressed]}
-          accessibilityRole="button"
-          hitSlop={8}
-        >
-          <Ionicons name="log-out-outline" size={17} color={colors.textMuted} />
-          <Text style={styles.signOut}>Sign out</Text>
-        </Pressable>
-      ) : (
-        <PrimaryButton
-          label="Sign in"
-          onPress={() => router.push({ pathname: '/login', params: { next: 'account' } })}
-        />
-      )}
-    </ScrollView>
+          <Text style={styles.sectionTitle}>Help & Support</Text>
+          <View style={styles.helpList}>
+            {supportPhone ? (
+              <HelpRow
+                icon="logo-whatsapp"
+                title="WhatsApp support"
+                subtitle="Chat with our team"
+                external
+                onPress={() =>
+                  void Linking.openURL(
+                    `https://wa.me/${supportPhone}?text=${encodeURIComponent('Hi, I need help with my order.')}`,
+                  )
+                }
+              />
+            ) : null}
+            {supportPhone ? (
+              <HelpRow
+                icon="call"
+                title="Call support"
+                subtitle="Speak with our team"
+                external
+                onPress={() => void Linking.openURL(`tel:+${supportPhone}`)}
+              />
+            ) : null}
+            {supportEmail ? (
+              <HelpRow
+                icon="mail"
+                title="Email support"
+                subtitle="Send us your questions"
+                onPress={() => void Linking.openURL(`mailto:${supportEmail}`)}
+              />
+            ) : null}
+            <HelpRow
+              icon="help-circle"
+              title="FAQs"
+              subtitle="Find answers to common questions"
+              onPress={() => router.push('/faqs')}
+            />
+          </View>
+
+          {signedIn ? (
+            <Pressable
+              onPress={async () => {
+                await signOut();
+                clearCart();
+                refreshOpenOrder();
+                await load();
+              }}
+              style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+              <Text style={styles.signOut}>Sign out</Text>
+            </Pressable>
+          ) : (
+            <PrimaryButton
+              label="Sign in"
+              onPress={() => router.push({ pathname: '/login', params: { next: 'account' } })}
+            />
+          )}
+
+          <Text style={styles.version}>App version {APP_VERSION}</Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function HelpRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  external = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  external?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.helpRow, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+    >
+      <View style={styles.helpIcon}>
+        <Ionicons name={icon} size={18} color="#15803D" />
+      </View>
+      <View style={styles.helpText}>
+        <Text style={styles.helpTitle}>{title}</Text>
+        <Text style={styles.helpSubtitle}>{subtitle}</Text>
+      </View>
+      <Ionicons name={external ? 'open-outline' : 'chevron-forward'} size={18} color="#15803D" />
+    </Pressable>
   );
 }
 
@@ -161,45 +286,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  profile: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    backgroundColor: '#128A3E',
     overflow: 'hidden',
-    ...shadow.md,
   },
-  profileGlow: {
+  headerGlow: {
     position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    top: -80,
+    right: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#D1FAE5',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLabel: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.primaryText,
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#166534',
   },
   profileText: {
     flex: 1,
@@ -207,10 +327,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   name: {
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: '800',
-    letterSpacing: -0.2,
     color: colors.primaryText,
   },
   phoneRow: {
@@ -220,82 +339,150 @@ const styles = StyleSheet.create({
   },
   phone: {
     fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 0.2,
-    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.92)',
   },
-  sectionLabel: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xs,
-    marginLeft: 4,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  body: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    gap: 0,
+  },
+  sectionTitle: {
+    marginBottom: spacing.sm,
+    marginLeft: 2,
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
   },
   delivery: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: '#F0FDF4',
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: '#BBF7D0',
     paddingHorizontal: spacing.md,
     paddingVertical: 14,
+    marginBottom: spacing.lg,
   },
-  pin: {
-    marginTop: 1,
+  deliveryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deliveryBody: {
     flex: 1,
     minWidth: 0,
-    gap: 3,
+    gap: 4,
+  },
+  deliveryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   deliveryTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: colors.text,
+    flexShrink: 1,
   },
-  deliveryDefault: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
+  defaultPill: {
+    backgroundColor: '#BBF7D0',
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  defaultPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
   },
   address: {
     fontSize: 13.5,
     lineHeight: 19,
     color: colors.textMuted,
   },
+  changePill: {
+    backgroundColor: '#DCFCE7',
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   change: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
-    paddingTop: 1,
+    fontWeight: '800',
+    color: '#15803D',
   },
   pressed: {
     opacity: 0.85,
   },
-  spacer: {
-    flex: 1,
-    minHeight: spacing.xl,
+  helpList: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  signOutButton: {
-    alignSelf: 'center',
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
+  helpRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: radius.pill,
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    ...shadow.sm,
   },
-  signOutPressed: {
-    backgroundColor: colors.border,
+  helpIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  helpTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  helpSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  signOutButton: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    backgroundColor: '#FEF2F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   signOut: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  version: {
+    marginTop: spacing.lg,
+    textAlign: 'center',
+    fontSize: 13,
     color: colors.textMuted,
   },
 });

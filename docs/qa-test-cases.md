@@ -5,7 +5,7 @@ Workbook: **[qa-test-cases.xlsx](qa-test-cases.xlsx)**
 Send that file. It has two sheets:
 
 1. **How to use** — short instructions in plain language (no technical setup).
-2. **Test cases** — 66 steps in order, starting with **admin website sign-in**, then products and customers, then the customer phone app, then one full order, then the delivery app.
+2. **Test cases** — 68 steps in order, starting with **admin website sign-in**, then products and customers, then the customer phone app, then one full order, then the delivery app (including the bill PDF).
 
 ### Columns
 
