@@ -7,6 +7,12 @@ export type Business = {
   address: string | null;
   description: string | null;
   banner_url: string | null;
+  shop_closed?: boolean | null;
+  shop_closed_message?: string | null;
+  announcement_active?: boolean | null;
+  announcement_title?: string | null;
+  announcement_body?: string | null;
+  announcement_image_url?: string | null;
   upi_qr_url?: string | null;
   categories_enabled?: boolean;
   /** Android versionCode. Builds below this must update. 0 = off. */

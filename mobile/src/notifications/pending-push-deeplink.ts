@@ -69,11 +69,15 @@ export async function markPushLaunchHandled(responseId: string): Promise<void> {
 export function routeForPushLaunch(
   launch: PendingPushLaunch,
 ):
+  | { pathname: '/home' }
   | {
       pathname: '/home';
       params: ReturnType<typeof homeParamsForAvailableProductPush>;
     }
   | { pathname: '/order/[id]'; params: { id: string } } {
+  if (launch.target.kind === 'home') {
+    return { pathname: '/home' };
+  }
   if (launch.target.kind === 'product') {
     return {
       pathname: '/home',

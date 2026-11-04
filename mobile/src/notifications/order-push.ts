@@ -1,13 +1,14 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import type * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { getSupabaseClient } from '@/services/supabase';
 
 const ANDROID_CHANNEL_ID = 'order-updates';
 
-export function configureOrderNotificationHandler() {
+export async function configureOrderNotificationHandler() {
+  const Notifications = await import('expo-notifications');
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -23,6 +24,7 @@ async function ensureAndroidChannel() {
   if (Platform.OS !== 'android') {
     return;
   }
+  const Notifications = await import('expo-notifications');
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: 'Order updates',
     importance: Notifications.AndroidImportance.HIGH,
@@ -50,6 +52,7 @@ export async function registerForOrderPush(): Promise<RegisterPushResult> {
     return { ok: false, reason: 'no_session' };
   }
 
+  const Notifications = await import('expo-notifications');
   await ensureAndroidChannel();
 
   const { status } = await Notifications.getPermissionsAsync();
@@ -115,7 +118,8 @@ function readId(data: Record<string, unknown> | undefined, ...keys: string[]): s
 
 export type PushNavigationTarget =
   | { kind: 'order'; orderId: string }
-  | { kind: 'product'; productId: string };
+  | { kind: 'product'; productId: string }
+  | { kind: 'home' };
 
 export function getPushNavigationTarget(
   data: Record<string, unknown> | undefined,
@@ -128,6 +132,9 @@ export function getPushNavigationTarget(
   if (productId) {
     return { kind: 'product', productId };
   }
+  if (data?.screen === 'home' || data?.announcement === '1') {
+    return { kind: 'home' };
+  }
   return null;
 }
 
@@ -137,10 +144,15 @@ export function handlePushNotificationData(
   handlers: {
     onOpenOrder?: (orderId: string) => void;
     onOpenProduct?: (productId: string) => void;
+    onOpenHome?: () => void;
   },
 ): void {
   const target = getPushNavigationTarget(data);
   if (!target) {
+    return;
+  }
+  if (target.kind === 'home') {
+    handlers.onOpenHome?.();
     return;
   }
   if (target.kind === 'order') {
@@ -155,6 +167,7 @@ export function handlePushNotificationResponse(
   handlers: {
     onOpenOrder?: (orderId: string) => void;
     onOpenProduct?: (productId: string) => void;
+    onOpenHome?: () => void;
   },
 ): void {
   handlePushNotificationData(
@@ -165,14 +178,17 @@ export function handlePushNotificationResponse(
 
 /** When the app was opened from a notification (cold start). */
 export async function getPushNotificationLaunchResponse(): Promise<Notifications.NotificationResponse | null> {
-  return Notifications.getLastNotificationResponseAsync();
+  const NotificationsModule = await import('expo-notifications');
+  return NotificationsModule.getLastNotificationResponseAsync();
 }
 
-export function addOrderNotificationResponseListener(handlers: {
+export async function addOrderNotificationResponseListener(handlers: {
   onOpenOrder?: (orderId: string) => void;
   onOpenProduct?: (productId: string) => void;
-}): Notifications.EventSubscription {
-  return Notifications.addNotificationResponseReceivedListener((response) => {
+  onOpenHome?: () => void;
+}): Promise<Notifications.EventSubscription> {
+  const NotificationsModule = await import('expo-notifications');
+  return NotificationsModule.addNotificationResponseReceivedListener((response) => {
     handlePushNotificationResponse(response, handlers);
   });
 }

@@ -59,6 +59,46 @@ export function getSupabaseClient(): SupabaseClient | null {
   return client;
 }
 
+function authStorageKey() {
+  try {
+    const host = new URL(env.supabaseUrl).hostname.split('.')[0];
+    return host ? `sb-${host}-auth-token` : '';
+  } catch {
+    return '';
+  }
+}
+
+function sessionLooksSignedIn(raw: string | null) {
+  if (!raw || !raw.includes('access_token')) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(raw) as { access_token?: string; user?: { id?: string } };
+    return Boolean(parsed.access_token || parsed.user?.id);
+  } catch {
+    return false;
+  }
+}
+
+/** Local sign-in saved on the phone. Does not wait for a network token refresh. */
+export async function hasStoredSession() {
+  try {
+    const preferred = authStorageKey();
+    const keys = await AsyncStorage.getAllKeys();
+    const authKeys = keys.filter(
+      (key) => key === preferred || key.endsWith('-auth-token') || key === 'supabase.auth.token',
+    );
+    for (const key of authKeys) {
+      if (sessionLooksSignedIn(await AsyncStorage.getItem(key))) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function getSignedInUser() {
   const supabase = getSupabaseClient();
   if (!supabase) {

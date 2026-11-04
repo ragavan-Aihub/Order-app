@@ -70,6 +70,10 @@ async function fetchLiveProducts(): Promise<Product[]> {
   return inflight;
 }
 
+export function peekCachedProducts(): Product[] {
+  return memoryProducts?.length ? memoryProducts : [];
+}
+
 export async function getCachedProducts(): Promise<Product[]> {
   if (memoryProducts?.length) {
     return memoryProducts;

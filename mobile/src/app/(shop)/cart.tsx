@@ -33,6 +33,8 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
+import { shopClosedMessage } from '@/components/ShopHomeNotice';
+import { refreshBusiness } from '@/services/business';
 import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
@@ -72,6 +74,7 @@ export default function CartScreen() {
   const selected = useMemo(() => getSelectedAddress(), [addressBookTick]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closedMessage, setClosedMessage] = useState<string | null>(null);
   const [footerHeight, setFooterHeight] = useState(96);
   const discarding = useRef(false);
   const leaving = useRef(false);
@@ -134,6 +137,9 @@ export default function CartScreen() {
     useCallback(() => {
       loadAddress().catch(() => undefined);
       void getSignedInUser().then((user) => setSignedIn(Boolean(user)));
+      void refreshBusiness()
+        .then((shop) => setClosedMessage(shopClosedMessage(shop)))
+        .catch(() => setClosedMessage(null));
       if (items.length === 0 && !leaving.current) {
         router.replace('/home');
       }
@@ -226,20 +232,24 @@ export default function CartScreen() {
 
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
+  const shopClosed = Boolean(closedMessage) && !editingOpen;
   const placeOrderLabel = submitting
     ? editingOpen
       ? 'Updating…'
       : 'Placing order…'
     : editingOpen
       ? 'Update order'
-      : signedIn === false
-        ? 'Sign in to order'
-        : !selected
-          ? 'Add delivery address'
-          : 'Place order';
-  const placeOrderDisabled = submitting || Boolean(editingOpen && !hasOrderChanges);
-  const checkoutHint =
-    signedIn === false
+      : shopClosed
+        ? 'Shop closed'
+        : signedIn === false
+          ? 'Sign in to order'
+          : !selected
+            ? 'Add delivery address'
+            : 'Place order';
+  const placeOrderDisabled = submitting || shopClosed || Boolean(editingOpen && !hasOrderChanges);
+  const checkoutHint = shopClosed
+    ? closedMessage
+    : signedIn === false
       ? 'Sign in to place your order.'
       : !selected
         ? 'Add a delivery address to continue.'
@@ -247,6 +257,10 @@ export default function CartScreen() {
 
   async function onPlaceOrder() {
     if (placeOrderDisabled) {
+      return;
+    }
+    if (shopClosed && closedMessage) {
+      setError(closedMessage);
       return;
     }
     const user = await getSignedInUser();

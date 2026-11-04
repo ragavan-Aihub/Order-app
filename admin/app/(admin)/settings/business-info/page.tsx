@@ -14,5 +14,16 @@ export default async function BusinessInfoPage() {
     );
   }
 
-  return <BusinessInfoForm business={business} />;
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold md:text-3xl">Profile</h1>
+        <p className="mt-1 text-stone-600">
+          Shop logo, phone, and address. The logo and welcome photo appear on the customer welcome screen. The logo
+          also prints on the delivery bill.
+        </p>
+      </div>
+      <BusinessInfoForm business={business} />
+    </div>
+  );
 }

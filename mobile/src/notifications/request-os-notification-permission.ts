@@ -1,11 +1,10 @@
-import * as Notifications from 'expo-notifications';
-
 import { promptOpenNotificationSettings } from '@/notifications/ensure-push-permission';
 
 let requestInFlight: Promise<'granted' | 'denied'> | null = null;
 
 /** One system permission dialog when we can still ask; settings only if OS blocked re-prompt. */
 export async function requestOsNotificationPermissionOnce(): Promise<'granted' | 'denied'> {
+  const Notifications = await import('expo-notifications');
   const existing = await Notifications.getPermissionsAsync();
   if (existing.status === 'granted') {
     return 'granted';

@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -18,18 +19,26 @@ import { colors, spacing } from '@/config/theme';
 import { markEnteredShop } from '@/nav/shop-entry';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { requestOtp } from '@/services/auth';
-import { getBusiness } from '@/services/business';
+import { getBusiness, peekCachedBusiness, refreshBusiness } from '@/services/business';
 import { isNetworkFailure } from '@/services/network';
 import { isValidIndianMobile } from '@/utils/validation';
 import type { Business } from '@/types/business';
 
-const FALLBACK_LOGO = require('../../assets/images/farm2flavours-label.jpg');
+const BRAND_GREEN = '#0F7B38';
+const BRAND_DARK = '#14532D';
+const DEFAULT_TAGLINE = 'Fresh products, delivered to your doorstep.';
+const WASH_GREEN = '#DDF1E3';
 
 type WelcomeSignupProps = {
   allowSkip: boolean;
   next?: string;
   initialMobile?: string;
 };
+
+function shopInitial(name: string) {
+  const letter = name.trim().charAt(0).toUpperCase();
+  return letter || '?';
+}
 
 export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: WelcomeSignupProps) {
   const router = useRouter();
@@ -38,12 +47,44 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
   const [mobile, setMobile] = useState(initialMobile.replace(/\D/g, '').slice(-10));
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [business, setBusiness] = useState<Business | null>(null);
+  const [business, setBusiness] = useState<Business | null>(() => peekCachedBusiness());
+  const [shopLoaded, setShopLoaded] = useState(() => peekCachedBusiness() != null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const canContinue = isValidIndianMobile(mobile) && !sending;
+
+  const shopName = business?.business_name?.trim() ?? '';
+  const tagline = business?.description?.trim() || DEFAULT_TAGLINE;
+  const logoUrl = business?.logo_url?.trim() || '';
+  const bannerUrl = business?.banner_url?.trim() || '';
+  const showBanner = !keyboardVisible && Boolean(bannerUrl);
+  const [bannerAspect, setBannerAspect] = useState(3);
 
   useEffect(() => {
-    getBusiness().then(setBusiness).catch(() => setBusiness(null));
+    let active = true;
+    getBusiness()
+      .then((shop) => {
+        if (!active) {
+          return;
+        }
+        if (shop) {
+          setBusiness(shop);
+        }
+        setShopLoaded(true);
+      })
+      .catch(() => {
+        if (active) {
+          setShopLoaded(true);
+        }
+      });
+    refreshBusiness()
+      .then((shop) => {
+        if (active && shop) {
+          setBusiness(shop);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -125,30 +166,55 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
           )}
         </View>
 
-        <View style={styles.hero}>
-          <Image
-            source={business?.logo_url ? { uri: business.logo_url } : FALLBACK_LOGO}
-            style={keyboardVisible ? styles.logoCompact : styles.logo}
-            contentFit="cover"
-          />
-          {keyboardVisible ? null : (
-            <>
-              <Text style={styles.headline}>{business?.business_name ?? 'Welcome'}</Text>
-              <Text style={styles.tagline}>
-                {business?.description?.trim() || 'Browse the catalog and place an order.'}
+        <View style={[styles.hero, !showBanner && !keyboardVisible && styles.heroCentered]}>
+          {logoUrl ? (
+            <Image
+              source={{ uri: logoUrl }}
+              style={keyboardVisible ? styles.logoCompact : styles.logo}
+              contentFit="cover"
+            />
+          ) : shopLoaded ? (
+            <View style={[styles.logoFallback, keyboardVisible && styles.logoCompact]}>
+              <Text style={keyboardVisible ? styles.initialCompact : styles.initial}>
+                {shopInitial(shopName)}
               </Text>
-            </>
+            </View>
+          ) : null}
+          {keyboardVisible ? null : (
+            <View style={styles.titlePatch}>
+              {shopName ? <Text style={styles.headline}>{shopName}</Text> : null}
+              <Text style={styles.tagline}>{tagline}</Text>
+            </View>
           )}
         </View>
 
+        {showBanner ? (
+          <Image
+            source={{ uri: bannerUrl }}
+            style={[styles.banner, { aspectRatio: bannerAspect }]}
+            contentFit="contain"
+            onLoad={(event) => {
+              const width = event.source.width;
+              const height = event.source.height;
+              if (width > 0 && height > 0) {
+                setBannerAspect(width / height);
+              }
+            }}
+          />
+        ) : null}
+
         <View style={styles.form}>
           <View style={styles.phoneRow}>
-            <Text style={styles.prefix}>+91</Text>
+            <View style={styles.prefixGroup}>
+              <Text style={styles.prefix}>+91</Text>
+              <Ionicons name="chevron-down" size={18} color={BRAND_DARK} />
+            </View>
+            <View style={styles.divider} />
             <TextInput
               value={mobile}
               onChangeText={(value) => setMobile(value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="Enter Phone Number"
-              placeholderTextColor={colors.textMuted}
+              placeholder="Enter mobile number"
+              placeholderTextColor="#8A8A8A"
               keyboardType="phone-pad"
               style={styles.phoneInput}
             />
@@ -156,19 +222,36 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable
             onPress={onContinue}
-            disabled={!canContinue}
-            style={[styles.continue, !canContinue && styles.continueDisabled]}
+            disabled={sending}
+            style={styles.continue}
             accessibilityRole="button"
           >
-            <Text style={[styles.continueLabel, !canContinue && styles.continueLabelDisabled]}>
-              {sending ? 'Sending…' : 'Continue'}
-            </Text>
+            <Text style={styles.continueLabel}>{sending ? 'Sending…' : 'Continue'}</Text>
           </Pressable>
-          {!allowSkip ? (
+          <View style={styles.otpNote}>
+            <Ionicons name="shield-checkmark-outline" size={26} color={BRAND_GREEN} />
+            <Text style={styles.otpNoteText}>
+              We'll send a one-time password (OTP) to verify your number.
+            </Text>
+          </View>
+          {allowSkip ? null : (
             <Text style={styles.hint}>Sign in with this number to place your order.</Text>
-          ) : (
-            <Text style={styles.hint}>You can skip and sign in later when adding the delivery address.</Text>
           )}
+        </View>
+
+        <View style={[styles.spacer, showBanner && styles.spacerGrow]} />
+
+        <View style={styles.legalWrap}>
+          <Text style={styles.legal}>
+            By continuing, you agree to our{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => router.push('/privacy')}
+              accessibilityRole="link"
+            >
+              Privacy Policy
+            </Text>
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -178,7 +261,7 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: WASH_GREEN,
   },
   content: {
     flexGrow: 1,
@@ -191,96 +274,184 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   skip: {
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
     paddingVertical: 8,
   },
   skipLabel: {
-    color: colors.textMuted,
-    fontSize: 16,
-    fontWeight: '600',
+    color: BRAND_GREEN,
+    fontSize: 18,
+    fontWeight: '700',
   },
   hero: {
-    flex: 1,
     alignItems: 'center',
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  heroCentered: {
+    flexGrow: 1,
     justifyContent: 'center',
-    gap: spacing.md,
+  },
+  titlePatch: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: '#FFFFFF',
+    borderRadius: '50%',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
   logo: {
-    width: 160,
-    height: 160,
+    width: 148,
+    height: 148,
     borderRadius: 32,
-    backgroundColor: colors.border,
+    backgroundColor: '#F4F4F5',
+    shadowColor: '#14532D',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   logoCompact: {
-    width: 88,
-    height: 88,
+    width: 80,
+    height: 80,
     borderRadius: 20,
-    backgroundColor: colors.border,
+  },
+  logoFallback: {
+    width: 148,
+    height: 148,
+    borderRadius: 32,
+    backgroundColor: '#E8F6EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  initial: {
+    fontSize: 56,
+    fontWeight: '800',
+    color: BRAND_GREEN,
+  },
+  initialCompact: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: BRAND_GREEN,
   },
   headline: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: colors.text,
+    fontSize: 34,
+    fontWeight: '800',
+    color: BRAND_DARK,
     textAlign: 'center',
-    lineHeight: 34,
+    lineHeight: 40,
   },
   tagline: {
-    fontSize: 16,
-    color: colors.textMuted,
+    fontSize: 22,
+    lineHeight: 30,
+    color: '#3F3F46',
     textAlign: 'center',
+  },
+  banner: {
+    width: '100%',
+    aspectRatio: 3,
+    marginBottom: spacing.md,
+    backgroundColor: WASH_GREEN,
   },
   form: {
     gap: spacing.md,
-    paddingBottom: spacing.sm,
   },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DADADA',
+    borderRadius: 22,
     paddingHorizontal: spacing.md,
-    minHeight: 56,
+    minHeight: 64,
+  },
+  prefixGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   prefix: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginRight: spacing.sm,
+    fontSize: 20,
+    fontWeight: '800',
+    color: BRAND_DARK,
+  },
+  divider: {
+    width: 1.5,
+    alignSelf: 'stretch',
+    backgroundColor: '#DADADA',
+    marginHorizontal: spacing.md,
+    marginVertical: 14,
   },
   phoneInput: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 20,
     color: colors.text,
     paddingVertical: 12,
   },
   continue: {
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    minHeight: 58,
+    borderRadius: 22,
+    backgroundColor: BRAND_GREEN,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  continueDisabled: {
-    backgroundColor: colors.border,
+    shadowColor: BRAND_GREEN,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   continueLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primaryText,
-  },
-  continueLabelDisabled: {
-    color: colors.textMuted,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   error: {
     fontSize: 15,
     color: colors.danger,
   },
+  otpNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  otpNoteText: {
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 24,
+    color: '#3F3F46',
+  },
   hint: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textMuted,
+    marginTop: spacing.xs,
+    fontSize: 17,
+    lineHeight: 25,
+    color: '#52525B',
     textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  spacer: {
+    minHeight: spacing.lg,
+  },
+  spacerGrow: {
+    flexGrow: 1,
+  },
+  legalWrap: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D4D4D8',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  legal: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#52525B',
+    textAlign: 'center',
+  },
+  legalLink: {
+    color: BRAND_GREEN,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
 });

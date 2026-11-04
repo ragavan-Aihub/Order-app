@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import { Alert, Linking } from 'react-native';
 
 import { productNotifyCopy } from '@/copy/product-notify';
@@ -18,6 +17,7 @@ export async function ensurePushForProductNotify(): Promise<'granted' | 'denied'
     return 'denied';
   }
 
+  const Notifications = await import('expo-notifications');
   const existing = await Notifications.getPermissionsAsync();
   if (existing.status === 'granted') {
     return 'granted';

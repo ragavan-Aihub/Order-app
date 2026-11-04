@@ -7,3 +7,8 @@ expo-env.d.ts
 
 # Firebase service account (secret) — do not commit. google-services.json is OK to commit.
 *-firebase-adminsdk-*.json
+
+# Profile logo copied for the Expo Go opening icon. Regenerated on expo start.
+assets/images/dev-launch-icon.png
+assets/images/dev-launch-icon.jpg
+assets/images/dev-launch-icon.bin

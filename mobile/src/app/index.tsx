@@ -1,9 +1,8 @@
 import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { View } from 'react-native';
 
-import { WelcomeSignup } from '@/components/WelcomeSignup';
-import { colors } from '@/config/theme';
 import {
   captureNotificationLaunchTarget,
   markPushLaunchHandled,
@@ -11,80 +10,105 @@ import {
   takePendingPushLaunch,
 } from '@/notifications/pending-push-deeplink';
 import { hasEnteredShop } from '@/nav/shop-entry';
-import { getSignedInUser } from '@/services/supabase';
+import { hasStoredSession } from '@/services/supabase';
+
+function hideSplash() {
+  SplashScreen.hideAsync().catch(() => undefined);
+}
+
+type Opening =
+  | { kind: 'home' }
+  | { kind: 'welcome' }
+  | { kind: 'redirect'; href: Href };
+
+type WelcomeProps = { allowSkip: boolean; next: string };
+
+async function decideOpening(): Promise<Opening> {
+  await captureNotificationLaunchTarget();
+  const launch = takePendingPushLaunch();
+  if (launch) {
+    void markPushLaunchHandled(launch.responseId);
+    return { kind: 'redirect', href: routeForPushLaunch(launch) };
+  }
+  if ((await hasEnteredShop()) || (await hasStoredSession())) {
+    return { kind: 'home' };
+  }
+  return { kind: 'welcome' };
+}
+
+let coldStart: Promise<Opening> | null = null;
+
+function startOpening() {
+  if (!coldStart) {
+    coldStart = decideOpening();
+  }
+  return coldStart;
+}
+
+void startOpening();
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [launchRedirect, setLaunchRedirect] = useState<Href | null>(null);
+  const [opening, setOpening] = useState<Opening | null>(null);
+  const [WelcomeScreenView, setWelcomeScreenView] = useState<ComponentType<WelcomeProps> | null>(null);
+  const openedOnce = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void (async () => {
-        try {
-          await captureNotificationLaunchTarget();
+      const pending = openedOnce.current ? decideOpening() : startOpening();
+      openedOnce.current = true;
+      void pending
+        .then((next) => {
           if (!active) {
             return;
           }
-          const launch = takePendingPushLaunch();
-          if (launch) {
-            setLaunchRedirect(routeForPushLaunch(launch));
-            void markPushLaunchHandled(launch.responseId);
+          setOpening(next);
+          if (next.kind === 'redirect') {
+            hideSplash();
             return;
           }
-          const [user, entered] = await Promise.all([getSignedInUser(), hasEnteredShop()]);
-          if (!active) {
-            return;
-          }
-          if (user || entered) {
-            setShowWelcome(false);
+          if (next.kind === 'home') {
             router.replace('/home');
-            return;
           }
-          setShowWelcome(true);
-          setReady(true);
-        } catch {
+        })
+        .catch(() => {
           if (active) {
-            setReady(true);
+            setOpening({ kind: 'welcome' });
           }
-        }
-      })();
+        });
       return () => {
         active = false;
       };
     }, [router]),
   );
 
-  if (launchRedirect) {
-    return <Redirect href={launchRedirect} />;
+  useEffect(() => {
+    if (opening?.kind !== 'welcome') {
+      return;
+    }
+    let active = true;
+    void import('@/components/WelcomeSignup').then((mod) => {
+      if (active) {
+        setWelcomeScreenView(() => mod.WelcomeSignup);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [opening]);
+
+  if (opening?.kind === 'redirect') {
+    return <Redirect href={opening.href} />;
   }
 
-  if (!showWelcome) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+  if (opening?.kind !== 'welcome' || !WelcomeScreenView) {
+    return null;
   }
 
-  if (!ready) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  return <WelcomeSignup allowSkip next="home" />;
+  return (
+    <View style={{ flex: 1, backgroundColor: '#DDF1E3' }} onLayout={hideSplash}>
+      <WelcomeScreenView allowSkip next="home" />
+    </View>
+  );
 }
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-});

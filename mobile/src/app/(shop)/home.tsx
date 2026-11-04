@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as SplashScreen from 'expo-splash-screen';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   Keyboard,
   Platform,
@@ -27,6 +29,8 @@ import {
   subscribeHomeCategory,
 } from '@/catalog/home-filter';
 import { HomeHeader } from '@/components/HomeHeader';
+import { ShopBannerCarousel } from '@/components/ShopBannerCarousel';
+import { ShopHomeNotice, shopClosedMessage } from '@/components/ShopHomeNotice';
 import { HomeProductGridItem } from '@/components/HomeProductGridItem';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -36,11 +40,13 @@ import { env } from '@/config/env';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { notifyHomeCatalogReady } from '@/notifications/notification-permission-offer';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { refreshBusiness } from '@/services/business';
+import { getShopBanners, refreshBusiness, type ShopBanner } from '@/services/business';
+import type { Business } from '@/types/business';
 import {
   fetchProductByIdLive,
   getCachedProducts,
   invalidateProductCatalogCache,
+  peekCachedProducts,
   refreshAvailableProducts,
 } from '@/services/products';
 import type { Product } from '@/types/product';
@@ -78,12 +84,15 @@ export default function HomeScreen() {
   }, [resumeEdit, router, takeResumeEdit]);
   const { offline } = useNetworkStatus();
   const { categoriesEnabled, categories } = useShopCatalog();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => peekCachedProducts());
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState(getHomeCategoryId());
-  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [banners, setBanners] = useState<ShopBanner[]>([]);
+  const [shopNotice, setShopNotice] = useState<Business | null>(null);
+  const [loading, setLoading] = useState(() => peekCachedProducts().length === 0);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const painted = useRef(false);
   const listRef = useRef<FlatList<Product>>(null);
@@ -123,6 +132,10 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const show = Keyboard.addListener(showEvent, (event) => setKeyboardHeight(event.endCoordinates.height));
@@ -134,7 +147,26 @@ export default function HomeScreen() {
   }, []);
 
   const keyboardOpen = keyboardHeight > 0;
-  const searching = searchFocused && keyboardOpen;
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchFocused(false);
+    setQuery('');
+    Keyboard.dismiss();
+    searchInputRef.current?.blur();
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      return;
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeSearch();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [closeSearch, searchOpen]);
 
   const loadCatalog = useCallback(async () => {
     if (!painted.current) {
@@ -145,9 +177,14 @@ export default function HomeScreen() {
         painted.current = true;
       }
     }
-    const [catalog, shop] = await Promise.all([refreshAvailableProducts(), refreshBusiness()]);
+    const [catalog, shop, posters] = await Promise.all([
+      refreshAvailableProducts(),
+      refreshBusiness(),
+      getShopBanners(),
+    ]);
     setProducts(catalog);
-    setBannerUrl(shop?.banner_url ?? null);
+    setBanners(posters);
+    setShopNotice(shop);
     painted.current = true;
   }, []);
 
@@ -351,11 +388,8 @@ export default function HomeScreen() {
   );
 
   const listHeader = useMemo(
-    () =>
-      bannerUrl ? (
-        <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" />
-      ) : null,
-    [bannerUrl],
+    () => (shopClosedMessage(shopNotice) ? <ShopHomeNotice shop={shopNotice} /> : null),
+    [shopNotice],
   );
 
   const listEmpty = useMemo(() => {
@@ -411,11 +445,9 @@ export default function HomeScreen() {
 
   const listContentPadding = useMemo(
     () => ({
-      paddingBottom: keyboardOpen
-        ? keyboardHeight + spacing.md
-        : viewCartScrollPadding(insets.bottom, itemCount > 0),
+      paddingBottom: keyboardOpen ? spacing.lg : viewCartScrollPadding(insets.bottom, itemCount > 0),
     }),
-    [insets.bottom, itemCount, keyboardHeight, keyboardOpen],
+    [insets.bottom, itemCount, keyboardOpen],
   );
 
   if ((loading && !focusProductId) || pushCatalogLoading) {
@@ -427,15 +459,15 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <HomeHeader />
+    <View style={[styles.screen, searchOpen && { paddingTop: insets.top }]}>
+      {searchOpen ? null : <HomeHeader />}
       <ModifyOrderBar variant="shop" style={styles.modifyBar} />
       {offline ? (
         <View style={styles.offlineWrap}>
           <OfflineBanner />
         </View>
       ) : null}
-      {searching || !env.voiceOrdering ? null : (
+      {searchOpen || !env.voiceOrdering ? null : (
         <Pressable
           style={({ pressed }) => [styles.samCta, pressed && styles.pressed]}
           onPress={() => router.push('/sam')}
@@ -457,13 +489,27 @@ export default function HomeScreen() {
           </View>
         </Pressable>
       )}
-      <View style={[styles.searchBar, (searching || !env.voiceOrdering) && styles.searchBarTop]}>
+      <View style={[styles.searchBar, (searchOpen || !env.voiceOrdering) && styles.searchBarTop]}>
+        {searchOpen ? (
+          <Pressable
+            onPress={closeSearch}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.primary} />
+          </Pressable>
+        ) : null}
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
           <TextInput
+            ref={searchInputRef}
             value={query}
             onChangeText={onSearchChange}
-            onFocus={() => setSearchFocused(true)}
+            onFocus={() => {
+              setSearchFocused(true);
+              setSearchOpen(true);
+            }}
             onBlur={() => setSearchFocused(false)}
             onSubmitEditing={() => Keyboard.dismiss()}
             placeholder="Search products"
@@ -525,6 +571,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
       ) : null}
+      {searchOpen ? null : <ShopBannerCarousel banners={banners} />}
       <FlatList
         ref={listRef}
         data={visibleProducts}
@@ -534,7 +581,7 @@ export default function HomeScreen() {
         columnWrapperStyle={visibleProducts.length > 0 ? styles.gridRow : undefined}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
-        style={styles.productScroll}
+        style={[styles.productScroll, keyboardOpen && { marginBottom: keyboardHeight }]}
         contentContainerStyle={[styles.scroll, listContentPadding]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -585,10 +632,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
     paddingBottom: 4,
     backgroundColor: colors.background,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBarTop: {
     paddingTop: spacing.sm,
@@ -657,6 +715,7 @@ const styles = StyleSheet.create({
     opacity: 0.88,
   },
   searchWrap: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -719,12 +778,6 @@ const styles = StyleSheet.create({
   },
   chipLabelOn: {
     color: colors.primaryText,
-  },
-  banner: {
-    width: '100%',
-    height: 120,
-    borderRadius: radius.md,
-    backgroundColor: colors.border,
   },
   empty: {
     fontSize: 16,

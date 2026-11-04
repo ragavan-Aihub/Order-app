@@ -1,6 +1,7 @@
 import type { CartItem } from '@/cart/CartContext';
 import { CART_LIMIT_ITEMS, CART_LIMIT_QTY, MAX_CART_ITEMS, MAX_ITEM_QTY } from '@/cart/limits';
 import { env } from '@/config/env';
+import { refreshBusiness } from '@/services/business';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
 import { getCachedProducts, refreshAvailableProducts } from '@/services/products';
 import { getSupabaseClient } from '@/services/supabase';
@@ -465,6 +466,13 @@ export async function placeOrder(
   }
   if (items.some((item) => item.quantity > MAX_ITEM_QTY)) {
     throw new Error(CART_LIMIT_QTY);
+  }
+
+  const shop = await refreshBusiness();
+  if (shop?.shop_closed) {
+    throw new Error(
+      shop.shop_closed_message?.trim() || 'The shop is closed and is not taking orders right now.',
+    );
   }
 
   let signedIn;

@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { InteractionManager } from 'react-native';
 
@@ -24,7 +23,10 @@ import { getSupabaseClient } from '@/services/supabase';
 
 const OFFER_AFTER_CATALOG_MS = 350;
 
-type PermissionSnapshot = Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>;
+type PermissionSnapshot = {
+  status: string;
+  canAskAgain?: boolean;
+};
 
 function shouldShowCustomPreprompt(permission: PermissionSnapshot): boolean {
   if (permission.status === 'granted') {
@@ -85,6 +87,7 @@ export function NotificationPermissionProvider({ children }: { children: ReactNo
         offeredRef.current = true;
         return;
       }
+      const Notifications = await import('expo-notifications');
       const permission = await Notifications.getPermissionsAsync();
       if (permission.status === 'granted') {
         offeredRef.current = true;

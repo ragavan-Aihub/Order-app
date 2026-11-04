@@ -122,7 +122,7 @@ async function uploadBusinessAsset(
   supabase: SupabaseClient,
   businessId: string,
   file: File,
-  kind: 'logo' | 'banner',
+  kind: 'logo' | 'banner' | 'announcement',
 ): Promise<string> {
   const prepared = await prepareImage(await asBytes(file));
   return uploadImageBytes(
@@ -140,6 +140,14 @@ export async function uploadBusinessLogo(
   file: File,
 ): Promise<string> {
   return uploadBusinessAsset(supabase, businessId, file, 'logo');
+}
+
+export async function uploadBusinessAnnouncement(
+  supabase: SupabaseClient,
+  businessId: string,
+  file: File,
+): Promise<string> {
+  return uploadBusinessAsset(supabase, businessId, file, 'announcement');
 }
 
 export async function uploadBusinessBanner(

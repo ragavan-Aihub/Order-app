@@ -2,9 +2,11 @@
 
 import {
   ClipboardList,
+  Power,
   Image,
   KeyRound,
   LayoutGrid,
+  Megaphone,
   Package,
   ScrollText,
   ShoppingBag,
@@ -38,6 +40,8 @@ const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/products', label: 'Products', icon: Package },
   { href: '/customers', label: 'Customers', icon: Users },
   { href: '/settings/business-info', label: 'Profile', icon: Store },
+  { href: '/settings/announcements', label: 'Announcements', icon: Megaphone },
+  { href: '/settings/shop-closed', label: 'Shop status', icon: Power },
   ...(SHOW_LATER_PHASE_MENUS ? laterPhaseLinks : []),
 ];
 

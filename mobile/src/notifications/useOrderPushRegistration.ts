@@ -31,6 +31,9 @@ export function useOrderPushRegistration() {
           params: homeParamsForAvailableProductPush(productId),
         });
       },
+      onOpenHome: () => {
+        router.replace('/home');
+      },
     }),
     [router],
   );

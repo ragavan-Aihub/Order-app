@@ -1,8 +1,11 @@
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 import { CartProvider } from '@/cart/CartContext';
 import { AppUpdatePrompt } from '@/components/AppUpdatePrompt';
@@ -87,7 +90,10 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: colors.background },
             }}
           >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="index"
+            options={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+          />
           <Stack.Screen name="login" options={{ headerShown: false, title: 'Login' }} />
           <Stack.Screen name="(shop)" options={{ headerShown: false }} />
           <Stack.Screen name="products" options={{ headerShown: false }} />
@@ -96,8 +102,9 @@ export default function RootLayout() {
           <Stack.Screen name="new-order" options={{ headerShown: false }} />
           <Stack.Screen name="checkout" options={{ title: 'Saved addresses' }} />
           <Stack.Screen name="faqs" options={{ title: 'FAQs' }} />
+          <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
           <Stack.Screen name="address/form" options={{ title: 'Add Address Details' }} />
-          <Stack.Screen name="verify" options={{ title: 'Verify OTP' }} />
+          <Stack.Screen name="verify" options={{ headerShown: false, title: 'Verify OTP' }} />
           <Stack.Screen name="confirmation" options={{ title: 'Order status' }} />
           <Stack.Screen
             name="order/[id]"
