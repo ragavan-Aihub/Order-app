@@ -28,7 +28,7 @@ const howTo = [
   ['Delivery app — optional phone app for the person who delivers (same email and password as the admin website).'],
   [''],
   ['Suggested first session'],
-  ['Do every P0 row, especially Step 57 (one order from the customer through payment). Then do P1 rows in step order.'],
+  ['Do every P0 row, especially Step 61 (one order from the customer through payment). Then do P1 rows in step order.'],
   [''],
   ['Words'],
   ['Placed — customer just ordered; shop has not confirmed yet.'],

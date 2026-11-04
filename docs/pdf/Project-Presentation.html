@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Farm2Flavour — project presentation</title>
+  <style>
+  :root {
+    --ink: #1c1917;
+    --muted: #57534e;
+    --line: #e7e5e4;
+    --paper: #fafaf9;
+    --green: #047857;
+    --green-deep: #064e3b;
+    --gold: #b45309;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #111; color: var(--ink); }
+  body { font-family: "Avenir Next", "Segoe UI", sans-serif; }
+  .deck { height: 100%; }
+  .slide {
+    display: none;
+    height: 100%;
+    padding: 56px 72px 72px;
+    background:
+      linear-gradient(180deg, rgba(4, 120, 87, 0.08), transparent 180px),
+      var(--paper);
+    position: relative;
+  }
+  .slide.active { display: flex; flex-direction: column; }
+  .kicker {
+    margin: 0 0 12px;
+    color: var(--green);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 0 0 28px;
+    max-width: 18ch;
+    font-size: 54px;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--green-deep);
+  }
+  .body { font-size: 24px; line-height: 1.35; color: var(--ink); max-width: 1080px; }
+  .body p { margin: 0 0 16px; }
+  .body ul, .body ol { margin: 8px 0 0; padding-left: 1.2em; }
+  .body li { margin: 10px 0; }
+  .body li::marker { color: var(--green); }
+  .body strong { color: var(--green-deep); }
+  .body table { width: 100%; border-collapse: collapse; font-size: 22px; background: var(--card); }
+  .body th, .body td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .body th { color: var(--muted); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .num {
+    position: absolute;
+    right: 36px;
+    bottom: 28px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .notes { display: none; }
+  body.show-notes .notes {
+    display: block;
+    position: absolute;
+    left: 36px;
+    right: 120px;
+    bottom: 22px;
+    margin: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+  .help {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    color: #a8a29e;
+    font-size: 12px;
+    z-index: 2;
+  }
+  @media print {
+    html, body { height: auto; background: white; }
+    .help { display: none; }
+    .slide, .slide.active {
+      display: flex;
+      break-after: page;
+      height: 7.5in;
+      width: 13.333in;
+      padding: 0.55in 0.7in 0.7in;
+    }
+    @page { size: 13.333in 7.5in; margin: 0; }
+  }
+</style>
+</head>
+<body>
+  <main class="deck" id="deck"><section class="slide active" data-index="0">
+        <p class="kicker">Farm2Flavour</p>
+        <h1>A shop that takes orders from the phone</h1>
+        <div class="body"><p>Home delivery for a small shop. Customers order in an Android app. The shop runs the day from a website. Drivers can use a second phone app.</p>
+<p>5 November 2026</p>
+</div>
+        <p class="notes">Open with one sentence: customers order on the phone, the shop sees it at once, and they pay the person who delivers. This deck matches the product as it works today.</p>
+        <p class="num">1 / 22</p>
+      </section>
+<section class="slide" data-index="1">
+        <p class="kicker">The product</p>
+        <h1>Three tools, one shop</h1>
+        <div class="body"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Who</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Customer app</strong></td>
+<td>People who order</td>
+<td>Android phone</td>
+</tr>
+<tr>
+<td><strong>Admin panel</strong></td>
+<td>Owner and shop staff</td>
+<td>Website, laptop or phone</td>
+</tr>
+<tr>
+<td><strong>Delivery app</strong></td>
+<td>Staff on the road</td>
+<td>Android phone, optional</td>
+</tr>
+</tbody></table>
+<p>They share one database. A new order shows in the admin panel as soon as the customer places it. A status change in the admin panel shows in the customer app, with the date and time.</p>
+</div>
+        <p class="notes">The delivery app is optional. Many days the shop can run everything from the website. Use the delivery app when someone is out with a phone.</p>
+        <p class="num">2 / 22</p>
+      </section>
+<section class="slide" data-index="2">
+        <p class="kicker">One product, any shop</p>
+        <h1>The app wears the shop’s name</h1>
+        <div class="body"><p>The customer app is not locked to one logo drawn into the software.</p>
+<ul>
+<li><strong>Name, phone, address, and description</strong> come from <strong>Profile</strong>.</li>
+<li><strong>Logo</strong> is on the sign-in screen and on the delivery bill.</li>
+<li><strong>Welcome photo</strong> is the wide picture on the sign-in screen only.</li>
+<li><strong>Home posters</strong> are separate. They are set under <strong>Announcements</strong>.</li>
+<li><strong>Products, prices, and categories</strong> come from the admin panel.</li>
+</ul>
+<p>The phone’s home-screen icon is part of the installed app. A new icon needs a new install.</p>
+</div>
+        <p class="notes">If we ever set this up for another shop, they change Profile, products, and posters. They do not get a new app design for each photo.</p>
+        <p class="num">3 / 22</p>
+      </section>
+<section class="slide" data-index="3">
+        <p class="kicker">The order</p>
+        <h1>From browse to paid</h1>
+        <div class="body"><ol>
+<li>The customer browses and adds items.</li>
+<li>They place the order. Status is <strong>Placed</strong>.</li>
+<li>The shop confirms. Status is <strong>Confirmed</strong>.</li>
+<li>The shop sends it out. Status is <strong>Out for delivery</strong>.</li>
+<li>The shop marks it delivered. Status is <strong>Delivered</strong>.</li>
+<li>The shop records <strong>Cash</strong> or <strong>UPI</strong>.</li>
+</ol>
+<p>Each step keeps a date and time. The customer sees the same steps.</p>
+</div>
+        <p class="notes">Walk this slowly. Placed means waiting. Confirmed means the shop accepted it. Out for delivery means it is on the way. Delivered means it was handed over. Payment is a separate step.</p>
+        <p class="num">4 / 22</p>
+      </section>
+<section class="slide" data-index="4">
+        <p class="kicker">Payment</p>
+        <h1>Pay the person who delivers</h1>
+        <div class="body"><p>There is no card payment inside the app.</p>
+<ul>
+<li>Customers pay <strong>cash</strong> or <strong>UPI</strong> at the door.</li>
+<li>Until the shop records that payment, a delivered order stays <strong>Outstanding</strong>.</li>
+<li>If the shop uploaded a UPI code, the customer can see it when the order is on the way and not yet paid.</li>
+<li>If a paid order is cancelled, it becomes <strong>Refund pending</strong> until the shop marks the money returned.</li>
+</ul>
+</div>
+        <p class="notes">Stress this if someone asks about online payment. The app does not take money. The shop records what was collected.</p>
+        <p class="num">5 / 22</p>
+      </section>
+<section class="slide" data-index="5">
+        <p class="kicker">Customer app</p>
+        <h1>How a customer gets in</h1>
+        <div class="body"><ul>
+<li>A new visit shows the welcome screen: logo, shop name, description, and the welcome photo if one is set.</li>
+<li>They enter a 10-digit mobile number. The code arrives by text. There is no password.</li>
+<li>They can <strong>Skip</strong> and look at products first. Sign-in is required to save an address, open orders, or place an order.</li>
+<li>Someone who is already signed in opens straight on Home.</li>
+<li>The first sign-in adds them to <strong>Customers</strong>, with source <strong>App</strong>.</li>
+</ul>
+</div>
+        <p class="notes">Skip is for looking, not for ordering. The text code is the sign-in.</p>
+        <p class="num">6 / 22</p>
+      </section>
+<section class="slide" data-index="6">
+        <p class="kicker">Customer app</p>
+        <h1>Home, then a full search screen</h1>
+        <div class="body"><p><strong>Browsing, top to bottom</strong></p>
+<ul>
+<li>Delivery address, and a round initial that opens Account.</li>
+<li>Search.</li>
+<li>Category chips, fixed under search, when categories are turned on.</li>
+<li>Home posters, a wide strip under the categories. More than one poster moves on its own.</li>
+<li>Products, two per row, with Add, then plus and minus.</li>
+</ul>
+<p><strong>Search</strong></p>
+<ul>
+<li>Search fills the screen. A round back arrow sits beside the box.</li>
+<li>Categories stay and still filter the results.</li>
+<li>The posters hide so results have room, and they stay above the keyboard.</li>
+<li>Back clears the search and returns to Home.</li>
+</ul>
+</div>
+        <p class="notes">Do not describe an old layout with a voice button or a banner above search. Posters sit under the categories. Search is its own screen.</p>
+        <p class="num">7 / 22</p>
+      </section>
+<section class="slide" data-index="7">
+        <p class="kicker">Customer app</p>
+        <h1>Posters and a closed shop</h1>
+        <div class="body"><p><strong>Posters</strong></p>
+<ul>
+<li>Shown only when Announcements are turned on.</li>
+<li>Up to 8. The shop crops each photo to the same wide frame the phone uses.</li>
+<li>A phone alert is sent only for a poster the shop switches on at publish time. The switch turns off after save, so a later save does not send it again.</li>
+</ul>
+<p><strong>Shop closed</strong></p>
+<ul>
+<li>The home screen and the cart show the shop’s message.</li>
+<li><strong>Place order</strong> is not available.</li>
+<li>An order that is already placed can still be updated.</li>
+<li>The shop can still type a phone or walk-in order on the website.</li>
+</ul>
+</div>
+        <p class="notes">Closed means no new customer orders. It does not freeze orders that are already in. The website can still take a phone order.</p>
+        <p class="num">8 / 22</p>
+      </section>
+<section class="slide" data-index="8">
+        <p class="kicker">Customer app</p>
+        <h1>The cart</h1>
+        <div class="body"><ul>
+<li>Address at the top. Tap it to change where this order goes.</li>
+<li>Up to <strong>15 different products</strong>, and up to <strong>10 of each</strong>.</li>
+<li>Clear cart asks before it empties the cart.</li>
+<li>The bill shows the total and <strong>Pay on delivery · Cash or UPI</strong>.</li>
+<li>The phone must be online to place the order.</li>
+<li>If a product became Coming soon after it was added, the customer has to remove it first.</li>
+</ul>
+</div>
+        <p class="notes">The limits are there so one order stays a normal home delivery, not a bulk list.</p>
+        <p class="num">9 / 22</p>
+      </section>
+<section class="slide" data-index="9">
+        <p class="kicker">Customer app</p>
+        <h1>One open order for one address</h1>
+        <div class="body"><p>Each address can have only one <strong>open</strong> order. Open means Placed or Confirmed.</p>
+<ul>
+<li>A second order to that same address is offered as <strong>View / Modify</strong> on the order already there.</li>
+<li>A different saved address can have its own open order.</li>
+<li>A customer can save up to <strong>3 addresses</strong>.</li>
+<li>Once the first order is <strong>Out for delivery</strong>, a new order to that address is allowed.</li>
+</ul>
+</div>
+        <p class="notes">This avoids two separate drops to the same house while the first order is still being prepared.</p>
+        <p class="num">10 / 22</p>
+      </section>
+<section class="slide" data-index="10">
+        <p class="kicker">Customer app</p>
+        <h1>Change it, cancel it, follow it</h1>
+        <div class="body"><p><strong>Change an open order</strong></p>
+<ul>
+<li>Add, remove, or change quantities, then <strong>Update order</strong>.</li>
+<li>A customer can update one order at most <strong>5 times</strong>. Shop edits do not use up that count.</li>
+<li>After the shop edits items, the customer can open <strong>View changes</strong>.</li>
+</ul>
+<p><strong>Cancel</strong></p>
+<ul>
+<li>The customer can cancel only while the order is still <strong>Placed</strong>, and at most <strong>3 times in a day</strong>.</li>
+<li>After the shop confirms, the customer calls the shop. The shop can still cancel, and must give a reason.</li>
+</ul>
+<p><strong>Follow</strong></p>
+<ul>
+<li>Your Orders shows the status. The order screen shows the number, items, address, and each step with its time.</li>
+</ul>
+</div>
+        <p class="notes">If someone asks why a customer cannot cancel after confirm: the shop has already accepted it. Staff can still cancel from the website.</p>
+        <p class="num">11 / 22</p>
+      </section>
+<section class="slide" data-index="11">
+        <p class="kicker">Customer app</p>
+        <h1>Coming soon, and order again</h1>
+        <div class="body"><ul>
+<li><strong>Inactive</strong> products are hidden.</li>
+<li><strong>Coming soon</strong> products stay visible, dimmed, and cannot be added. <strong>Notify me</strong> asks for a phone alert when that item can be ordered.</li>
+<li><strong>Order again</strong> lists products from the customer’s recent orders, not from cancelled ones, so a usual order is quick to repeat.</li>
+<li>Tapping a product picture does not open a separate product page. The name, price, and Add button are on the card.</li>
+</ul>
+</div>
+        <p class="notes">Notify me only reaches people who installed the app and allowed notifications.</p>
+        <p class="num">12 / 22</p>
+      </section>
+<section class="slide" data-index="12">
+        <p class="kicker">Admin panel</p>
+        <h1>The shop’s website</h1>
+        <div class="body"><p>Staff sign in with email and password. A customer phone login cannot open the shop website.</p>
+<p><strong>Menu</strong></p>
+<p>Dashboard, Orders, Reports, Audit log, Products, Customers, Profile, Announcements, Shop status.</p>
+<p><strong>A normal day</strong></p>
+<ul>
+<li>Dashboard: orders today, sales today, delivered today, and money still outstanding.</li>
+<li>If orders are still Placed, a banner counts them and opens that list.</li>
+<li>Confirm, send out, mark delivered, then record Cash, UPI, or Not yet.</li>
+<li>A wrong status can be corrected. A cancellation needs a reason.</li>
+<li>Reports lists who still owes money. “Today” uses India time.</li>
+</ul>
+</div>
+        <p class="notes">Outstanding is the follow-up list: delivered, not paid yet.</p>
+        <p class="num">13 / 22</p>
+      </section>
+<section class="slide" data-index="13">
+        <p class="kicker">Admin panel</p>
+        <h1>Products and customers</h1>
+        <div class="body"><p><strong>Products</strong></p>
+<ul>
+<li>Add a photo, name, and price. Active and available means the customer can buy it.</li>
+<li>Categories are optional. Customers see them as chips under search.</li>
+<li>A spreadsheet import handles up to 250 products at a time.</li>
+<li>A product that was already ordered is not deleted. Mark it Inactive to hide it.</li>
+</ul>
+<p><strong>Customers</strong></p>
+<ul>
+<li>App customers appear on their own. Staff can also add a phone or walk-in customer.</li>
+<li>Up to 3 addresses, plus delivery notes the customer does not type themselves.</li>
+<li>Communities group addresses for the shop only. Customers never see the community name.</li>
+</ul>
+</div>
+        <p class="notes">Communities are for the shop’s own sorting, for example one apartment. They are not a customer feature.</p>
+        <p class="num">14 / 22</p>
+      </section>
+<section class="slide" data-index="14">
+        <p class="kicker">Admin panel</p>
+        <h1>Profile, posters, and shop status</h1>
+        <div class="body"><p><strong>Profile</strong></p>
+<ul>
+<li>Logo, welcome photo, name, phone, email, and address.</li>
+<li>Save prints those details on the next delivery bill.</li>
+<li>The welcome photo is only for the sign-in screen.</li>
+</ul>
+<p><strong>Announcements</strong></p>
+<ul>
+<li>Crop each poster in the wide frame. Publish to show it under the categories.</li>
+<li>Phone alert is off until the shop turns it on for that poster.</li>
+</ul>
+<p><strong>Shop status</strong></p>
+<ul>
+<li>Open: customers can place orders.</li>
+<li>Closed: new customer orders stop, with the message the shop writes.</li>
+<li>Staff can still create an order on the website.</li>
+</ul>
+</div>
+        <p class="notes">If a poster looks wrong on the phone, fit it again in Announcements and publish. Old crops were made for an earlier frame.</p>
+        <p class="num">15 / 22</p>
+      </section>
+<section class="slide" data-index="15">
+        <p class="kicker">Delivery app</p>
+        <h1>The delivery phone</h1>
+        <div class="body"><p>Same email and password as the website. Not a customer sign-in.</p>
+<ul>
+<li><strong>To deliver</strong> shows what is still Placed, Confirmed, or on the way.</li>
+<li>Swipe through confirm, start delivery, and mark delivered.</li>
+<li>At the door, record Cash, UPI, or Not yet.</li>
+<li>After a delivery, the phone can share a one-page invoice on WhatsApp. The file name is the shop name and the order number. The app does not send it by itself.</li>
+<li>The bill uses the logo, phone, email, and address from Profile.</li>
+<li>If the website already marked the order delivered, the phone does not deliver it a second time. Staff can still record payment.</li>
+</ul>
+</div>
+        <p class="notes">The bill is a share sheet. Someone still has to send it in WhatsApp. Not now skips it.</p>
+        <p class="num">16 / 22</p>
+      </section>
+<section class="slide" data-index="16">
+        <p class="kicker">Notifications</p>
+        <h1>What reaches the phone</h1>
+        <div class="body"><p>Only people who installed the app and allowed notifications.</p>
+<ul>
+<li>The order is confirmed, sent out, or delivered.</li>
+<li>A Coming soon item they tapped <strong>Notify me</strong> on is ready.</li>
+<li>A poster whose <strong>Phone alert</strong> was on when the shop published.</li>
+</ul>
+<p>The shop’s WhatsApp contact list is not the same as this. The app cannot text that list.</p>
+</div>
+        <p class="notes">If a customer says they got no alert, the usual cause is notifications are off for the app, or they have not installed it.</p>
+        <p class="num">17 / 22</p>
+      </section>
+<section class="slide" data-index="17">
+        <p class="kicker">Out of scope</p>
+        <h1>What this version does not do</h1>
+        <div class="body"><ul>
+<li>No voice ordering, and no microphone permission.</li>
+<li>No card or in-app payment.</li>
+<li>No separate product page.</li>
+<li>No customer-typed delivery instructions. The shop can store those on the address.</li>
+<li>The delivery app is not on the Play Store. Staff install that app directly.</li>
+<li>The customer app’s store listing is still a release step, not something this deck treats as already live.</li>
+</ul>
+</div>
+        <p class="notes">If someone asks for voice, say it is not in the app and it is not a switch we can turn on.</p>
+        <p class="num">18 / 22</p>
+      </section>
+<section class="slide" data-index="18">
+        <p class="kicker">Safety</p>
+        <h1>How access is kept in bounds</h1>
+        <div class="body"><ul>
+<li>Customers prove the phone number with a text code. They see their own orders.</li>
+<li>Shop staff use an admin login. Anyone else is turned away.</li>
+<li>A closed shop is enforced in the database, including on an older installed app.</li>
+<li>Posters, the logo, and the welcome photo have to be pictures uploaded for this shop.</li>
+<li>Shop photos and the UPI code are public on purpose, so customers can see them.</li>
+<li>The app does not ask for the microphone.</li>
+</ul>
+</div>
+        <p class="notes">Do not promise that nothing can ever go wrong. Say the important doors are locked: customer data, admin login, closed shop, and no microphone.</p>
+        <p class="num">19 / 22</p>
+      </section>
+<section class="slide" data-index="19">
+        <p class="kicker">For a technical listener</p>
+        <h1>Where it lives</h1>
+        <div class="body"><table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Customer app</td>
+<td>Expo Android app. Talks to the database with the public client key.</td>
+</tr>
+<tr>
+<td>Admin panel</td>
+<td>Website. Staff actions run only after an admin sign-in.</td>
+</tr>
+<tr>
+<td>Delivery app</td>
+<td>Expo Android app. Same admin login as the website.</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>Shared shop data, order rules, and file storage.</td>
+</tr>
+<tr>
+<td>Text codes</td>
+<td>Sent for sign-in. A practice number can use a fixed code and does not send a real text.</td>
+</tr>
+</tbody></table>
+<p>Push alerts are sent by the server, not by the phone app holding a master key.</p>
+</div>
+        <p class="notes">Skip this slide for a shop-only audience. Use it if a developer or a partner is in the room. Do not read out keys or passwords.</p>
+        <p class="num">20 / 22</p>
+      </section>
+<section class="slide" data-index="20">
+        <p class="kicker">Checking the product</p>
+        <h1>What we tell people to try</h1>
+        <div class="body"><p>The tester sheet is <code>docs/qa-test-cases.xlsx</code>. It is written for shop staff, not for engineers.</p>
+<ul>
+<li>Start at Step 1, admin sign-in.</li>
+<li>Do every must-pass row before a launch.</li>
+<li>Step 61 is one real order from the customer through payment.</li>
+<li>Newer rows cover posters, a phone alert, closing the shop, search, and the missing microphone.</li>
+</ul>
+<p>The business guide and the technical guide are the long form of this deck.</p>
+</div>
+        <p class="notes">Point at the Excel file if someone wants to click through it themselves. This slide is the map, not the test script.</p>
+        <p class="num">21 / 22</p>
+      </section>
+<section class="slide" data-index="21">
+        <p class="kicker">Keep it true</p>
+        <h1>When the product changes, update this deck</h1>
+        <div class="body"><p>This presentation is part of the project docs. It should describe what a customer and the shop can do today.</p>
+<ol>
+<li>Edit <code>docs/presentation.md</code> in the same change as the feature.</li>
+<li>Run <code>npm run docs:presentation</code>.</li>
+<li>Open <code>docs/pdf/Project-Presentation.pptx</code> in PowerPoint or Keynote.</li>
+</ol>
+<p>Speaker notes are saved on each slide. The HTML copy is for a browser: arrow keys move, <strong>N</strong> shows notes, <strong>F</strong> fills the screen.</p>
+<p>Update the deck when someone would see or do something new: a screen, a rule, a menu, or a removed feature. A version number by itself does not need a new slide.</p>
+</div>
+        <p class="notes">Leave this slide up if you are handing the project to someone else. The markdown file is the one to edit. The HTML and PDF are generated.</p>
+        <p class="num">22 / 22</p>
+      </section></main>
+  <p class="help">Arrow keys · F full screen · N speaker notes</p>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    let index = 0;
+    function show(next) {
+      index = Math.max(0, Math.min(slides.length - 1, next));
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+    }
+    document.addEventListener('keydown', (event) => {
+      if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(event.key)) {
+        event.preventDefault();
+        show(index + 1);
+      } else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(event.key)) {
+        event.preventDefault();
+        show(index - 1);
+      } else if (event.key === 'Home') {
+        show(0);
+      } else if (event.key === 'End') {
+        show(slides.length - 1);
+      } else if (event.key.toLowerCase() === 'f') {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+      } else if (event.key.toLowerCase() === 'n') {
+        document.body.classList.toggle('show-notes');
+      }
+    });
+  </script>
+</body>
+</html>

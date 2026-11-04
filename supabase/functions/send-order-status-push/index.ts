@@ -109,28 +109,24 @@ async function authorizeAdminJwt(
   return null;
 }
 
-function isAuthorizedServiceToken(token: string, configuredKey: string, projectUrl: string): boolean {
+function sameSecret(left: string, right: string): boolean {
+  const a = new TextEncoder().encode(left);
+  const b = new TextEncoder().encode(right);
+  const length = Math.max(a.length, b.length);
+  let mismatch = a.length === b.length ? 0 : 1;
+  for (let i = 0; i < length; i += 1) {
+    mismatch |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  }
+  return mismatch === 0;
+}
+
+function isAuthorizedServiceToken(token: string, configuredKey: string): boolean {
   const trimmed = token.trim();
   const expected = configuredKey.trim();
-  if (trimmed && expected && trimmed === expected) {
-    return true;
-  }
-  try {
-    const segment = trimmed.split('.')[1];
-    if (!segment) {
-      return false;
-    }
-    const payload = JSON.parse(
-      atob(segment.replace(/-/g, '+').replace(/_/g, '/')),
-    ) as { role?: string; ref?: string };
-    if (payload.role !== 'service_role') {
-      return false;
-    }
-    const projectRef = new URL(projectUrl).hostname.split('.')[0];
-    return payload.ref === projectRef;
-  } catch {
+  if (!trimmed || !expected) {
     return false;
   }
+  return sameSecret(trimmed, expected);
 }
 
 async function sendExpoPush(
@@ -220,7 +216,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
-  const serviceCaller = isAuthorizedServiceToken(token, serviceRoleKey, supabaseUrl);
+  const serviceCaller = isAuthorizedServiceToken(token, serviceRoleKey);
   if (!serviceCaller) {
     const denied = await authorizeAdminJwt(supabaseUrl, anonKey, token, orderId, status);
     if (denied) {

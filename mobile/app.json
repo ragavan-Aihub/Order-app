@@ -19,6 +19,7 @@
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
       "permissions": ["POST_NOTIFICATIONS"],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "backgroundColor": "#F4F4F5",

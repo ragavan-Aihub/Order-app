@@ -28,7 +28,7 @@ Farm2Flavours ("we", "us") operates the Farm2Flavour mobile app for customers in
 | Name | Delivery and order communication |
 | Delivery addresses | Fulfil and deliver your orders (up to 3 saved addresses) |
 | Order details | Products, quantities, totals, status, payment method choice (cash or UPI at delivery) |
-| Push notification token | Send order status updates (and optional notify me when a product becomes available) |
+| Push notification token | Send order status updates, an optional alert when a product becomes available, and a shop poster only when the shop chooses to notify about that poster |
 | App interactions | Operate the service (for example sign-in events stored by our hosting provider) |
 
 We do not collect payment card details in the app. Payment is made at delivery (cash or UPI).
@@ -41,7 +41,7 @@ We do not sell your personal information.
 
 - Create and manage your account
 - Process, deliver, and support orders
-- Send push notifications about your orders (if you allow notifications)
+- Send push notifications about your orders, and about a shop poster when the shop chooses to, if you allow notifications
 - Comply with law and prevent abuse
 
 4. Service providers

@@ -2,28 +2,25 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
-function isAuthorizedServiceToken(token: string, configuredKey: string, projectUrl: string): boolean {
+function sameSecret(left: string, right: string): boolean {
+  const a = new TextEncoder().encode(left);
+  const b = new TextEncoder().encode(right);
+  const length = Math.max(a.length, b.length);
+  let mismatch = a.length === b.length ? 0 : 1;
+  for (let i = 0; i < length; i += 1) {
+    mismatch |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  }
+  return mismatch === 0;
+}
+
+/** Only the server's service-role key. A forged JWT payload is not accepted. */
+function isAuthorizedServiceToken(token: string, configuredKey: string): boolean {
   const trimmed = token.trim();
   const expected = configuredKey.trim();
-  if (trimmed && expected && trimmed === expected) {
-    return true;
-  }
-  try {
-    const segment = trimmed.split('.')[1];
-    if (!segment) {
-      return false;
-    }
-    const payload = JSON.parse(
-      atob(segment.replace(/-/g, '+').replace(/_/g, '/')),
-    ) as { role?: string; ref?: string };
-    if (payload.role !== 'service_role') {
-      return false;
-    }
-    const projectRef = new URL(projectUrl).hostname.split('.')[0];
-    return payload.ref === projectRef;
-  } catch {
+  if (!trimmed || !expected) {
     return false;
   }
+  return sameSecret(trimmed, expected);
 }
 
 function pushImageUrl(raw: string | null | undefined): string | undefined {
@@ -98,7 +95,7 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!isAuthorizedServiceToken(token, serviceRoleKey, supabaseUrl)) {
+  if (!isAuthorizedServiceToken(token, serviceRoleKey)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
@@ -147,12 +144,13 @@ Deno.serve(async (req) => {
         .map((url) => url.trim())
         .filter((url) => allowed.has(url))
     : [];
-  const posterUrls =
+  const posterUrls = (
     requested.length > 0
       ? [...new Set(requested)]
       : [pushImageUrl((banners?.[0]?.image_url as string | undefined) || (shop.announcement_image_url as string | null))].filter(
           (url): url is string => Boolean(url),
-        );
+        )
+  ).slice(0, 8);
   if (posterUrls.length === 0) {
     return new Response(JSON.stringify({ skipped: true, reason: 'no_poster' }), {
       status: 200,

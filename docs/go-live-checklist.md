@@ -41,7 +41,7 @@ notify pgrst, 'reload schema';
 **Customer** (`mobile/`):
 
 - `android.versionCode` in repo (currently **23** — bump before each store-style release)
-- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`; leave voice ordering off
+- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`. Do not add a microphone permission.
 - `cd mobile && npx eas-cli build -p android --profile preview`
 
 **Delivery** (`delivery/`):
@@ -53,9 +53,9 @@ notify pgrst, 'reload schema';
 
 **EAS Free plan:** Android cloud builds reset monthly. If quota is exhausted, wait for reset, upgrade Expo, or use `eas build --local`.
 
-**QA loop:** place order → confirm → out for delivery → customer sees progress / UPI QR → delivered + payment → optional delivery bill PDF → Reports outstanding clear. Create order: Coming soon products appear only when searched, grouped at the bottom. Selected payment fills the whole button. Profile logo, phone, and address print on the bill.
+**QA loop:** place order → confirm → out for delivery → customer sees progress / UPI QR → delivered + payment → optional delivery bill PDF → Reports outstanding clear. Also check search (back arrow, categories still filter), a home poster under the categories, and Shop status blocking a new customer order while an existing order can still be updated. Create order: Coming soon products appear only when searched, grouped at the bottom. Selected payment fills the whole button. Profile logo, phone, and address print on the bill. The welcome photo is the sign-in picture, not the home poster.
 
-**Test case sheet (share with testers):** [qa-test-cases.xlsx](qa-test-cases.xlsx) — sheet **How to use**, then **Test cases** in order from admin sign-in (Step 1). Columns include *Use case*, *What to do*, and *What you should see*. Run every **P0** row and Step 57 before launch ([qa-test-cases.md](qa-test-cases.md)).
+**Test case sheet (share with testers):** [qa-test-cases.xlsx](qa-test-cases.xlsx) — sheet **How to use**, then **Test cases** in order from admin sign-in (Step 1). Columns include *Use case*, *What to do*, and *What you should see*. Run every **P0** row and Step 61 before launch ([qa-test-cases.md](qa-test-cases.md)).
 
 ## E. Practice data cleanup (simple)
 

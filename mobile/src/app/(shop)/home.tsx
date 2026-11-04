@@ -36,8 +36,7 @@ import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
-import { env } from '@/config/env';
-import { colors, radius, shadow, spacing } from '@/config/theme';
+import { colors, radius, spacing } from '@/config/theme';
 import { notifyHomeCatalogReady } from '@/notifications/notification-permission-offer';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getShopBanners, refreshBusiness, type ShopBanner } from '@/services/business';
@@ -467,29 +466,7 @@ export default function HomeScreen() {
           <OfflineBanner />
         </View>
       ) : null}
-      {searchOpen || !env.voiceOrdering ? null : (
-        <Pressable
-          style={({ pressed }) => [styles.samCta, pressed && styles.pressed]}
-          onPress={() => router.push('/sam')}
-          accessibilityRole="button"
-          accessibilityLabel="Order by voice"
-        >
-          <View style={styles.samIcon}>
-            <Ionicons name="mic" size={22} color={colors.primaryText} />
-            <View style={styles.samSpark}>
-              <Ionicons name="sparkles" size={10} color={colors.primary} />
-            </View>
-          </View>
-          <View style={styles.samCopy}>
-            <Text style={styles.samTitle}>Order by Voice</Text>
-            <Text style={styles.samSubtitle}>Just say what you need</Text>
-          </View>
-          <View style={styles.samArrow}>
-            <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-          </View>
-        </Pressable>
-      )}
-      <View style={[styles.searchBar, (searchOpen || !env.voiceOrdering) && styles.searchBarTop]}>
+      <View style={[styles.searchBar, styles.searchBarTop]}>
         {searchOpen ? (
           <Pressable
             onPress={closeSearch}
@@ -650,66 +627,6 @@ const styles = StyleSheet.create({
   },
   searchBarTop: {
     paddingTop: spacing.sm,
-  },
-  samCta: {
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    minHeight: 68,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.primarySoft,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    ...shadow.sm,
-  },
-  samIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  samSpark: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  samCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  samTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-    color: colors.text,
-  },
-  samSubtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  samArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   pressed: {
     opacity: 0.88,

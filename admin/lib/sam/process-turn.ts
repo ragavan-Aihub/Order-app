@@ -78,6 +78,14 @@ export async function processSamTurn(
   body: SamTurnRequest,
   accessToken: string | null,
 ): Promise<SamTurnResponse> {
+  const supabaseUser = accessToken ? userClient(accessToken) : null;
+  const {
+    data: { user },
+  } = supabaseUser ? await supabaseUser.auth.getUser() : { data: { user: null } };
+  if (!user || !supabaseUser) {
+    throw new Error('SIGN_IN_REQUIRED');
+  }
+
   const catalog = await loadCatalog(body.businessId);
   const displayedNames = (body.displayedNames ?? []).filter(Boolean).slice(0, 12);
   const recentTurns = (body.recentTurns ?? []).slice(-4);
@@ -135,11 +143,6 @@ export async function processSamTurn(
   let canPlace = false;
   let reply = replies.trySayingAdd(language);
   const matchLog: SamTurnResponse['match'] = [];
-
-  const supabaseUser = accessToken ? userClient(accessToken) : null;
-  const {
-    data: { user },
-  } = supabaseUser ? await supabaseUser.auth.getUser() : { data: { user: null } };
 
   logTurn({
     transcript: body.transcript,

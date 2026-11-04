@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EAS quota note).
+Last updated: 5 Nov 2026 (home posters, shop status, search screen, voice ordering removed from the app).
 
 ## Must do before go-live
 
@@ -37,6 +37,7 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
   13. **Notify me:** `20261019100000_product_notify_interests.sql`. Deploy `send-product-available-push` (same service role auth as order push). Admin triggers it when a product flips from Coming soon to Available.
   14. **UPI QR at delivery:** `20261027220000_business_upi_qr.sql` (`businesses.upi_qr_url`). Used by the delivery app upload and the customer order detail when out for delivery and unpaid.
   15. **Audit log:** `20261028210000_admin_audit_log.sql`. Required for admin **Audit log** page and for delivery-app rows in that report.
+  16. **Shop status and home posters:** `20261105010000_shop_notice.sql`, `20261105020000_shop_banners.sql`, `20261105030000_shop_banner_focus.sql`, `20261105040000_shop_notice_hardening.sql`. Run in that order on a new database. The hosted project already has them. Do not use `supabase db push` for the whole history.
 
 ### Admin on HTTPS
 
@@ -53,7 +54,7 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
 ### Preview APK for demos
 
 - **Status:** **Pending** — repo ready (`mobile` versionCode **23**, `delivery` version **1.1.0** / versionCode **4**, EAS projects linked). **Oct 2026:** Expo Free Android cloud quota exhausted until ~monthly reset; use Expo Go for QA until then, or `eas build --local`, or upgrade plan.
-- **How:** Set `EXPO_PUBLIC_*` on each EAS **preview** environment (delivery project: `farm2flavour-delivery`). Then `npx eas-cli build -p android --profile preview` from `mobile/` and `delivery/`. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset. See [go-live-checklist.md](go-live-checklist.md) §D.
+- **How:** Set `EXPO_PUBLIC_*` on each EAS **preview** environment (delivery project: `farm2flavour-delivery`). Then `npx eas-cli build -p android --profile preview` from `mobile/` and `delivery/`. Do not add a microphone permission. See [go-live-checklist.md](go-live-checklist.md) §D.
 
 ## After demo feedback (agreed, not all built)
 
@@ -102,17 +103,12 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
 
 ## Phase 2
 
-### Voice ordering (hidden for now)
+### Voice ordering
 
-- **Status:** Phase 2
-- **Why:** Voice ordering only works on the developer's Wi-Fi: the app sends voice requests to the admin server on the Mac (`http://192.168.1.11:3000/api/sam/turn`). It also has no AI today (`OLLAMA_URL` is not set), so it runs on rules and fixed replies. It is hidden from customers until it can be hosted and improved. All the code is kept.
-- **What is hidden:** the "Order by Voice" card on Home. Anything else that opens the voice screen (after login, after adding an address, old links) goes to Home instead.
-- **To turn it back on:**
-  1. Host the voice server publicly. The agreed direction is a Supabase Edge Function (free plan allows commercial use), moving `admin/lib/sam/` there.
-  2. Set `EXPO_PUBLIC_SAM_API_URL` to the public address, and `EXPO_PUBLIC_VOICE_ORDERING=true`, in `mobile/.env` and the EAS `preview` environment.
-  3. Rebuild the APK.
-- **Later improvements discussed:** personal greeting and "your usual" order, tappable suggestions when it doesn't understand, animated listening screen and product cards, product tips from your own descriptions, order updates in chat, then a natural cloud voice and a hosted AI model on free tiers first. Measure voice use with the `placed_via` column on orders.
-- **Files:** `mobile/src/config/env.ts`, `mobile/src/app/(shop)/home.tsx`, `mobile/src/app/sam.tsx`, `mobile/src/sam/`, `admin/lib/sam/`, `admin/app/api/sam/turn/route.ts`
+- **Status:** Out of scope. Not in the customer app.
+- **What customers see:** no Order by Voice card. The old voice screen sends them to Home. The app does not ask for the microphone. Android builds block `RECORD_AUDIO`. `expo-speech-recognition` is not installed.
+- **Not a switch:** `EXPO_PUBLIC_VOICE_ORDERING` is ignored. Putting voice back would be new work: the screen, the speech package, the microphone permission, and a privacy-policy change.
+- **Leftover code:** `admin/lib/sam/`, `admin/app/api/sam/turn/route.ts`, `mobile/src/sam/`, `mobile/src/app/sam.tsx`. The turn route still requires a signed-in customer, but the app does not call it.
 
 ### Product detail page (hidden for now)
 
@@ -170,13 +166,10 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
 
 ## Future scope ideas
 
-- **Voice:** recognition that keeps working without internet or in the background, and better Tamil recognition.
-- **Hands-free conversation mode:** after the assistant replies, reopen the mic automatically for the follow-up, until the customer taps X or stays quiet.
-- **Wake word:** a "Hey …" wake word was tried and removed. Android speech recognition has to listen all the time for it, which costs battery and data, sends everything said near the phone for transcription, and only works on Android 13 or newer. If it comes back, use an on-device wake-word engine (for example Picovoice Porcupine) instead.
+- **Voice, hands-free mode, and a wake word:** not scheduled. The current app does not use the microphone.
 - **Status notifications (WhatsApp):** optional channel in addition to push (push for confirmed / out for delivery / delivered is implemented — see `supabase/documentation/push-notifications.md`; deploy migration, Edge Function, admin service role, new APK).
 - **Help and contact screen** in the app (call or WhatsApp the shop). The business phone and email are already stored.
 - **Delivery instructions** typed by the customer in the app.
-- **Better voice:** a natural cloud voice, "your usual order" and product tips.
 - **Delivery planning by community** (delivery runs). The `delivery_runs` tables exist, but no screen uses them yet.
 - **Download from Reports.** Today, use Export on the Orders list.
 - **Partner API limits:** rate limits and usage statistics, to protect against misuse.
@@ -184,8 +177,9 @@ Last updated: 29 Oct 2026 (admin on Vercel, audit log + delivery conflict UX, EA
 ## Documentation
 
 - **Business Guide:** `docs/business-guide.md`. Written for the business owner and staff. It covers only what is live today: customer app, admin panel, business rules and FAQ. It does not cover the Partner API, WhatsApp, features that are switched off, dropped features or future ideas. Those live in the Technical Guide and in this file.
-- **Technical Guide:** `docs/technical-guide.md`. Covers what is present in the code: architecture, setup, new business setup, database and migrations, app internals, order lifecycle, Partner API, voice, switched-off features, build and deploy, troubleshooting, tech debt. Future ideas live only in this file.
+- **Technical Guide:** `docs/technical-guide.md`. Covers what is present in the code: architecture, setup, new business setup, database and migrations, app internals, order lifecycle, Partner API, switched-off features, build and deploy, troubleshooting, tech debt. Voice ordering is recorded there as not in the app. Future ideas live only in this file.
 - **Google Play (customer app):** [docs/play-store-checklist.md](play-store-checklist.md), privacy draft [docs/privacy-policy-template.md](privacy-policy-template.md), share PDF via `npm run docs:privacy-pdf` → [docs/pdf/Privacy-Policy-For-Review.pdf](pdf/Privacy-Policy-For-Review.pdf). Delivery app is APK-only, not Play.
 - **PDF:** run `npm run docs:pdf` from the repo root. Output goes to `docs/pdf/Business-Guide.pdf` and `docs/pdf/Technical-Guide.pdf`. Styling is in `docs/pdf-style.css`.
-- **No brand name:** both guides are written for any business using this product. Keep them that way.
-- **Keep them current:** when a feature, rule or migration changes, update the matching guide in the same change.
+- **Presentation:** `docs/presentation.md`. Run `npm run docs:presentation` to rebuild `docs/pdf/Project-Presentation.pptx` (PowerPoint or Keynote), plus the HTML and PDF. When a customer or shop-facing behaviour changes, update this deck in the same change.
+- **No brand name:** both guides are written for any business using this product. Keep them that way. The presentation may name the current shop, because it is the talk track for this project.
+- **Keep them current:** when a feature, rule or migration changes, update the matching guide and the presentation in the same change.

@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">How the customer app and the admin panel work, written for the business owner, staff and product managers.</p>
 
-<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
+<p class="meta">Version 1.3 &middot; Last updated 5 November 2026</p>
 
 </div>
 
@@ -46,7 +46,7 @@ This is an online ordering system for a small business that takes orders and del
 | **Admin panel** | Business owner and staff | Web browser on a laptop or phone |
 | **Delivery app** (optional) | Shop staff who deliver orders | Android phone (installed as an app) |
 
-The customer app carries **your** business name, logo, home banner, products and prices, so the same system can serve any business. You manage products, prices, orders and customers in the admin panel. The delivery app uses the **same admin login** (email and password) for staff on the road.
+The customer app carries **your** business name, logo, welcome photo, products and prices, so the same system can serve any business. Home posters are separate and are set under Announcements. You manage products, prices, orders and customers in the admin panel. The delivery app uses the **same admin login** (email and password) for staff on the road.
 
 The delivery app is optional. Many shops run deliveries from the admin panel only; use the delivery app when drivers need a phone-first list, maps links, swipe-to-advance status, and UPI QR at the door.
 
@@ -87,7 +87,9 @@ Both parts share one online database. When a customer places an order in the app
 | **Channel** | How an order came in, for example from the App or entered by the shop as Phone / Offline. |
 | **Source** | How a customer first reached you, for example App or Phone / Offline. |
 | **Community** | An optional group of delivery addresses (for example, one apartment complex). Only the shop sees it. Customers never see communities. |
-| **Category** | An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home. |
+| **Category** | An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home, including while they search. |
+| **Welcome photo** | The wide picture on the customer sign-in screen. It is not the home poster. |
+| **Poster** | A wide picture under the categories on Home. Set under Announcements. The app does not offer voice ordering. |
 | **OTP** | One Time Password. A 6-digit code sent by SMS to sign in. |
 | **IST** | India Standard Time. All "today" figures in the admin panel use IST. |
 
@@ -99,7 +101,7 @@ Both parts share one online database. When a customer places an order in the app
 
 **Steps for the customer:**
 
-1. Open the app. The welcome screen shows your logo, business name and description.
+1. Open the app. If they are not signed in, the welcome screen shows your logo, business name, description, and welcome photo when you have set one. Someone who is already signed in goes straight to Home.
 2. Enter the 10-digit mobile number (the +91 is already shown).
 3. Tap **Continue**. An SMS with a 6-digit OTP arrives.
 4. Enter the OTP and tap **Verify**. If the SMS does not come, tap **Resend OTP**.
@@ -140,11 +142,14 @@ Both parts share one online database. When a customer places an order in the app
 
 1. The delivery address, and the customer's initial (tap it to open **Account**).
 2. The **Modifying order** bar, only when the customer is changing an existing order (see 3.6).
-3. Optional **Order by Voice** card, only when the developer turns voice ordering on for this build.
-4. A search box: **Search products** (searches names and descriptions).
-5. Category chips (**All**, then each category with its picture), only if you use categories. This row **stays fixed under search** while the customer scrolls products. Swipe sideways when there are many categories.
-6. Your home banner picture, if you set one (scrolls with the product list).
-7. All products in a grid of **2 per row**. Each card shows the picture, name, price and an **Add** button. After adding, the button becomes a **- / +** stepper.
+3. A search box: **Search products** (searches names and descriptions).
+4. Category chips (**All**, then each category with its picture), only if you use categories. This row **stays fixed under search** while the customer scrolls products. Swipe sideways when there are many categories.
+5. Your home posters, if Announcements are turned on. They are a wide strip under the categories. More than one poster changes on its own. The strip is hidden while the customer is searching.
+6. All products in a grid of **2 per row**. Each card shows the picture, name, price and an **Add** button. After adding, the button becomes a **- / +** stepper.
+
+There is no voice-ordering button, and the app does not ask for the microphone.
+
+**Search:** tapping the search box opens a search screen. A round back arrow sits to the left of the box. Category chips stay under the search box and still filter the results. The address header and the posters hide so the results can use the screen. Results stay above the keyboard. The back arrow clears the search and returns to Home with the posters. Tapping outside the box does not leave search.
 
 **Coming soon products** show dimmed with the words "Coming soon". They can show a **Notify me** button instead of Add. They appear at the end of the list.
 
@@ -321,7 +326,7 @@ Customers do not use the delivery app.
 - Only accounts set up as admin for this business can sign in. Customer accounts see "Not authorized".
 - Use **Sign out** at the bottom of the menu when you finish on a shared computer.
 
-**Menu (left side):** Dashboard, Orders, Reports, **Audit log**, Products, Customers, **Profile**. The bottom of the menu shows the admin website version. **Categories** opens from the Products page. **Communities** opens from the Customers page. On a phone, tap **Menu** at the top. Lists on Dashboard, Reports, and Orders show as **cards** on a small screen (tap to open an order). Use a laptop for heavy work such as product import.
+**Menu (left side):** Dashboard, Orders, Reports, **Audit log**, Products, Customers, **Profile**, **Announcements**, **Shop status**. The bottom of the menu shows the admin website version. **Categories** opens from the Products page. **Communities** opens from the Customers page. On a phone, tap **Menu** at the top. Lists on Dashboard, Reports, and Orders show as **cards** on a small screen (tap to open an order). Use a laptop for heavy work such as product import.
 
 ### 4.2 Dashboard
 
@@ -540,11 +545,32 @@ Each row shows **when**, **app** (admin panel or delivery app), **area**, and a 
 
 ### 4.9 Profile
 
-Open **Profile** in the menu to set what prints on the delivery bill.
+Open **Profile** in the menu to set what prints on the delivery bill and what customers see when they sign in.
 
-- **Logo** (JPG, PNG, WebP or GIF), **business name**, **phone**, **email**, and **address**.
+- **Logo** (JPG, PNG, WebP or GIF), **welcome photo**, **business name**, **phone**, **email**, and **address**.
+- The welcome photo is the wide picture on the customer sign-in screen. The whole picture is shown. Remove it to hide that strip. Home posters are set under **Announcements**, not here.
 - Tap **Save**. You see **Saved successfully**, then the page closes and you are back on the Dashboard.
-- The customer app still uses the business name. The logo, phone, email, and address on the bill come from this page.
+- The customer app uses the business name. The logo, phone, email, and address on the bill come from this page.
+
+### 4.10 Announcements
+
+Open **Announcements** to put posters on the customer Home screen.
+
+- Turn **Showing on the home screen** on when customers should see them. While it is off, you can still save posters; they stay hidden in the app.
+- Add a photo, then drag it inside the wide frame. Use **−** and **+** to show more of the photo or crop closer. The preview on the right is the banner customers see under the categories.
+- Up to **8** posters. Use the arrows to change the order. More than one poster changes on its own in the app.
+- **Phone alert** is off for each poster until you turn it on. Only posters with the alert on send a phone notification when you tap **Publish**. After a save, those switches turn off again, so a later save does not send the same alert.
+- If announcements are hidden, **Publish** still saves the posters and does not send an alert.
+- The button says **Publish** when posters are showing, and **Save draft** when they are hidden.
+
+### 4.11 Shop status
+
+Open **Shop status** when the shop should stop taking new orders from the app.
+
+- **Shop is open** means customers can place new orders.
+- **Shop is closed** blocks new orders from the customer app. Orders that are already placed can still be updated. The shop can still type a phone or walk-in order in the admin panel.
+- **Message customers see** is shown on the customer home screen and the cart while the shop is closed. If you leave it blank, the app uses “The shop is closed and is not taking orders right now.”
+- Tap **Save**.
 
 ## 5. All business rules in one place
 
@@ -568,7 +594,11 @@ Open **Profile** in the menu to set what prints on the delivery bill.
 | CSV import | Up to 250 products per file. |
 | Customers | Mobile number must be unique. Customers with orders cannot be deleted. |
 | Communities | Optional. Never shown to customers. |
-| Categories | Optional. Shown to customers as a fixed chip row under search on Home. |
+| Categories | Optional. Shown to customers as a fixed chip row under search on Home, including on the search screen. |
+| Welcome photo | Optional. Sign-in screen only. Set on Profile. |
+| Home posters | Optional, up to 8. Set under Announcements. Shown under the categories when turned on. A phone alert is sent only for posters you switch on at publish time. |
+| Shop closed | Blocks new customer orders. Existing orders can still be updated. The admin panel can still create an order. |
+| Microphone | The customer app does not ask for the microphone and does not offer voice ordering. |
 | UPI QR | Optional. One image per business for pay-at-delivery UPI; upload from the delivery app (customer sees it on order detail when out for delivery and unpaid). |
 | Shop profile | Logo, phone, email, and address on Profile. **Save** shows “Saved successfully” and returns to the Dashboard. These details print on the delivery bill. |
 | Delivery bill | After the driver marks Delivered, they can share a PDF invoice on WhatsApp. The file name is shop name plus order number. Unit price is on the bill. The app does not send it automatically. |
@@ -576,6 +606,9 @@ Open **Profile** in the menu to set what prints on the delivery bill.
 | Times | All "today" and date filters use India Standard Time. |
 
 ## 6. Frequently asked questions
+
+**Why can't a customer place a new order?**
+Shop status may be **Shop is closed**. They can still update an order that is already placed. Open **Shop status**, turn the shop open, and save.
 
 **Why can't a customer modify their order?**
 The order is no longer open (it is Out for delivery, Delivered or Cancelled), or it has already been modified 5 times. If the order is still Placed, the customer can cancel it instead.

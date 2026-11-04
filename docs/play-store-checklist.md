@@ -6,7 +6,7 @@ Use this when **Farm2Flavour** (business-owned Play developer account) is ready 
 
 **Build output for Play:** AAB via EAS `production` profile (`mobile/eas.json`).
 
-**Microphone / voice ordering:** Not used in production. The customer app manifest requests **notifications only** (no `RECORD_AUDIO`). Voice code remains in the repo for Phase 2 but is hidden unless `EXPO_PUBLIC_VOICE_ORDERING=true` and the speech plugin is re-enabled in `app.json`.
+**Microphone / voice ordering:** Not in the app. The customer app requests **notifications only**. `android.blockedPermissions` removes `RECORD_AUDIO`. The speech-recognition package is not installed. There is no setting that turns voice ordering on.
 
 ---
 
@@ -36,7 +36,7 @@ Must cover **customer app** data only (do not mention internal staff tools or ot
 
 - Mobile number and SMS OTP (sign-in)
 - Name, delivery addresses, orders, pay-on-delivery choice (cash/UPI)
-- Push notifications (order updates; optional “notify me”)
+- Push notifications (order updates, optional “notify me”, and a shop poster only when the shop turns that poster’s phone alert on)
 - **No** microphone or voice recording (not collected)
 - Service providers: Supabase (hosting/data/auth), 2Factor.in (OTP SMS), Google FCM (push via Expo)
 - Contact, retention, deletion requests, not directed at children
@@ -72,7 +72,7 @@ Must cover **customer app** data only (do not mention internal staff tools or ot
    - `EXPO_PUBLIC_SUPABASE_URL`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
    - `EXPO_PUBLIC_BUSINESS_ID`
-   - Leave `EXPO_PUBLIC_VOICE_ORDERING` **unset**
+   - Do not add a microphone permission. Voice ordering is not in the app.
 2. Bump the user-facing version and `android.versionCode` for every upload ([release-versions.md](release-versions.md)): bug fix `1.0.x`, feature `1.x.0`. After the build is on Play, set the Supabase version row so older installs see an update prompt.
 3. Build:
 
@@ -113,4 +113,4 @@ Optional: `eas submit -p android` after linking the Play app.
 
 - [go-live-checklist.md](go-live-checklist.md) — Supabase, admin HTTPS, APKs
 - [technical-guide.md](technical-guide.md) §11.1 — EAS profiles
-- [pending-and-future-scope.md](pending-and-future-scope.md) — voice ordering Phase 2
+- [pending-and-future-scope.md](pending-and-future-scope.md) — voice ordering is out of scope

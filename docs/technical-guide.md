@@ -15,7 +15,7 @@ pdf_options:
 
 <p class="subtitle">Architecture, code, database and operations for developers and technical architects.</p>
 
-<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
+<p class="meta">Version 1.3 &middot; Last updated 5 November 2026</p>
 
 </div>
 
@@ -30,7 +30,7 @@ pdf_options:
 7. [Admin panel internals](#7-admin-panel-internals)
 8. [Order lifecycle](#8-order-lifecycle)
 9. [Partner API v1](#9-partner-api-v1)
-10. [Voice ordering](#10-voice-ordering)
+10. [Voice ordering (not in the app)](#10-voice-ordering-not-in-the-app)
 11. [Build and deploy](#11-build-and-deploy)
 12. [Quality checks](#12-quality-checks)
 13. [Troubleshooting](#13-troubleshooting)
@@ -83,7 +83,7 @@ Three client apps share one Supabase project:
 
    Partner systems (website, WhatsApp bot) ----> admin /api/v1 ----> Supabase RPC
    Pincode lookup (customer app) ----> api.postalpincode.in
-   Optional AI for voice (admin server) ----> Ollama (OLLAMA_URL)
+   Shop posters and closed-shop check live in Postgres (shop_banners, enforce_shop_open)
 ```
 
 **Key design decisions:**
@@ -205,8 +205,7 @@ Without Supabase variables, the admin panel runs with mock data and a local admi
 | `EXPO_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
 | `EXPO_PUBLIC_BUSINESS_ID` | Yes | The shop's `businesses.id` |
-| `EXPO_PUBLIC_SAM_API_URL` | No | Voice endpoint, for example `https://<admin-host>/api/sam/turn` |
-| `EXPO_PUBLIC_VOICE_ORDERING` | No | `true` shows voice ordering. Leave unset in this phase. Missing from `.env.example`. |
+| `EXPO_PUBLIC_SAM_API_URL` | No | Unused by the customer app. Voice ordering is not shown. |
 
 All `EXPO_PUBLIC_*` values are built into the app and are public. Never put secrets there.
 
@@ -216,15 +215,15 @@ The product is not tied to one shop. Business name, logo, banner, description, p
 
 | What | Where |
 |---|---|
-| App name, slug, URL scheme, Android package, voice permission texts | `mobile/app.json` |
+| App name, slug, URL scheme, Android package | `mobile/app.json` |
 | App icon, splash and fallback logo on the welcome screen | `mobile/assets/images/`, `mobile/src/components/WelcomeSignup.tsx` |
 | Business id | `EXPO_PUBLIC_BUSINESS_ID` (in `.env` and the EAS environment) |
 | Storage key prefix | see 6.3 |
 | Admin sidebar and login logo and name | `admin/components/AdminShell.tsx`, `admin/app/login/page.tsx`, `admin/public/branding/` |
-| Voice assistant replies and AI prompt (mention the shop name) | `admin/lib/sam/replies.ts`, `admin/lib/sam/intent-prompt.ts`, `mobile/src/sam/useSamSpeech.ts` |
+| Microphone | Blocked in `mobile/app.json` (`blockedPermissions`). `expo-speech-recognition` is not a dependency. |
 | Package names | `mobile/package.json`, root `package.json` |
 
-Then create the business row, the admin user and the admin profile (`supabase/documentation/admin-setup.md`), and set the logo and banner in **Settings > Branding**.
+Then create the business row, the admin user and the admin profile (`supabase/documentation/admin-setup.md`). Set the logo and welcome photo on **Profile**. Set home posters on **Announcements**. Branding stays hidden (`SHOW_LATER_PHASE_MENUS`).
 
 Moving these values into environment variables or the `businesses` table is listed as tech debt in section 14.
 
@@ -235,8 +234,7 @@ Moving these values into environment variables or the `businesses` table is list
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Recommended (hosted) | Server-only; invokes Edge Functions for order/product push after admin actions. Never expose to Expo apps. |
-| `OLLAMA_URL` | No | Local AI server for voice ordering, for example `http://127.0.0.1:11434` |
-| `OLLAMA_MODEL` | No | AI model name. Default `llama3.2`. |
+| `OLLAMA_URL` | No | Unused while voice ordering is out of the app. |
 
 ## 5. Database
 
@@ -244,7 +242,8 @@ Moving these values into environment variables or the `businesses` table is list
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `businesses` | One row per shop | `business_name`, `logo_url`, `banner_url`, `upi_qr_url`, `phone`, `email`, `address`, `description`, `communities_enabled`, `categories_enabled` |
+| `businesses` | One row per shop | `business_name`, `logo_url`, `banner_url` (welcome photo), `upi_qr_url`, `phone`, `email`, `address`, `description`, `communities_enabled`, `categories_enabled`, `shop_closed`, `shop_closed_message`, `announcement_active`, `announcement_image_url` |
+| `shop_banners` | Home posters | `business_id`, `image_url`, `sort_order`, `focus_y`. Customers read them only through `get_shop_banners` when announcements are on. |
 | `profiles` | One row per auth user | `id` (= `auth.users.id`), `role` (`customer` or `admin`), `business_id`, `name`, `mobile`, `email` |
 | `customers` | Shop's customer list (app and offline) | `name`, `mobile`, `mobile_key` (last 10 digits, unique per business), `source` (`app`, `whatsapp`, `walk_in`, `phone`, `other`), `notes`, `auth_user_id` |
 | `customer_addresses` | Address book, max 3 per customer | `user_id` or `customer_id`, `label` (`home`, `work`, `other`), `name`, `mobile`, `house`, `locality`, `address`, `pincode`, `city`, `instructions`, `is_default`, `community_id`, `community_name` |
@@ -375,6 +374,7 @@ Run every file in `supabase/migrations/` in name order, in the Supabase SQL edit
 | 37 | `order_modifications` | `orders.items_revision`, `order_modifications` audit table, shared pricing helpers, `admin_replace_order_items`, customer replace extended with audit + optimistic locking, RLS for customers and admins to read history |
 | … | (see `supabase/migrations/`) | Push notifications, product notify interests, link app addresses to customer, admin revert snapshots, etc. |
 | 47 | `business_upi_qr` | `businesses.upi_qr_url` for pay-at-delivery UPI QR (customer order detail + delivery app upload) |
+| — | `shop_notice`, `shop_banners`, `shop_banner_focus`, `shop_notice_hardening` | Closed-shop columns and insert trigger, poster table and reader, `focus_y`, revoke execute on `enforce_shop_open` |
 
 **Note:** `supabase/documentation/admin-setup.md` lists migrations only up to `admin_customers`. Use the folder as the source of truth (47 files as of Oct 2026).
 
@@ -387,7 +387,7 @@ _layout.tsx  (providers: Network, ShopCatalog, Cart)
   index.tsx              Entry: decides welcome, login or home
   login.tsx, verify.tsx  Phone OTP
   (shop)/  tabs
-     home                Visible tab; category chips fixed under search; product grid FlatList 2 columns
+     home                Visible tab; search opens a full screen with a back arrow; category chips stay under search and still filter; 2:1 posters under the chips when announcements are on; product grid FlatList 2 columns
      buy-again           Visible tab ("Order again" label)
      orders              Visible tab; screen title "Your Orders"; list cards without order #
      cart                Hidden tab (opened by View cart)
@@ -400,7 +400,7 @@ _layout.tsx  (providers: Network, ShopCatalog, Cart)
   confirmation.tsx       Order status after place, update or cancel
   order/[id].tsx         Order details
   product/[id].tsx       Product details (not linked in this phase)
-  sam.tsx                Voice ordering (hidden; redirects to Home)
+  sam.tsx                Old voice route. Always redirects to Home. The app does not request the microphone.
 ```
 
 ### 6.2 State and providers
@@ -500,7 +500,7 @@ Timeouts: 15 seconds for placing, 4 seconds for lookups. All Supabase requests a
 ### 6.9 App configuration
 
 - `app.json`: app name, slug, URL scheme, Android package (`com.<business>.app`) and `versionCode`.
-- `app.config.js`: when `EXPO_PUBLIC_VOICE_ORDERING` is not `true`, removes the speech plugin and blocks the `RECORD_AUDIO` permission.
+- `app.config.js`: always blocks `RECORD_AUDIO`, drops the speech-recognition plugin, and removes the iOS microphone usage text. `EXPO_PUBLIC_VOICE_ORDERING` does not turn voice on.
 - `expo-location` and `react-native-maps` are installed in the customer app but not used for address entry (map entry was dropped). The delivery app uses `react-native-maps` for a map preview on order detail.
 
 ## 7. Admin panel internals
@@ -533,13 +533,13 @@ Browser -> proxy.ts           refreshes the Supabase session cookie;
 | Customers | `customers/...` | `CustomersBoard`, `CustomerForm`, `CustomerAddressBook` | `customers.ts`, `customer-actions.ts` |
 | Communities | `customers/communities/...` | `CommunitiesBoard`, `CommunityCustomerManager` | `communities.ts`, `community-actions.ts` |
 | Reports | `reports/` | `ReportsFilters` | `reports.ts`, `report-metrics.ts` |
-| Settings | `settings/business-info`, `branding`, `api` | `BusinessInfoForm`, `BrandingForm`, `ApiKeysForm` | `business.ts`, `api-key-actions.ts` |
+| Settings | `settings/business-info` (Profile), `settings/announcements`, `settings/shop-closed`. Branding and API stay hidden. | `BusinessInfoForm`, `AnnouncementForm`, `PosterCrop`, `ShopClosedForm` | `business.ts`, `business-actions.ts` |
 
 ### 7.3 Feature switches in code
 
 | Switch | File | Effect |
 |---|---|---|
-| `SHOW_LATER_PHASE_MENUS = false` | `components/AdminShell.tsx` | Hides API and branding. **Profile** stays in the main menu (`/settings/business-info`) |
+| `SHOW_LATER_PHASE_MENUS = false` | `components/AdminShell.tsx` | Hides API and branding. **Profile**, **Announcements**, and **Shop status** stay in the main menu. |
 | `LIST_QUICK_ACTIONS = false` | `components/OrdersBoard.tsx` | Hides next-step buttons on the orders list |
 
 ### 7.4 Delivery app internals (`delivery/`)
@@ -640,28 +640,17 @@ Base path: `https://<admin-host>/api/v1`. Full OpenAPI document: `GET /api/v1/op
 - The route (`lib/partner-api.ts`) uses the anon key and calls `partner_*` security-definer functions, which check the key hash.
 - CORS is open (`*`), so browsers can call it. There is no rate limit yet.
 
-## 10. Voice ordering
+## 10. Voice ordering (not in the app)
 
-**Status: hidden in this phase** (see section 14).
+Voice ordering is out of scope. The customer app does not show an Order by Voice card, `env.voiceOrdering` is fixed to `false`, and `/sam` redirects to Home. `expo-speech-recognition` is not installed. Android builds block `android.permission.RECORD_AUDIO`, and the iOS microphone usage text is removed.
 
-```
-Customer app (sam.tsx, src/sam/)
-  speech-to-text on the phone
-     |  POST { transcript, businessId, draft }
-     v
-Admin /api/sam/turn  -> lib/sam/process-turn.ts
-     |  normalise input (English, Tamil, mixed)
-     |  intent: Ollama AI if OLLAMA_URL is set, else rule-based fallback parser
-     |  match products, update the draft cart, build the reply
-     v
-Reply { text, draft, ... }  -> app speaks the reply and shows product cards
-```
+Server files under `admin/lib/sam/` and `admin/app/api/sam/turn` are leftover. The turn route requires a signed-in customer before it does any work. Do not document a switch to turn voice back on: that would mean new product work, the speech package, the microphone permission, and a privacy-policy change.
 
-- Main files: `admin/lib/sam/*` (parser, intents, matching, replies), `mobile/src/sam/*` (client, speech, session).
-- Languages: `en`, `ta`, `mix`.
-- Unknown product questions are saved in `product_info_requests`.
-- Test the parser with `cd admin && npm run sam:eval`.
-- Orders placed by voice get `placed_via = 'voice'`.
+Shop posters and the closed-shop rule are separate and are live:
+
+- `saveShopBanners` keeps at most 8 posters and only image URLs from this shop’s `business-logos` folder. `shop_closed_message` is capped at 280 characters.
+- `orders_block_when_shop_closed` calls `enforce_shop_open()` on insert. Admins can still create orders. Customers cannot. The function is not granted to anon or authenticated.
+- Push functions `send-shop-announcement`, `send-product-available-push`, and `send-order-status-push` accept only the configured service-role key. A forged token payload is rejected.
 
 ## 11. Build and deploy
 
@@ -673,12 +662,12 @@ Reply { text, draft, ... }  -> app speaks the reply and shows product cards
 | `preview` | APK | Testing and current distribution |
 | `production` | App bundle (AAB) | Google Play |
 
-Play prep: [play-store-checklist.md](play-store-checklist.md). Production builds do not declare microphone permission; voice ordering (Phase 2) requires re-adding the `expo-speech-recognition` config plugin in `app.json` and updating the privacy policy.
+Play prep: [play-store-checklist.md](play-store-checklist.md). Production builds request notifications only. `android.blockedPermissions` strips `RECORD_AUDIO`.
 
 Steps:
 
 1. Bump versions using [release-versions.md](release-versions.md): **bug fix** `1.0.0` → `1.0.1`, **feature** `1.0.1` → `1.1.0`, and always increase `android.versionCode` by 1 (customer and delivery apps separately).
-2. Make sure the EAS `preview` environment has the three required `EXPO_PUBLIC_*` values. Leave `EXPO_PUBLIC_VOICE_ORDERING` unset.
+2. Make sure the EAS `preview` environment has the three required `EXPO_PUBLIC_*` values. Do not add a microphone permission.
 3. From `mobile/`: `npx eas-cli build -p android --profile preview` (or `production` for Play).
 4. After the customer build is on Play or a shared APK link, set the Supabase version row (`supabase/scripts/set-customer-app-version.sql`) so installed apps can prompt to update. Migration: `20261030233000_customer_app_version.sql`.
 
@@ -717,7 +706,7 @@ There are no automated tests yet. Before each change, run:
 | Admin types | `cd admin && npx tsc --noEmit` |
 | Admin lint | `cd admin && npx eslint .` |
 | Admin build | `cd admin && npm run build` |
-| Voice parser | `cd admin && npm run sam:eval` |
+| Voice parser | Not part of the customer app. `cd admin && npm run sam:eval` only checks leftover server code. |
 
 **Known existing warnings:** three admin type errors (`services/reports.ts`, `services/storage.ts`) and some `react-hooks/set-state-in-effect` lint errors (mobile `CartContext`, `address/form`, `sam.tsx`, `ShopCatalogContext`, `AddressPickerSheet`; admin `OrdersBoard`).
 
@@ -736,7 +725,7 @@ There are no automated tests yet. Before each change, run:
 | Admin shows "Not authorized" | Profile is not `role = 'admin'` or has no `business_id` | Fix the profile row (see `admin-setup.md`) |
 | Admin shows mock data | Supabase variables missing in `admin/.env` | Set them and restart |
 | App shows no products | Wrong `EXPO_PUBLIC_BUSINESS_ID`, or no active products | Check the id and product flags |
-| Voice says it cannot connect | `EXPO_PUBLIC_SAM_API_URL` points to a local IP | Expected in this phase |
+| Customer still sees Order by Voice | An old app build is installed | Reload Expo Go, or install a new APK. The current app has no voice card and does not request the microphone. |
 | "Modify limit reached" | `update_count` reached 5 | Business rule. Customer can still cancel if the order is still `new`. |
 | "Cancel limit reached for today" | Customer cancelled 3 orders in 24 hours | Business rule. The shop can cancel from the admin panel. To reset it for testing or support, run `supabase/scripts/reset-customer-cancel-limit.sql`. |
 | "This order is confirmed, so it can no longer be cancelled" | Customers cancel only while `new` | Business rule. Customer can modify, or the shop can cancel. |
@@ -769,7 +758,7 @@ See [go-live-checklist.md](go-live-checklist.md) and [pending-and-future-scope.m
 | No automated tests | Regressions | Start with order-flow tests on the RPCs |
 | `OrderTimeline.tsx` unused; `admin/README.md` is boilerplate | Noise | Remove or rewrite |
 | `expo-location`, `react-native-maps` unused | Bigger APK | Remove |
-| `EXPO_PUBLIC_VOICE_ORDERING` missing from `mobile/.env.example` | Setup confusion | Add it with a comment |
+| Voice code still in `admin/lib/sam/` and `mobile/src/sam/` | Dead path; `/sam` redirects home | Leave it unused. Do not ship the microphone permission with it. |
 | `admin-setup.md` migration list is out of date | Setup confusion | Point it to the migrations folder |
 | Development timing logs in `mobile/src/services/supabase.ts` | Only in dev builds | Remove when performance is settled |
 | `delivery_runs` tables unused | Dead schema | Build the feature or drop the tables |
@@ -778,10 +767,9 @@ See [go-live-checklist.md](go-live-checklist.md) and [pending-and-future-scope.m
 
 ### 14.3 Switched off in the code
 
-- Voice ordering: needs a publicly hosted voice server and `EXPO_PUBLIC_VOICE_ORDERING=true`.
 - Product detail page: pass `onPress` to `ProductCard` in Home and Buy again.
 - Quick status actions on the orders list: `LIST_QUICK_ACTIONS = true`.
-- Settings in the admin menu: `SHOW_LATER_PHASE_MENUS = true`.
+- Branding and API in the admin menu: `SHOW_LATER_PHASE_MENUS = true`. Profile, Announcements, and Shop status are already in the menu.
 - Decision needed: allow a new order to an address whose order is out for delivery?
 
 ### 14.4 Dropped
@@ -789,6 +777,7 @@ See [go-live-checklist.md](go-live-checklist.md) and [pending-and-future-scope.m
 | Item | Reason |
 |---|---|
 | `preparing` status | No value. Migrated to `confirmed`. |
+| Voice ordering and the microphone | Out of scope. The app does not show it and does not request the microphone. Bringing it back is new work, not a setting. |
 | Wake word ("Hey ...") | Always-on listening: battery, data, privacy, Android 13+ only. If it returns, use an on-device engine such as Picovoice Porcupine. |
 | Map-based address entry | Unreliable maps and search. Replaced by typed address with pincode lookup. |
 | Call and WhatsApp items in the order menu | Simplified. If they return, build the WhatsApp link from the last 10 digits plus `91`. |

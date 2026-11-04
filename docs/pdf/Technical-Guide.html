@@ -181,7 +181,7 @@ li {
 <h1>Ordering App: Technical Guide</h1>
 <p class="subtitle">Architecture, code, database and operations for developers and technical architects.</p>
 
-<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
+<p class="meta">Version 1.3 &middot; Last updated 5 November 2026</p>
 
 </div>
 
@@ -196,7 +196,7 @@ li {
 <li><a href="#7-admin-panel-internals">Admin panel internals</a></li>
 <li><a href="#8-order-lifecycle">Order lifecycle</a></li>
 <li><a href="#9-partner-api-v1">Partner API v1</a></li>
-<li><a href="#10-voice-ordering">Voice ordering</a></li>
+<li><a href="#10-voice-ordering-not-in-the-app">Voice ordering (not in the app)</a></li>
 <li><a href="#11-build-and-deploy">Build and deploy</a></li>
 <li><a href="#12-quality-checks">Quality checks</a></li>
 <li><a href="#13-troubleshooting">Troubleshooting</a></li>
@@ -282,7 +282,7 @@ li {
 
    Partner systems (website, WhatsApp bot) ----&gt; admin /api/v1 ----&gt; Supabase RPC
    Pincode lookup (customer app) ----&gt; api.postalpincode.in
-   Optional AI for voice (admin server) ----&gt; Ollama (OLLAMA_URL)
+   Shop posters and closed-shop check live in Postgres (shop_banners, enforce_shop_open)
 </code></pre>
 <p><strong>Key design decisions:</strong></p>
 <table>
@@ -521,12 +521,7 @@ cp admin/.env.example admin/.env
 <tr>
 <td><code>EXPO_PUBLIC_SAM_API_URL</code></td>
 <td>No</td>
-<td>Voice endpoint, for example <code>https://&lt;admin-host&gt;/api/sam/turn</code></td>
-</tr>
-<tr>
-<td><code>EXPO_PUBLIC_VOICE_ORDERING</code></td>
-<td>No</td>
-<td><code>true</code> shows voice ordering. Leave unset in this phase. Missing from <code>.env.example</code>.</td>
+<td>Unused by the customer app. Voice ordering is not shown.</td>
 </tr>
 </tbody></table>
 <p>All <code>EXPO_PUBLIC_*</code> values are built into the app and are public. Never put secrets there.</p>
@@ -540,7 +535,7 @@ cp admin/.env.example admin/.env
 </tr>
 </thead>
 <tbody><tr>
-<td>App name, slug, URL scheme, Android package, voice permission texts</td>
+<td>App name, slug, URL scheme, Android package</td>
 <td><code>mobile/app.json</code></td>
 </tr>
 <tr>
@@ -560,15 +555,15 @@ cp admin/.env.example admin/.env
 <td><code>admin/components/AdminShell.tsx</code>, <code>admin/app/login/page.tsx</code>, <code>admin/public/branding/</code></td>
 </tr>
 <tr>
-<td>Voice assistant replies and AI prompt (mention the shop name)</td>
-<td><code>admin/lib/sam/replies.ts</code>, <code>admin/lib/sam/intent-prompt.ts</code>, <code>mobile/src/sam/useSamSpeech.ts</code></td>
+<td>Microphone</td>
+<td>Blocked in <code>mobile/app.json</code> (<code>blockedPermissions</code>). <code>expo-speech-recognition</code> is not a dependency.</td>
 </tr>
 <tr>
 <td>Package names</td>
 <td><code>mobile/package.json</code>, root <code>package.json</code></td>
 </tr>
 </tbody></table>
-<p>Then create the business row, the admin user and the admin profile (<code>supabase/documentation/admin-setup.md</code>), and set the logo and banner in <strong>Settings &gt; Branding</strong>.</p>
+<p>Then create the business row, the admin user and the admin profile (<code>supabase/documentation/admin-setup.md</code>). Set the logo and welcome photo on <strong>Profile</strong>. Set home posters on <strong>Announcements</strong>. Branding stays hidden (<code>SHOW_LATER_PHASE_MENUS</code>).</p>
 <p>Moving these values into environment variables or the <code>businesses</code> table is listed as tech debt in section 14.</p>
 <p><strong>Admin panel (<code>admin/.env</code>):</strong></p>
 <table>
@@ -597,12 +592,7 @@ cp admin/.env.example admin/.env
 <tr>
 <td><code>OLLAMA_URL</code></td>
 <td>No</td>
-<td>Local AI server for voice ordering, for example <code>http://127.0.0.1:11434</code></td>
-</tr>
-<tr>
-<td><code>OLLAMA_MODEL</code></td>
-<td>No</td>
-<td>AI model name. Default <code>llama3.2</code>.</td>
+<td>Unused while voice ordering is out of the app.</td>
 </tr>
 </tbody></table>
 <h2>5. Database</h2>
@@ -618,7 +608,12 @@ cp admin/.env.example admin/.env
 <tbody><tr>
 <td><code>businesses</code></td>
 <td>One row per shop</td>
-<td><code>business_name</code>, <code>logo_url</code>, <code>banner_url</code>, <code>upi_qr_url</code>, <code>phone</code>, <code>email</code>, <code>address</code>, <code>description</code>, <code>communities_enabled</code>, <code>categories_enabled</code></td>
+<td><code>business_name</code>, <code>logo_url</code>, <code>banner_url</code> (welcome photo), <code>upi_qr_url</code>, <code>phone</code>, <code>email</code>, <code>address</code>, <code>description</code>, <code>communities_enabled</code>, <code>categories_enabled</code>, <code>shop_closed</code>, <code>shop_closed_message</code>, <code>announcement_active</code>, <code>announcement_image_url</code></td>
+</tr>
+<tr>
+<td><code>shop_banners</code></td>
+<td>Home posters</td>
+<td><code>business_id</code>, <code>image_url</code>, <code>sort_order</code>, <code>focus_y</code>. Customers read them only through <code>get_shop_banners</code> when announcements are on.</td>
 </tr>
 <tr>
 <td><code>profiles</code></td>
@@ -1113,6 +1108,11 @@ cp admin/.env.example admin/.env
 <td><code>business_upi_qr</code></td>
 <td><code>businesses.upi_qr_url</code> for pay-at-delivery UPI QR (customer order detail + delivery app upload)</td>
 </tr>
+<tr>
+<td>—</td>
+<td><code>shop_notice</code>, <code>shop_banners</code>, <code>shop_banner_focus</code>, <code>shop_notice_hardening</code></td>
+<td>Closed-shop columns and insert trigger, poster table and reader, <code>focus_y</code>, revoke execute on <code>enforce_shop_open</code></td>
+</tr>
 </tbody></table>
 <p><strong>Note:</strong> <code>supabase/documentation/admin-setup.md</code> lists migrations only up to <code>admin_customers</code>. Use the folder as the source of truth (47 files as of Oct 2026).</p>
 <h2>6. Customer app internals</h2>
@@ -1121,7 +1121,7 @@ cp admin/.env.example admin/.env
   index.tsx              Entry: decides welcome, login or home
   login.tsx, verify.tsx  Phone OTP
   (shop)/  tabs
-     home                Visible tab; category chips fixed under search; product grid FlatList 2 columns
+     home                Visible tab; search opens a full screen with a back arrow; category chips stay under search and still filter; 2:1 posters under the chips when announcements are on; product grid FlatList 2 columns
      buy-again           Visible tab (&quot;Order again&quot; label)
      orders              Visible tab; screen title &quot;Your Orders&quot;; list cards without order #
      cart                Hidden tab (opened by View cart)
@@ -1134,7 +1134,7 @@ cp admin/.env.example admin/.env
   confirmation.tsx       Order status after place, update or cancel
   order/[id].tsx         Order details
   product/[id].tsx       Product details (not linked in this phase)
-  sam.tsx                Voice ordering (hidden; redirects to Home)
+  sam.tsx                Old voice route. Always redirects to Home. The app does not request the microphone.
 </code></pre>
 <h3>6.2 State and providers</h3>
 <table>
@@ -1303,7 +1303,7 @@ cp admin/.env.example admin/.env
 <h3>6.9 App configuration</h3>
 <ul>
 <li><code>app.json</code>: app name, slug, URL scheme, Android package (<code>com.&lt;business&gt;.app</code>) and <code>versionCode</code>.</li>
-<li><code>app.config.js</code>: when <code>EXPO_PUBLIC_VOICE_ORDERING</code> is not <code>true</code>, removes the speech plugin and blocks the <code>RECORD_AUDIO</code> permission.</li>
+<li><code>app.config.js</code>: always blocks <code>RECORD_AUDIO</code>, drops the speech-recognition plugin, and removes the iOS microphone usage text. <code>EXPO_PUBLIC_VOICE_ORDERING</code> does not turn voice on.</li>
 <li><code>expo-location</code> and <code>react-native-maps</code> are installed in the customer app but not used for address entry (map entry was dropped). The delivery app uses <code>react-native-maps</code> for a map preview on order detail.</li>
 </ul>
 <h2>7. Admin panel internals</h2>
@@ -1376,9 +1376,9 @@ cp admin/.env.example admin/.env
 </tr>
 <tr>
 <td>Settings</td>
-<td><code>settings/business-info</code>, <code>branding</code>, <code>api</code></td>
-<td><code>BusinessInfoForm</code>, <code>BrandingForm</code>, <code>ApiKeysForm</code></td>
-<td><code>business.ts</code>, <code>api-key-actions.ts</code></td>
+<td><code>settings/business-info</code> (Profile), <code>settings/announcements</code>, <code>settings/shop-closed</code>. Branding and API stay hidden.</td>
+<td><code>BusinessInfoForm</code>, <code>AnnouncementForm</code>, <code>PosterCrop</code>, <code>ShopClosedForm</code></td>
+<td><code>business.ts</code>, <code>business-actions.ts</code></td>
 </tr>
 </tbody></table>
 <h3>7.3 Feature switches in code</h3>
@@ -1393,7 +1393,7 @@ cp admin/.env.example admin/.env
 <tbody><tr>
 <td><code>SHOW_LATER_PHASE_MENUS = false</code></td>
 <td><code>components/AdminShell.tsx</code></td>
-<td>Hides API and branding. <strong>Profile</strong> stays in the main menu (<code>/settings/business-info</code>)</td>
+<td>Hides API and branding. <strong>Profile</strong>, <strong>Announcements</strong>, and <strong>Shop status</strong> stay in the main menu.</td>
 </tr>
 <tr>
 <td><code>LIST_QUICK_ACTIONS = false</code></td>
@@ -1579,25 +1579,14 @@ Never paid, cancel: Not Applicable
 <li>The route (<code>lib/partner-api.ts</code>) uses the anon key and calls <code>partner_*</code> security-definer functions, which check the key hash.</li>
 <li>CORS is open (<code>*</code>), so browsers can call it. There is no rate limit yet.</li>
 </ul>
-<h2>10. Voice ordering</h2>
-<p><strong>Status: hidden in this phase</strong> (see section 14).</p>
-<pre><code>Customer app (sam.tsx, src/sam/)
-  speech-to-text on the phone
-     |  POST { transcript, businessId, draft }
-     v
-Admin /api/sam/turn  -&gt; lib/sam/process-turn.ts
-     |  normalise input (English, Tamil, mixed)
-     |  intent: Ollama AI if OLLAMA_URL is set, else rule-based fallback parser
-     |  match products, update the draft cart, build the reply
-     v
-Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
-</code></pre>
+<h2>10. Voice ordering (not in the app)</h2>
+<p>Voice ordering is out of scope. The customer app does not show an Order by Voice card, <code>env.voiceOrdering</code> is fixed to <code>false</code>, and <code>/sam</code> redirects to Home. <code>expo-speech-recognition</code> is not installed. Android builds block <code>android.permission.RECORD_AUDIO</code>, and the iOS microphone usage text is removed.</p>
+<p>Server files under <code>admin/lib/sam/</code> and <code>admin/app/api/sam/turn</code> are leftover. The turn route requires a signed-in customer before it does any work. Do not document a switch to turn voice back on: that would mean new product work, the speech package, the microphone permission, and a privacy-policy change.</p>
+<p>Shop posters and the closed-shop rule are separate and are live:</p>
 <ul>
-<li>Main files: <code>admin/lib/sam/*</code> (parser, intents, matching, replies), <code>mobile/src/sam/*</code> (client, speech, session).</li>
-<li>Languages: <code>en</code>, <code>ta</code>, <code>mix</code>.</li>
-<li>Unknown product questions are saved in <code>product_info_requests</code>.</li>
-<li>Test the parser with <code>cd admin &amp;&amp; npm run sam:eval</code>.</li>
-<li>Orders placed by voice get <code>placed_via = &#39;voice&#39;</code>.</li>
+<li><code>saveShopBanners</code> keeps at most 8 posters and only image URLs from this shop’s <code>business-logos</code> folder. <code>shop_closed_message</code> is capped at 280 characters.</li>
+<li><code>orders_block_when_shop_closed</code> calls <code>enforce_shop_open()</code> on insert. Admins can still create orders. Customers cannot. The function is not granted to anon or authenticated.</li>
+<li>Push functions <code>send-shop-announcement</code>, <code>send-product-available-push</code>, and <code>send-order-status-push</code> accept only the configured service-role key. A forged token payload is rejected.</li>
 </ul>
 <h2>11. Build and deploy</h2>
 <h3>11.1 Customer app (Android, EAS)</h3>
@@ -1625,11 +1614,11 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <td>Google Play</td>
 </tr>
 </tbody></table>
-<p>Play prep: <a href="play-store-checklist.md">play-store-checklist.md</a>. Production builds do not declare microphone permission; voice ordering (Phase 2) requires re-adding the <code>expo-speech-recognition</code> config plugin in <code>app.json</code> and updating the privacy policy.</p>
+<p>Play prep: <a href="play-store-checklist.md">play-store-checklist.md</a>. Production builds request notifications only. <code>android.blockedPermissions</code> strips <code>RECORD_AUDIO</code>.</p>
 <p>Steps:</p>
 <ol>
 <li>Bump versions using <a href="release-versions.md">release-versions.md</a>: <strong>bug fix</strong> <code>1.0.0</code> → <code>1.0.1</code>, <strong>feature</strong> <code>1.0.1</code> → <code>1.1.0</code>, and always increase <code>android.versionCode</code> by 1 (customer and delivery apps separately).</li>
-<li>Make sure the EAS <code>preview</code> environment has the three required <code>EXPO_PUBLIC_*</code> values. Leave <code>EXPO_PUBLIC_VOICE_ORDERING</code> unset.</li>
+<li>Make sure the EAS <code>preview</code> environment has the three required <code>EXPO_PUBLIC_*</code> values. Do not add a microphone permission.</li>
 <li>From <code>mobile/</code>: <code>npx eas-cli build -p android --profile preview</code> (or <code>production</code> for Play).</li>
 <li>After the customer build is on Play or a shared APK link, set the Supabase version row (<code>supabase/scripts/set-customer-app-version.sql</code>) so installed apps can prompt to update. Migration: <code>20261030233000_customer_app_version.sql</code>.</li>
 </ol>
@@ -1683,7 +1672,7 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 </tr>
 <tr>
 <td>Voice parser</td>
-<td><code>cd admin &amp;&amp; npm run sam:eval</code></td>
+<td>Not part of the customer app. <code>cd admin &amp;&amp; npm run sam:eval</code> only checks leftover server code.</td>
 </tr>
 </tbody></table>
 <p><strong>Known existing warnings:</strong> three admin type errors (<code>services/reports.ts</code>, <code>services/storage.ts</code>) and some <code>react-hooks/set-state-in-effect</code> lint errors (mobile <code>CartContext</code>, <code>address/form</code>, <code>sam.tsx</code>, <code>ShopCatalogContext</code>, <code>AddressPickerSheet</code>; admin <code>OrdersBoard</code>).</p>
@@ -1743,9 +1732,9 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <td>Check the id and product flags</td>
 </tr>
 <tr>
-<td>Voice says it cannot connect</td>
-<td><code>EXPO_PUBLIC_SAM_API_URL</code> points to a local IP</td>
-<td>Expected in this phase</td>
+<td>Customer still sees Order by Voice</td>
+<td>An old app build is installed</td>
+<td>Reload Expo Go, or install a new APK. The current app has no voice card and does not request the microphone.</td>
 </tr>
 <tr>
 <td>&quot;Modify limit reached&quot;</td>
@@ -1842,9 +1831,9 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <td>Remove</td>
 </tr>
 <tr>
-<td><code>EXPO_PUBLIC_VOICE_ORDERING</code> missing from <code>mobile/.env.example</code></td>
-<td>Setup confusion</td>
-<td>Add it with a comment</td>
+<td>Voice code still in <code>admin/lib/sam/</code> and <code>mobile/src/sam/</code></td>
+<td>Dead path; <code>/sam</code> redirects home</td>
+<td>Leave it unused. Do not ship the microphone permission with it.</td>
 </tr>
 <tr>
 <td><code>admin-setup.md</code> migration list is out of date</td>
@@ -1874,10 +1863,9 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 </tbody></table>
 <h3>14.3 Switched off in the code</h3>
 <ul>
-<li>Voice ordering: needs a publicly hosted voice server and <code>EXPO_PUBLIC_VOICE_ORDERING=true</code>.</li>
 <li>Product detail page: pass <code>onPress</code> to <code>ProductCard</code> in Home and Buy again.</li>
 <li>Quick status actions on the orders list: <code>LIST_QUICK_ACTIONS = true</code>.</li>
-<li>Settings in the admin menu: <code>SHOW_LATER_PHASE_MENUS = true</code>.</li>
+<li>Branding and API in the admin menu: <code>SHOW_LATER_PHASE_MENUS = true</code>. Profile, Announcements, and Shop status are already in the menu.</li>
 <li>Decision needed: allow a new order to an address whose order is out for delivery?</li>
 </ul>
 <h3>14.4 Dropped</h3>
@@ -1891,6 +1879,10 @@ Reply { text, draft, ... }  -&gt; app speaks the reply and shows product cards
 <tbody><tr>
 <td><code>preparing</code> status</td>
 <td>No value. Migrated to <code>confirmed</code>.</td>
+</tr>
+<tr>
+<td>Voice ordering and the microphone</td>
+<td>Out of scope. The app does not show it and does not request the microphone. Bringing it back is new work, not a setting.</td>
 </tr>
 <tr>
 <td>Wake word (&quot;Hey ...&quot;)</td>

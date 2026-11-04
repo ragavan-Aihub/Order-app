@@ -148,16 +148,18 @@ module.exports = ({ config }) => {
   if (samApiUrl) {
     process.env.EXPO_PUBLIC_SAM_API_URL = samApiUrl;
   }
-  const voiceOrdering =
-    (process.env.EXPO_PUBLIC_VOICE_ORDERING || fileEnv.EXPO_PUBLIC_VOICE_ORDERING || '').trim().toLowerCase() ===
-    'true';
   const android = { ...config.android };
   let plugins = config.plugins ?? [];
-  if (!voiceOrdering) {
-    android.permissions = (android.permissions ?? []).filter((permission) => !/RECORD_AUDIO$/.test(permission));
-    android.blockedPermissions = [...(android.blockedPermissions ?? []), 'android.permission.RECORD_AUDIO'];
-    plugins = plugins.filter((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-speech-recognition');
-  }
+  android.permissions = (android.permissions ?? []).filter((permission) => !/RECORD_AUDIO$/.test(permission));
+  android.blockedPermissions = [
+    ...new Set([...(android.blockedPermissions ?? []), 'android.permission.RECORD_AUDIO']),
+  ];
+  plugins = plugins.filter((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-speech-recognition');
+  const ios = { ...config.ios };
+  const infoPlist = { ...(ios.infoPlist ?? {}) };
+  delete infoPlist.NSMicrophoneUsageDescription;
+  delete infoPlist.NSSpeechRecognitionUsageDescription;
+  ios.infoPlist = infoPlist;
 
   const launchIcon = loadLaunchIcon(fileEnv);
   let icon = config.icon;
@@ -192,6 +194,7 @@ module.exports = ({ config }) => {
     name,
     icon,
     android,
+    ios,
     plugins,
     extra: {
       ...config.extra,

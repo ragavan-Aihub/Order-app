@@ -181,7 +181,7 @@ li {
 <h1>Ordering App: Business Guide</h1>
 <p class="subtitle">How the customer app and the admin panel work, written for the business owner, staff and product managers.</p>
 
-<p class="meta">Version 1.2 &middot; Last updated 29 October 2026</p>
+<p class="meta">Version 1.3 &middot; Last updated 5 November 2026</p>
 
 </div>
 
@@ -227,7 +227,7 @@ li {
 <td>Android phone (installed as an app)</td>
 </tr>
 </tbody></table>
-<p>The customer app carries <strong>your</strong> business name, logo, home banner, products and prices, so the same system can serve any business. You manage products, prices, orders and customers in the admin panel. The delivery app uses the <strong>same admin login</strong> (email and password) for staff on the road.</p>
+<p>The customer app carries <strong>your</strong> business name, logo, welcome photo, products and prices, so the same system can serve any business. Home posters are separate and are set under Announcements. You manage products, prices, orders and customers in the admin panel. The delivery app uses the <strong>same admin login</strong> (email and password) for staff on the road.</p>
 <p>The delivery app is optional. Many shops run deliveries from the admin panel only; use the delivery app when drivers need a phone-first list, maps links, swipe-to-advance status, and UPI QR at the door.</p>
 <p>Both parts share one online database. When a customer places an order in the app, it appears in the admin panel at once. When the shop changes the order status in the admin panel, the customer sees it in the app.</p>
 <p><strong>How an order flows:</strong></p>
@@ -306,7 +306,15 @@ li {
 </tr>
 <tr>
 <td><strong>Category</strong></td>
-<td>An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home.</td>
+<td>An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home, including while they search.</td>
+</tr>
+<tr>
+<td><strong>Welcome photo</strong></td>
+<td>The wide picture on the customer sign-in screen. It is not the home poster.</td>
+</tr>
+<tr>
+<td><strong>Poster</strong></td>
+<td>A wide picture under the categories on Home. Set under Announcements. The app does not offer voice ordering.</td>
 </tr>
 <tr>
 <td><strong>OTP</strong></td>
@@ -322,7 +330,7 @@ li {
 <p><strong>What it does:</strong> customers sign in with their mobile number. There is no password.</p>
 <p><strong>Steps for the customer:</strong></p>
 <ol>
-<li>Open the app. The welcome screen shows your logo, business name and description.</li>
+<li>Open the app. If they are not signed in, the welcome screen shows your logo, business name, description, and welcome photo when you have set one. Someone who is already signed in goes straight to Home.</li>
 <li>Enter the 10-digit mobile number (the +91 is already shown).</li>
 <li>Tap <strong>Continue</strong>. An SMS with a 6-digit OTP arrives.</li>
 <li>Enter the OTP and tap <strong>Verify</strong>. If the SMS does not come, tap <strong>Resend OTP</strong>.</li>
@@ -358,12 +366,13 @@ li {
 <ol>
 <li>The delivery address, and the customer&#39;s initial (tap it to open <strong>Account</strong>).</li>
 <li>The <strong>Modifying order</strong> bar, only when the customer is changing an existing order (see 3.6).</li>
-<li>Optional <strong>Order by Voice</strong> card, only when the developer turns voice ordering on for this build.</li>
 <li>A search box: <strong>Search products</strong> (searches names and descriptions).</li>
 <li>Category chips (<strong>All</strong>, then each category with its picture), only if you use categories. This row <strong>stays fixed under search</strong> while the customer scrolls products. Swipe sideways when there are many categories.</li>
-<li>Your home banner picture, if you set one (scrolls with the product list).</li>
+<li>Your home posters, if Announcements are turned on. They are a wide strip under the categories. More than one poster changes on its own. The strip is hidden while the customer is searching.</li>
 <li>All products in a grid of <strong>2 per row</strong>. Each card shows the picture, name, price and an <strong>Add</strong> button. After adding, the button becomes a <strong>- / +</strong> stepper.</li>
 </ol>
+<p>There is no voice-ordering button, and the app does not ask for the microphone.</p>
+<p><strong>Search:</strong> tapping the search box opens a search screen. A round back arrow sits to the left of the box. Category chips stay under the search box and still filter the results. The address header and the posters hide so the results can use the screen. Results stay above the keyboard. The back arrow clears the search and returns to Home with the posters. Tapping outside the box does not leave search.</p>
 <p><strong>Coming soon products</strong> show dimmed with the words &quot;Coming soon&quot;. They can show a <strong>Notify me</strong> button instead of Add. They appear at the end of the list.</p>
 <p><strong>Tapping a product</strong> does not open a product detail page in this version.</p>
 <p><strong>Order again tab:</strong> shows products from the customer&#39;s last 10 orders (cancelled orders are not counted). It uses the same 2-per-row grid and has its own search box. It is a quick way to repeat a usual order.</p>
@@ -524,7 +533,7 @@ li {
 <li>Only accounts set up as admin for this business can sign in. Customer accounts see &quot;Not authorized&quot;.</li>
 <li>Use <strong>Sign out</strong> at the bottom of the menu when you finish on a shared computer.</li>
 </ul>
-<p><strong>Menu (left side):</strong> Dashboard, Orders, Reports, <strong>Audit log</strong>, Products, Customers, <strong>Profile</strong>. The bottom of the menu shows the admin website version. <strong>Categories</strong> opens from the Products page. <strong>Communities</strong> opens from the Customers page. On a phone, tap <strong>Menu</strong> at the top. Lists on Dashboard, Reports, and Orders show as <strong>cards</strong> on a small screen (tap to open an order). Use a laptop for heavy work such as product import.</p>
+<p><strong>Menu (left side):</strong> Dashboard, Orders, Reports, <strong>Audit log</strong>, Products, Customers, <strong>Profile</strong>, <strong>Announcements</strong>, <strong>Shop status</strong>. The bottom of the menu shows the admin website version. <strong>Categories</strong> opens from the Products page. <strong>Communities</strong> opens from the Customers page. On a phone, tap <strong>Menu</strong> at the top. Lists on Dashboard, Reports, and Orders show as <strong>cards</strong> on a small screen (tap to open an order). Use a laptop for heavy work such as product import.</p>
 <h3>4.2 Dashboard</h3>
 <p>The page opens with a greeting (Good morning, afternoon or evening) and today&#39;s date, then &quot;What needs your attention today&quot;. &quot;Today&quot; means today in IST.</p>
 <p>If any orders are still <strong>Placed</strong>, a teal banner at the top says how many are waiting to be confirmed. Tap it to open the Orders list already showing the <strong>Placed</strong> tab. It disappears when nothing is waiting.</p>
@@ -797,11 +806,30 @@ li {
 <p><strong>Filters:</strong> date range (default last 7 days), <strong>app</strong> (all, admin panel only, or delivery app only), area (orders, products, customers, and so on), and search on the summary text.</p>
 <p>Each row shows <strong>when</strong>, <strong>app</strong> (admin panel or delivery app), <strong>area</strong>, and a short <strong>summary</strong>. Order-related lines link to that order. Shop edits to order items (quantities and totals) from the admin panel appear here even when no separate note was added.</p>
 <h3>4.9 Profile</h3>
-<p>Open <strong>Profile</strong> in the menu to set what prints on the delivery bill.</p>
+<p>Open <strong>Profile</strong> in the menu to set what prints on the delivery bill and what customers see when they sign in.</p>
 <ul>
-<li><strong>Logo</strong> (JPG, PNG, WebP or GIF), <strong>business name</strong>, <strong>phone</strong>, <strong>email</strong>, and <strong>address</strong>.</li>
+<li><strong>Logo</strong> (JPG, PNG, WebP or GIF), <strong>welcome photo</strong>, <strong>business name</strong>, <strong>phone</strong>, <strong>email</strong>, and <strong>address</strong>.</li>
+<li>The welcome photo is the wide picture on the customer sign-in screen. The whole picture is shown. Remove it to hide that strip. Home posters are set under <strong>Announcements</strong>, not here.</li>
 <li>Tap <strong>Save</strong>. You see <strong>Saved successfully</strong>, then the page closes and you are back on the Dashboard.</li>
-<li>The customer app still uses the business name. The logo, phone, email, and address on the bill come from this page.</li>
+<li>The customer app uses the business name. The logo, phone, email, and address on the bill come from this page.</li>
+</ul>
+<h3>4.10 Announcements</h3>
+<p>Open <strong>Announcements</strong> to put posters on the customer Home screen.</p>
+<ul>
+<li>Turn <strong>Showing on the home screen</strong> on when customers should see them. While it is off, you can still save posters; they stay hidden in the app.</li>
+<li>Add a photo, then drag it inside the wide frame. Use <strong>−</strong> and <strong>+</strong> to show more of the photo or crop closer. The preview on the right is the banner customers see under the categories.</li>
+<li>Up to <strong>8</strong> posters. Use the arrows to change the order. More than one poster changes on its own in the app.</li>
+<li><strong>Phone alert</strong> is off for each poster until you turn it on. Only posters with the alert on send a phone notification when you tap <strong>Publish</strong>. After a save, those switches turn off again, so a later save does not send the same alert.</li>
+<li>If announcements are hidden, <strong>Publish</strong> still saves the posters and does not send an alert.</li>
+<li>The button says <strong>Publish</strong> when posters are showing, and <strong>Save draft</strong> when they are hidden.</li>
+</ul>
+<h3>4.11 Shop status</h3>
+<p>Open <strong>Shop status</strong> when the shop should stop taking new orders from the app.</p>
+<ul>
+<li><strong>Shop is open</strong> means customers can place new orders.</li>
+<li><strong>Shop is closed</strong> blocks new orders from the customer app. Orders that are already placed can still be updated. The shop can still type a phone or walk-in order in the admin panel.</li>
+<li><strong>Message customers see</strong> is shown on the customer home screen and the cart while the shop is closed. If you leave it blank, the app uses “The shop is closed and is not taking orders right now.”</li>
+<li>Tap <strong>Save</strong>.</li>
 </ul>
 <h2>5. All business rules in one place</h2>
 <table>
@@ -885,7 +913,23 @@ li {
 </tr>
 <tr>
 <td>Categories</td>
-<td>Optional. Shown to customers as a fixed chip row under search on Home.</td>
+<td>Optional. Shown to customers as a fixed chip row under search on Home, including on the search screen.</td>
+</tr>
+<tr>
+<td>Welcome photo</td>
+<td>Optional. Sign-in screen only. Set on Profile.</td>
+</tr>
+<tr>
+<td>Home posters</td>
+<td>Optional, up to 8. Set under Announcements. Shown under the categories when turned on. A phone alert is sent only for posters you switch on at publish time.</td>
+</tr>
+<tr>
+<td>Shop closed</td>
+<td>Blocks new customer orders. Existing orders can still be updated. The admin panel can still create an order.</td>
+</tr>
+<tr>
+<td>Microphone</td>
+<td>The customer app does not ask for the microphone and does not offer voice ordering.</td>
 </tr>
 <tr>
 <td>UPI QR</td>
@@ -909,6 +953,8 @@ li {
 </tr>
 </tbody></table>
 <h2>6. Frequently asked questions</h2>
+<p><strong>Why can&#39;t a customer place a new order?</strong>
+Shop status may be <strong>Shop is closed</strong>. They can still update an order that is already placed. Open <strong>Shop status</strong>, turn the shop open, and save.</p>
 <p><strong>Why can&#39;t a customer modify their order?</strong>
 The order is no longer open (it is Out for delivery, Delivered or Cancelled), or it has already been modified 5 times. If the order is still Placed, the customer can cancel it instead.</p>
 <p><strong>Why can&#39;t a customer cancel their order?</strong>

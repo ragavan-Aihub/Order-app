@@ -67,6 +67,9 @@ export async function POST(request: Request) {
     );
     return json(result);
   } catch (error) {
+    if (error instanceof Error && error.message === 'SIGN_IN_REQUIRED') {
+      return json({ error: 'Sign in to use voice ordering.' }, 401);
+    }
     console.info('[sam]', 'turn_error', error instanceof Error ? error.message : 'error');
     return json({ error: 'Could not process that request.' }, 500);
   }

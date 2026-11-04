@@ -2,8 +2,32 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { env } from '@/config/env';
 import { notifyShopAnnouncement } from '@/lib/shop-announcement-push';
 import { logAdminAudit, requireAdminAuditContext } from '@/services/admin-audit';
+
+const MAX_POSTERS = 8;
+const MAX_NOTICE_LENGTH = 280;
+
+function isOwnShopImageUrl(url: string, businessId: string): boolean {
+  const base = env.supabaseUrl.trim().replace(/\/$/, '');
+  if (!base) {
+    return false;
+  }
+  let parsed: URL;
+  let expected: URL;
+  try {
+    parsed = new URL(url);
+    expected = new URL(base);
+  } catch {
+    return false;
+  }
+  if (parsed.origin !== expected.origin || parsed.username || parsed.password) {
+    return false;
+  }
+  const prefix = `/storage/v1/object/public/business-logos/${businessId}/`;
+  return parsed.pathname.startsWith(prefix) && !parsed.pathname.includes('..');
+}
 
 export async function updateBusinessInfo(input: {
   businessId: string;
@@ -65,11 +89,17 @@ export async function updateBusinessBranding(input: {
     return { error: 'This account cannot change this business.' };
   }
 
+  const logoUrl = input.logoUrl?.trim() || null;
+  const bannerUrl = input.bannerUrl?.trim() || null;
+  if ((logoUrl && !isOwnShopImageUrl(logoUrl, ctx.businessId)) || (bannerUrl && !isOwnShopImageUrl(bannerUrl, ctx.businessId))) {
+    return { error: 'Use an image uploaded for this shop.' };
+  }
+
   const { error } = await ctx.supabase
     .from('businesses')
     .update({
-      logo_url: input.logoUrl,
-      banner_url: input.bannerUrl,
+      logo_url: logoUrl,
+      banner_url: bannerUrl,
     })
     .eq('id', ctx.businessId);
 
@@ -106,7 +136,7 @@ export async function updateShopClosed(input: {
     .from('businesses')
     .update({
       shop_closed: input.shopClosed,
-      shop_closed_message: input.shopClosedMessage.trim() || null,
+      shop_closed_message: input.shopClosedMessage.trim().slice(0, MAX_NOTICE_LENGTH) || null,
     })
     .eq('id', ctx.businessId);
 
@@ -138,13 +168,19 @@ export async function saveShopBanners(input: {
     return { error: 'This account cannot change this business.', pushNote: null };
   }
 
+  if (input.posters.length > MAX_POSTERS) {
+    return { error: '8 posters is the maximum.', pushNote: null };
+  }
   const posters = input.posters
     .map((poster) => ({
       imageUrl: poster.imageUrl.trim(),
       focusY: Math.min(100, Math.max(0, Math.round(poster.focusY))),
       notify: poster.notify === true,
     }))
-    .filter((poster) => poster.imageUrl.startsWith('https://'));
+    .filter((poster) => isOwnShopImageUrl(poster.imageUrl, ctx.businessId));
+  if (posters.length !== input.posters.length) {
+    return { error: 'Each poster must be an image uploaded for this shop.', pushNote: null };
+  }
   if (input.active && posters.length === 0) {
     return { error: 'Add a poster before showing announcements.', pushNote: null };
   }
