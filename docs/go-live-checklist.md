@@ -1,6 +1,6 @@
 # Go-live checklist
 
-Use this after QA on **test data** and **before** the first real customer or production SMS. For the full dev sequence see the go-live plan in Cursor; technical detail is in [technical-guide.md](technical-guide.md).
+Use this after QA on **test data** and **before** the first real customer. For the full dev sequence see the go-live plan in Cursor; technical detail is in [technical-guide.md](technical-guide.md).
 
 ## A. Migrations on hosted Supabase
 
@@ -41,7 +41,7 @@ notify pgrst, 'reload schema';
 **Customer** (`mobile/`):
 
 - `android.versionCode` in repo (currently **23** — bump before each store-style release)
-- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`. Do not add a microphone permission.
+- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Do not add a microphone permission. Google Cloud needs an **Android** OAuth client (`com.farm2flavour.app` + the EAS keystore SHA-1) as well as the Web client.
 - `cd mobile && npx eas-cli build -p android --profile preview`
 
 **Delivery** (`delivery/`):
@@ -53,7 +53,7 @@ notify pgrst, 'reload schema';
 
 **EAS Free plan:** Android cloud builds reset monthly. If quota is exhausted, wait for reset, upgrade Expo, or use `eas build --local`.
 
-**QA loop:** place order → confirm → out for delivery → customer sees progress / UPI QR → delivered + payment → optional delivery bill PDF → Reports outstanding clear. Also check search (back arrow, categories still filter), a home poster under the categories, and Shop status blocking a new customer order while an existing order can still be updated. Create order: Coming soon products appear only when searched, grouped at the bottom. Selected payment fills the whole button. Profile logo, phone, and address print on the bill. The welcome photo is the sign-in picture, not the home poster.
+**QA loop:** Google sign-in and email link → place order → confirm → out for delivery → customer sees progress / UPI QR → delivered + payment → optional delivery bill PDF → Reports outstanding clear. Also check search (back arrow, categories still filter), a home poster under the categories, and Shop status blocking a new customer order while an existing order can still be updated. Create order: Coming soon products appear only when searched, grouped at the bottom. Selected payment fills the whole button. Profile logo, phone, and address print on the bill. The welcome photo is the sign-in picture, not the home poster. Use the **preview APK**, not a development client.
 
 **Test case sheet (share with testers):** [qa-test-cases.xlsx](qa-test-cases.xlsx) — sheet **How to use**, then **Test cases** in order from admin sign-in (Step 1). Columns include *Use case*, *What to do*, and *What you should see*. Run every **P0** row and Step 61 before launch ([qa-test-cases.md](qa-test-cases.md)).
 
@@ -65,11 +65,15 @@ notify pgrst, 'reload schema';
 4. Re-import catalog; re-add communities if used.
 5. Test phones: clear app data or reinstall APK.
 
-## F. Production SMS (2Factor.in)
+## F. Customer sign-in (Google and email)
 
-Only after **E** is done.
+SMS login is **off**. Do not turn Phone on in Supabase and do not buy SMTP until you choose that later.
 
-Deploy the Send SMS hook and set secrets — [supabase/documentation/phone-otp.md](../supabase/documentation/phone-otp.md). Script: `supabase/scripts/deploy-auth-sms-hook.sh`. Disconnect Twilio in Supabase Phone settings. Keep one **test OTP** number for demos.
+1. Supabase → Authentication → Providers: **Google** and **Email** on, **Phone** off.
+2. Redirect URLs include `farm2flavour://auth/callback`.
+3. Google Cloud: Web client (secret only in Supabase, never in the app) plus Android client for package `com.farm2flavour.app` and the signing SHA-1.
+4. Email mail stays the default Supabase template (no custom SMTP). Testers should expect **Supabase Auth** in the inbox.
+5. Phone OTP code and `send-auth-sms` stay in the repo unused. See [supabase/documentation/phone-otp.md](../supabase/documentation/phone-otp.md) only if you later add a new SMS provider.
 
 ## G. Google Play (customer app only)
 
@@ -84,5 +88,5 @@ Track detail in [pending-and-future-scope.md](pending-and-future-scope.md).
 - [ ] Customer + delivery **preview APKs** on real devices (or Expo Go until EAS quota)
 - [ ] Practice data wiped; order numbers start at **100001**
 - [ ] Real catalog live
-- [ ] 2Factor.in SMS works for a non-test number (Send SMS hook)
+- [ ] Google sign-in and email link work on a **preview APK** (not a development build)
 - [ ] Customer app on Play (or internal testing) per [play-store-checklist.md](play-store-checklist.md)

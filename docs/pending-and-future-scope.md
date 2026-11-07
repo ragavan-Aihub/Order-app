@@ -77,7 +77,7 @@ Last updated: 5 Nov 2026 (home posters, shop status, search screen, voice orderi
 - **Status:** Done (migration + admin)
 - **What:** App saved addresses link to `customers` via trigger and `ensure_customer_profile` backfill. Admin customer list/detail counts app addresses and orders by `auth_user_id` when needed.
 - **Migration:** `supabase/migrations/20261015000000_link_app_addresses_to_customer.sql`
-- **Demo tip:** Reusing the same Supabase Test OTP phone reuses the same Auth user and saved receiver names — use a fresh test number or clear app data between demos.
+- **Demo tip:** Reusing the same Google or email sign-in reuses the same Auth user and saved addresses — use a fresh account or clear app data between demos.
 
 ### Create order — duplicate mobile dialog
 

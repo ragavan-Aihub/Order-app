@@ -49,7 +49,7 @@ For screens and business rules in plain language, read the **Business Guide** fi
 |---|---|
 | **Business** | One shop. Every row in the database belongs to one business (`business_id`). |
 | **Admin** | A user whose `profiles.role = 'admin'` and who has a `business_id`. |
-| **Customer** | A user who signed in with phone OTP. Has a `profiles` row and a `customers` row. |
+| **Customer** | A user who signed in with Google or an email link. Has a `profiles` row. A `customers` row is created only when the session has a verified phone. |
 | **RLS** | Row Level Security. Postgres rules that decide which rows each user can read or write. |
 | **RPC** | A Postgres function called from the app with `supabase.rpc(...)`. |
 | **Security definer** | A Postgres function that runs with the owner's rights, so it can bypass RLS in a controlled way. |
@@ -68,7 +68,7 @@ Three client apps share one Supabase project:
 |  Customer app (mobile/)   |  |  Delivery app (delivery/) |  |  Admin panel (admin/)     |
 |  Expo / React Native      |  |  Expo / React Native      |  |  Next.js (App Router)     |
 |  Android APK              |  |  Android APK (staff)      |  |  Server components and    |
-|  Phone OTP                |  |  Email login (admin role) |  |  server actions           |
+|  Google / email link      |  |  Email login (admin role) |  |  server actions           |
 +-------------+-------------+  +-------------+-------------+  +------+-------------+------+
               |                            |                          |             |
               | supabase-js (anon key)     | supabase-js (anon key)   | supabase-js | /api/v1
@@ -76,7 +76,7 @@ Three client apps share one Supabase project:
               v                            v                          v             v
 +-------------------------------------------------------------------+
 |                         Supabase                                  |
-|  Auth: phone OTP (customers, SMS via 2Factor.in hook), email (admins) |
+|  Auth: Google and email magic link (customers), email (admins). Phone OTP code unused. |
 |  Postgres: tables, RLS policies, triggers, RPC functions          |
 |  Storage: product-images, business-logos (public read)            |
 +-------------------------------------------------------------------+
@@ -161,7 +161,7 @@ order-app/
 | | Tailwind CSS | 4 |
 | | `@supabase/ssr` and `@supabase/supabase-js` | supabase-js 2.114 |
 | Backend | Supabase (Postgres, Auth, Storage) | hosted |
-| SMS OTP | 2Factor.in via Edge Function `send-auth-sms` (Supabase Send SMS hook) | |
+| Customer auth | Google native Sign-In (`signInWithIdToken`) and email magic link (`signInWithOtp` + `farm2flavour://auth/callback`). Phone SMS is off. | |
 | Builds | EAS Build (Android) | CLI >= 16.17.0 |
 | Docs | md-to-pdf | latest through `npx` |
 
@@ -182,7 +182,7 @@ Then:
 
 1. Create a Supabase project. Run every file in `supabase/migrations/` in the SQL editor, **in name order** (see 5.6).
 2. Create the business, the admin auth user and the admin profile. Follow `supabase/documentation/admin-setup.md`.
-3. Set up phone OTP with 2Factor.in (Send SMS hook). Follow `supabase/documentation/phone-otp.md`. For testing, add a test phone number and fixed OTP in Supabase Auth (format `91XXXXXXXXXX=123456`), so no real SMS is sent.
+3. Enable **Google** and **Email** in Supabase Auth. Keep **Phone** off. Add `farm2flavour://auth/callback` to redirect URLs. Create a Google Web client (secret only in Supabase) and an Android client (`com.farm2flavour.app` + EAS SHA-1). Phone OTP notes stay in `supabase/documentation/phone-otp.md` for later.
 4. Fill in the `.env` files (below).
 
 ### 4.2 Run
@@ -205,6 +205,7 @@ Without Supabase variables, the admin panel runs with mock data and a local admi
 | `EXPO_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
 | `EXPO_PUBLIC_BUSINESS_ID` | Yes | The shop's `businesses.id` |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Yes for Google sign-in | Google **Web** client ID. Never put the client secret in the app. |
 | `EXPO_PUBLIC_SAM_API_URL` | No | Unused by the customer app. Voice ordering is not shown. |
 
 All `EXPO_PUBLIC_*` values are built into the app and are public. Never put secrets there.
@@ -216,7 +217,7 @@ The product is not tied to one shop. Business name, logo, banner, description, p
 | What | Where |
 |---|---|
 | App name, slug, URL scheme, Android package | `mobile/app.json` |
-| App icon, splash and fallback logo on the welcome screen | `mobile/assets/images/`, `mobile/src/components/WelcomeSignup.tsx` |
+| App icon, splash and fallback logo on the welcome screen | `mobile/assets/images/`, `mobile/src/components/GoogleSignIn.tsx` |
 | Business id | `EXPO_PUBLIC_BUSINESS_ID` (in `.env` and the EAS environment) |
 | Storage key prefix | see 6.3 |
 | Admin sidebar and login logo and name | `admin/components/AdminShell.tsx`, `admin/app/login/page.tsx`, `admin/public/branding/` |
@@ -290,7 +291,7 @@ Every table has RLS on. The pattern is:
   - `get_available_products(p_business_id)`: active products
   - `get_shop_categories(p_business_id)`: active categories, when enabled
   - `get_business_public(p_business_id)`: name, logo, banner, description
-- **Profile protection:** the `profiles_protect_privileges` trigger stops users from changing their own `role` or `business_id`, and keeps a customer's `mobile` equal to the phone verified at OTP sign-in.
+- **Profile protection:** the `profiles_protect_privileges` trigger stops users from changing their own `role` or `business_id`, and keeps a customer's `mobile` equal to a verified login phone when one exists.
 - **Customer record:** customers cannot read the `customers` table (it holds the shop's notes). `ensure_customer_profile` links the record by the verified phone from the login token, not by a number sent by the app.
 - **Storage:** buckets `product-images` and `business-logos` are public to read. Only admins can write. Uploads are limited to JPEG, PNG, GIF and WebP up to 5 MB.
 - **Function access:** Supabase lets `anon` run new functions by default, so internal functions are revoked from `anon` explicitly. `partner_auth` and `partner_order_payload` run only inside the other partner functions.
@@ -320,7 +321,7 @@ Every table has RLS on. The pattern is:
 
 | Function | Called by | Purpose |
 |---|---|---|
-| `ensure_customer_profile` | Customer app after OTP | Creates or updates the `profiles` row and the `customers` row (source `app`), using the verified phone from the login token |
+| `ensure_customer_profile` | Customer app after Google or email session | Upserts `profiles` (name/email from the JWT). Inserts or links `customers` only when the JWT has a verified phone |
 | `get_available_products`, `get_shop_categories`, `get_business_public` | Customer app | Public shop data |
 | `find_open_customer_order` | Customer app | Finds the open order for an address |
 | `customer_cancel_order` | Customer app | Cancels the customer's own order only while `new`, at most 3 customer cancellations in 24 hours (a per-customer lock stops parallel cancels from beating the limit). Ignores the reason sent by the app and saves "Customer requested". |
@@ -336,7 +337,7 @@ Run every file in `supabase/migrations/` in name order, in the Supabase SQL edit
 | # | File (date prefix removed) | What it adds or changes |
 |---|---|---|
 | 1 | `init` | Core tables, RLS, storage buckets, shop RPCs |
-| 2 | `ensure_customer_profile` | Profile creation after OTP sign-in |
+| 2 | `ensure_customer_profile` | Profile after Google or email session; customers row only with verified phone |
 | 3 | `order_number` | 6-digit order numbers per business |
 | 4 | `reload_order_number_api` | Schema reload for the API |
 | 5 | `order_number_idempotent` | Safe re-run of the order number setup |
@@ -385,7 +386,7 @@ Run every file in `supabase/migrations/` in name order, in the Supabase SQL edit
 ```
 _layout.tsx  (providers: Network, ShopCatalog, Cart)
   index.tsx              Entry: decides welcome, login or home
-  login.tsx, verify.tsx  Phone OTP
+  login.tsx, GoogleSignIn.tsx, verify.tsx, auth/callback.tsx  Google and email link
   (shop)/  tabs
      home                Visible tab; search opens a full screen with a back arrow; category chips stay under search and still filter; 2:1 posters under the chips when announcements are on; product grid FlatList 2 columns
      buy-again           Visible tab ("Order again" label)
@@ -407,7 +408,7 @@ _layout.tsx  (providers: Network, ShopCatalog, Cart)
 
 | Provider or module | File | Holds |
 |---|---|---|
-| `NetworkProvider` | `src/network/NetworkProvider.tsx` | Online or offline flag. `requireConnection` guards OTP and order actions. |
+| `NetworkProvider` | `src/network/NetworkProvider.tsx` | Online or offline flag. `requireConnection` guards sign-in and order actions. |
 | `ShopCatalogContext` | `src/catalog/ShopCatalogContext.tsx` | Products, categories and business, loaded from cache first and then refreshed |
 | `CartContext` | `src/cart/CartContext.tsx` | Cart items, edit mode, open order for the selected address |
 | Address book | `src/cart/address-book.ts` | Saved addresses and the selected one (shared store with subscribe) |
@@ -720,8 +721,9 @@ There are no automated tests yet. Before each change, run:
 | Saved addresses fail to load or save | Migration 30 not run (`city` missing) | Run `address_city` |
 | App shows only the Placed time | Migration 34 not run | Run `order_status_events_customer_read` |
 | "Could not find the function ..." from the API | Schema cache is old | Run `notify pgrst, 'reload schema';` |
-| OTP SMS not received | 2Factor.in balance, DLT/sender, or Send SMS hook | Check `supabase/documentation/phone-otp.md` and Edge Function logs for `send-auth-sms`. Use the test number for development. |
-| "Wait about a minute, then request a new OTP." | Supabase OTP rate limit | Wait, or use the test number |
+| Google opens a website to supabase.co | Old APK or missing Android OAuth client | Install the **preview** APK that includes native Google Sign-In. Register package `com.farm2flavour.app` and the EAS SHA-1. |
+| Email link opens the app then returns to welcome | Redirect URL missing, or tokens dropped | Add `farm2flavour://auth/callback`. Open the mail on the same phone. Each link works once. |
+| Email looks like Supabase Auth | Default mailer; no custom SMTP | Expected. Testers should look for subject Your sign-in link. |
 | Admin shows "Not authorized" | Profile is not `role = 'admin'` or has no `business_id` | Fix the profile row (see `admin-setup.md`) |
 | Admin shows mock data | Supabase variables missing in `admin/.env` | Set them and restart |
 | App shows no products | Wrong `EXPO_PUBLIC_BUSINESS_ID`, or no active products | Check the id and product flags |

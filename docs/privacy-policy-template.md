@@ -18,7 +18,9 @@ Farm2Flavours (“we”, “us”) operates the Farm2Flavour mobile app for cust
 
 | Data | Purpose |
 |------|---------|
-| **Mobile phone number** | Sign-in via one-time SMS code; account identity |
+| **Google account (name and email)** | Sign-in with Google |
+| **Email address** | Sign-in with an email confirmation link |
+| **Receiver phone number** | Typed on a delivery address so the shop can reach the drop-off |
 | **Name** | Delivery and order communication |
 | **Delivery addresses** | Fulfil and deliver your orders (up to 3 saved addresses) |
 | **Order details** | Products, quantities, totals, status, payment method choice (cash or UPI at delivery) |
@@ -43,8 +45,7 @@ We **do not** sell your personal information.
 We use trusted processors who store or process data on our instructions:
 
 - **Supabase** — database, authentication, file storage (e.g. product images)
-- **SMS provider** (2Factor.in) — send OTP codes to your phone
-- **Google (Firebase Cloud Messaging)** — deliver push notifications on Android
+- **Google** — Sign-In (account picker) and Firebase Cloud Messaging (Android push)
 
 They may process data in regions where they operate. We use them under their terms and our configuration.
 
@@ -82,9 +83,9 @@ When filling Google Play **Data safety**, align with the policy above. Typical a
 
 | Question | Typical answer |
 |----------|----------------|
-| Data collected | Phone number, name, address, purchase history, app interactions, device or other IDs (push token) |
-| Data shared | With service providers (hosting, SMS, push) — not sold |
-| Optional vs required | Phone required for account; notifications optional |
+| Data collected | Name, email, address, receiver phone on an address, purchase history, app interactions, device or other IDs (push token) |
+| Data shared | With service providers (hosting, Google Sign-In, push) — not sold |
+| Optional vs required | Google or email required for account; notifications optional |
 | Encrypted in transit | Yes (HTTPS) |
 | Users can request deletion | Yes (via contact email) |
 | Audio / microphone | **No data collected** |

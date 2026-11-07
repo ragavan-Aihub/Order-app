@@ -114,6 +114,6 @@ Use only the anon key in:
 - `admin/.env` → `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `mobile/.env` → `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`
 
-## Customer OTP
+## Customer sign-in
 
-Phone login is configured in the dashboard, not in the apps. See `supabase/documentation/phone-otp.md`. Keep the test number; use the Send SMS hook with 2Factor.in for live SMS (not Twilio).
+Enable **Google** and **Email** in the dashboard. Keep **Phone** off. Redirect URLs must include `farm2flavour://auth/callback`. Phone OTP notes: `supabase/documentation/phone-otp.md` (unused until a new SMS provider).

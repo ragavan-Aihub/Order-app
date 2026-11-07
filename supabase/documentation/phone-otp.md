@@ -1,6 +1,8 @@
-# Customer phone OTP
+# Customer phone OTP (unused)
 
-The customer app uses Supabase `signInWithOtp` / `verifyOtp`. **Do not** put SMS API keys in the mobile app, EAS, or git.
+**The customer app does not show SMS sign-in.** Phone is off in Supabase Auth. Keep this file and `send-auth-sms` for later if a new SMS provider is chosen. Do not turn Phone on for go-live.
+
+The unused app code still has `requestOtp` / `verifyOtp`. **Do not** put SMS API keys in the mobile app, EAS, or git.
 
 **Production SMS:** [2Factor.in](https://2factor.in) via the **Send SMS Auth Hook** Edge Function (`send-auth-sms`). Twilio is **not** used.
 

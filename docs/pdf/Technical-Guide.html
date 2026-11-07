@@ -226,7 +226,7 @@ li {
 </tr>
 <tr>
 <td><strong>Customer</strong></td>
-<td>A user who signed in with phone OTP. Has a <code>profiles</code> row and a <code>customers</code> row.</td>
+<td>A user who signed in with Google or an email link. Has a <code>profiles</code> row. A <code>customers</code> row is created only when the session has a verified phone.</td>
 </tr>
 <tr>
 <td><strong>RLS</strong></td>
@@ -267,7 +267,7 @@ li {
 |  Customer app (mobile/)   |  |  Delivery app (delivery/) |  |  Admin panel (admin/)     |
 |  Expo / React Native      |  |  Expo / React Native      |  |  Next.js (App Router)     |
 |  Android APK              |  |  Android APK (staff)      |  |  Server components and    |
-|  Phone OTP                |  |  Email login (admin role) |  |  server actions           |
+|  Google / email link      |  |  Email login (admin role) |  |  server actions           |
 +-------------+-------------+  +-------------+-------------+  +------+-------------+------+
               |                            |                          |             |
               | supabase-js (anon key)     | supabase-js (anon key)   | supabase-js | /api/v1
@@ -275,7 +275,7 @@ li {
               v                            v                          v             v
 +-------------------------------------------------------------------+
 |                         Supabase                                  |
-|  Auth: phone OTP (customers, SMS via 2Factor.in hook), email (admins) |
+|  Auth: Google and email magic link (customers), email (admins). Phone OTP code unused. |
 |  Postgres: tables, RLS policies, triggers, RPC functions          |
 |  Storage: product-images, business-logos (public read)            |
 +-------------------------------------------------------------------+
@@ -432,8 +432,8 @@ li {
 <td>hosted</td>
 </tr>
 <tr>
-<td>SMS OTP</td>
-<td>2Factor.in via Edge Function <code>send-auth-sms</code> (Supabase Send SMS hook)</td>
+<td>Customer auth</td>
+<td>Google native Sign-In (<code>signInWithIdToken</code>) and email magic link (<code>signInWithOtp</code> + <code>farm2flavour://auth/callback</code>). Phone SMS is off.</td>
 <td></td>
 </tr>
 <tr>
@@ -459,7 +459,7 @@ cp admin/.env.example admin/.env
 <ol>
 <li>Create a Supabase project. Run every file in <code>supabase/migrations/</code> in the SQL editor, <strong>in name order</strong> (see 5.6).</li>
 <li>Create the business, the admin auth user and the admin profile. Follow <code>supabase/documentation/admin-setup.md</code>.</li>
-<li>Set up phone OTP with 2Factor.in (Send SMS hook). Follow <code>supabase/documentation/phone-otp.md</code>. For testing, add a test phone number and fixed OTP in Supabase Auth (format <code>91XXXXXXXXXX=123456</code>), so no real SMS is sent.</li>
+<li>Enable <strong>Google</strong> and <strong>Email</strong> in Supabase Auth. Keep <strong>Phone</strong> off. Add <code>farm2flavour://auth/callback</code> to redirect URLs. Create a Google Web client (secret only in Supabase) and an Android client (<code>com.farm2flavour.app</code> + EAS SHA-1). Phone OTP notes stay in <code>supabase/documentation/phone-otp.md</code> for later.</li>
 <li>Fill in the <code>.env</code> files (below).</li>
 </ol>
 <h3>4.2 Run</h3>
@@ -519,6 +519,11 @@ cp admin/.env.example admin/.env
 <td>The shop&#39;s <code>businesses.id</code></td>
 </tr>
 <tr>
+<td><code>EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID</code></td>
+<td>Yes for Google sign-in</td>
+<td>Google <strong>Web</strong> client ID. Never put the client secret in the app.</td>
+</tr>
+<tr>
 <td><code>EXPO_PUBLIC_SAM_API_URL</code></td>
 <td>No</td>
 <td>Unused by the customer app. Voice ordering is not shown.</td>
@@ -540,7 +545,7 @@ cp admin/.env.example admin/.env
 </tr>
 <tr>
 <td>App icon, splash and fallback logo on the welcome screen</td>
-<td><code>mobile/assets/images/</code>, <code>mobile/src/components/WelcomeSignup.tsx</code></td>
+<td><code>mobile/assets/images/</code>, <code>mobile/src/components/GoogleSignIn.tsx</code></td>
 </tr>
 <tr>
 <td>Business id</td>
@@ -767,7 +772,7 @@ cp admin/.env.example admin/.env
 <li><code>get_business_public(p_business_id)</code>: name, logo, banner, description</li>
 </ul>
 </li>
-<li><strong>Profile protection:</strong> the <code>profiles_protect_privileges</code> trigger stops users from changing their own <code>role</code> or <code>business_id</code>, and keeps a customer&#39;s <code>mobile</code> equal to the phone verified at OTP sign-in.</li>
+<li><strong>Profile protection:</strong> the <code>profiles_protect_privileges</code> trigger stops users from changing their own <code>role</code> or <code>business_id</code>, and keeps a customer&#39;s <code>mobile</code> equal to a verified login phone when one exists.</li>
 <li><strong>Customer record:</strong> customers cannot read the <code>customers</code> table (it holds the shop&#39;s notes). <code>ensure_customer_profile</code> links the record by the verified phone from the login token, not by a number sent by the app.</li>
 <li><strong>Storage:</strong> buckets <code>product-images</code> and <code>business-logos</code> are public to read. Only admins can write. Uploads are limited to JPEG, PNG, GIF and WebP up to 5 MB.</li>
 <li><strong>Function access:</strong> Supabase lets <code>anon</code> run new functions by default, so internal functions are revoked from <code>anon</code> explicitly. <code>partner_auth</code> and <code>partner_order_payload</code> run only inside the other partner functions.</li>
@@ -864,8 +869,8 @@ cp admin/.env.example admin/.env
 </thead>
 <tbody><tr>
 <td><code>ensure_customer_profile</code></td>
-<td>Customer app after OTP</td>
-<td>Creates or updates the <code>profiles</code> row and the <code>customers</code> row (source <code>app</code>), using the verified phone from the login token</td>
+<td>Customer app after Google or email session</td>
+<td>Upserts <code>profiles</code> (name/email from the JWT). Inserts or links <code>customers</code> only when the JWT has a verified phone</td>
 </tr>
 <tr>
 <td><code>get_available_products</code>, <code>get_shop_categories</code>, <code>get_business_public</code></td>
@@ -921,7 +926,7 @@ cp admin/.env.example admin/.env
 <tr>
 <td>2</td>
 <td><code>ensure_customer_profile</code></td>
-<td>Profile creation after OTP sign-in</td>
+<td>Profile after Google or email session; customers row only with verified phone</td>
 </tr>
 <tr>
 <td>3</td>
@@ -1119,7 +1124,7 @@ cp admin/.env.example admin/.env
 <h3>6.1 Navigation (Expo Router)</h3>
 <pre><code>_layout.tsx  (providers: Network, ShopCatalog, Cart)
   index.tsx              Entry: decides welcome, login or home
-  login.tsx, verify.tsx  Phone OTP
+  login.tsx, GoogleSignIn.tsx, verify.tsx, auth/callback.tsx  Google and email link
   (shop)/  tabs
      home                Visible tab; search opens a full screen with a back arrow; category chips stay under search and still filter; 2:1 posters under the chips when announcements are on; product grid FlatList 2 columns
      buy-again           Visible tab (&quot;Order again&quot; label)
@@ -1148,7 +1153,7 @@ cp admin/.env.example admin/.env
 <tbody><tr>
 <td><code>NetworkProvider</code></td>
 <td><code>src/network/NetworkProvider.tsx</code></td>
-<td>Online or offline flag. <code>requireConnection</code> guards OTP and order actions.</td>
+<td>Online or offline flag. <code>requireConnection</code> guards sign-in and order actions.</td>
 </tr>
 <tr>
 <td><code>ShopCatalogContext</code></td>
@@ -1707,14 +1712,19 @@ Never paid, cancel: Not Applicable
 <td>Run <code>notify pgrst, &#39;reload schema&#39;;</code></td>
 </tr>
 <tr>
-<td>OTP SMS not received</td>
-<td>2Factor.in balance, DLT/sender, or Send SMS hook</td>
-<td>Check <code>supabase/documentation/phone-otp.md</code> and Edge Function logs for <code>send-auth-sms</code>. Use the test number for development.</td>
+<td>Google opens a website to supabase.co</td>
+<td>Old APK or missing Android OAuth client</td>
+<td>Install the <strong>preview</strong> APK that includes native Google Sign-In. Register package <code>com.farm2flavour.app</code> and the EAS SHA-1.</td>
 </tr>
 <tr>
-<td>&quot;Wait about a minute, then request a new OTP.&quot;</td>
-<td>Supabase OTP rate limit</td>
-<td>Wait, or use the test number</td>
+<td>Email link opens the app then returns to welcome</td>
+<td>Redirect URL missing, or tokens dropped</td>
+<td>Add <code>farm2flavour://auth/callback</code>. Open the mail on the same phone. Each link works once.</td>
+</tr>
+<tr>
+<td>Email looks like Supabase Auth</td>
+<td>Default mailer; no custom SMTP</td>
+<td>Expected. Testers should look for subject Your sign-in link.</td>
 </tr>
 <tr>
 <td>Admin shows &quot;Not authorized&quot;</td>

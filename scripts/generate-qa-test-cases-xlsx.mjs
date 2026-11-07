@@ -17,7 +17,7 @@ const howTo = [
   ['4. In Status write: Pass, Fail, Blocked, or Not started. If it fails, add a short note in a column you add yourself (for example Notes).'],
   [''],
   ['Priority'],
-  ['P0 — Must work before we go live (sign-in, place order, deliver, take payment, real SMS).'],
+  ['P0 — Must work before we go live (Google sign-in, email link, place order, deliver, take payment).'],
   ['P1 — Should work before go-live (everyday shop and customer tasks).'],
   ['P2 — Useful, but there is a workaround if it fails.'],
   ['P3 — Nice to check after the app is on the Play Store, or low risk.'],
@@ -36,7 +36,8 @@ const howTo = [
   ['Out for delivery — on the way.'],
   ['Delivered — handed over.'],
   ['Outstanding — delivered but not paid yet.'],
-  ['OTP — the 6-digit code sent by SMS to sign in.'],
+  ['Google sign-in — Continue with Google on the welcome screen. No password.'],
+  ['Email link — Continue with Email, then tap the link in mail from Supabase Auth.'],
 ];
 
 const workbook = XLSX.utils.book_new();

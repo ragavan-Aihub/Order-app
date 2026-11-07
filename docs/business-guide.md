@@ -90,27 +90,27 @@ Both parts share one online database. When a customer places an order in the app
 | **Category** | An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home, including while they search. |
 | **Welcome photo** | The wide picture on the customer sign-in screen. It is not the home poster. |
 | **Poster** | A wide picture under the categories on Home. Set under Announcements. The app does not offer voice ordering. |
-| **OTP** | One Time Password. A 6-digit code sent by SMS to sign in. |
+| **Google sign-in** | The customer taps Continue with Google and uses the Google account on the phone. There is no password. |
+| **Email link** | The customer taps Continue with Email and opens a sign-in link sent to that address. The mail currently comes from Supabase Auth. |
 | **IST** | India Standard Time. All "today" figures in the admin panel use IST. |
 
 ## 3. The customer app
 
 ### 3.1 Signing in
 
-**What it does:** customers sign in with their mobile number. There is no password.
+**What it does:** customers sign in with **Google** or an **email link**. There is no password and no SMS code on the welcome screen.
 
 **Steps for the customer:**
 
-1. Open the app. If they are not signed in, the welcome screen shows your logo, business name, description, and welcome photo when you have set one. Someone who is already signed in goes straight to Home.
-2. Enter the 10-digit mobile number (the +91 is already shown).
-3. Tap **Continue**. An SMS with a 6-digit OTP arrives.
-4. Enter the OTP and tap **Verify**. If the SMS does not come, tap **Resend OTP**.
+1. Open the app. If they are not signed in, the welcome screen shows your logo, business name, description, **Continue with Google**, and **Continue with Email**. Someone who is already signed in goes straight to Home.
+2. **Google (preferred):** tap **Continue with Google** and pick the Google account on the phone.
+3. **Email:** tap **Continue with Email**, enter the address, then open the mail from **Supabase Auth** (subject **Your sign-in link** or **Confirm your email address**) and tap **Sign in** on this phone. That mail is not branded Farm2Flavour until the shop pays for its own email sender.
+4. If they tapped **Skip**, they can browse first. Sign-in is needed later, when they add an address, open **Orders** or **Order again**, or place an order.
 
 **Rules:**
 
-- A customer can tap **Skip** on the first screen and browse products without signing in. Sign-in is needed later, when they add an address, open **Orders** or **Order again**, or place an order.
-- When a customer signs in for the first time, they are added automatically to your **Customers** list in the admin panel, with the source **App**.
-- If OTPs are requested too often, the app says: "Wait about a minute, then request a new OTP."
+- A Google or email sign-in stores the name and email so the shop can recognise the account. They appear on **Customers** in the admin panel only after a mobile number is confirmed. Until then, their orders still belong to that sign-in.
+- Mobile SMS sign-in is switched off. The code is kept for later if the shop chooses a new SMS provider.
 
 ### 3.2 Delivery addresses
 
@@ -576,7 +576,7 @@ Open **Shop status** when the shop should stop taking new orders from the app.
 
 | Area | Rule |
 |---|---|
-| Sign in | Customers sign in with mobile number and SMS OTP. Admins sign in with email and password. |
+| Sign in | Customers sign in with Google or an email link. Admins sign in with email and password. |
 | Addresses | Up to 3 saved addresses per customer. The chosen one becomes the default. |
 | Cart | Up to 15 different products, up to 10 of each. |
 | Payment | Pay on delivery only, by cash or UPI. |
@@ -637,8 +637,8 @@ It is part of at least one order. Set it to **Inactive** to hide it from the app
 **Why can't I delete a customer?**
 The customer has orders. Keep the record for your history.
 
-**A customer cannot get the OTP SMS. What can I do?**
-Ask them to wait a minute and tap **Resend OTP**, and check that the number is correct. If many customers have this problem, tell the developer, because the SMS provider may need attention.
+**A customer does not trust the sign-in email?**
+Tell them it comes from **Supabase Auth** with subject **Your sign-in link**. That is this shop finishing sign-in. **Continue with Google** avoids the email. If the link does not open the app, they should open the mail on the same phone and tap **Sign in** again (each link works once).
 
 **Do customers see communities?**
 No. Communities are only for the shop.

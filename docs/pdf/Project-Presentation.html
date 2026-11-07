@@ -192,14 +192,14 @@
         <h1>How a customer gets in</h1>
         <div class="body"><ul>
 <li>A new visit shows the welcome screen: logo, shop name, description, and the welcome photo if one is set.</li>
-<li>They tap <strong>Continue with Google</strong>. There is no password.</li>
-<li>Someone who already ordered with a mobile number can prove that number with a text code. Google is then linked to the same account, so earlier orders stay put.</li>
+<li>They tap <strong>Continue with Google</strong> or <strong>Continue with Email</strong>. There is no password and no SMS on this screen.</li>
+<li>Email sends a link from <strong>Supabase Auth</strong>. That is this shop finishing sign-in.</li>
 <li>They can <strong>Skip</strong> and look at products first. Sign-in is required to save an address, open orders, or place an order.</li>
 <li>Someone who is already signed in opens straight on Home.</li>
-<li>A Google sign-in stores the name and email. The Customers list gets a row only after a mobile number is confirmed.</li>
+<li>A Google or email sign-in stores the name and email. The Customers list gets a row only after a mobile number is confirmed.</li>
 </ul>
 </div>
-        <p class="notes">Skip is for looking, not for ordering. Google is the sign-in on screen. The text code is only for someone who already ordered with a mobile number.</p>
+        <p class="notes">Skip is for looking, not for ordering. Google is the main sign-in. Email is the backup. SMS login is off.</p>
         <p class="num">6 / 22</p>
       </section>
 <section class="slide" data-index="6">
@@ -419,7 +419,7 @@
         <p class="kicker">Safety</p>
         <h1>How access is kept in bounds</h1>
         <div class="body"><ul>
-<li>Customers sign in with Google and see their own orders. A text code is used only to prove a mobile number that already has orders, and that links Google to the same account.</li>
+<li>Customers sign in with Google or an email link and see their own orders. SMS login is off.</li>
 <li>Shop staff use an admin login. Anyone else is turned away.</li>
 <li>A closed shop is enforced in the database, including on an older installed app.</li>
 <li>Posters, the logo, and the welcome photo have to be pictures uploaded for this shop.</li>
@@ -461,8 +461,8 @@
 <td>Customer sign-in. The app never holds the Google secret.</td>
 </tr>
 <tr>
-<td>Text codes</td>
-<td>Used only when a customer proves a mobile number that already has orders. A practice number can use a fixed code and does not send a real text.</td>
+<td>Email link</td>
+<td>Customer backup sign-in. Mail currently comes from Supabase Auth.</td>
 </tr>
 </tbody></table>
 <p>Push alerts are sent by the server, not by the phone app holding a master key.</p>

@@ -5,7 +5,7 @@ Workbook: **[qa-test-cases.xlsx](qa-test-cases.xlsx)**
 Send that file. It has two sheets:
 
 1. **How to use** — short instructions in plain language (no technical setup).
-2. **Test cases** — 72 steps in order, starting with **admin website sign-in**, then products, posters, and shop status, then the customer phone app, then one full order, then the delivery app (including the bill PDF).
+2. **Test cases** — 72 steps in order, starting with **admin website sign-in**, then products, posters, and shop status, then the customer phone app (**Google** and **email link**, not SMS), then one full order, then the delivery app (including the bill PDF).
 
 ### Columns
 
@@ -23,7 +23,7 @@ Send that file. It has two sheets:
 
 ### First session
 
-Filter **Priority** = P0, and always run **Step 61** (one order from the customer through payment).
+Filter **Priority** = P0, and always run **Google sign-in (Step 33)**, **email link (Step 34)**, and **Step 61** (one order from the customer through payment). Use a **preview APK**, not a development build that asks for a Metro URL.
 
 Regenerate the Excel file after editing the CSV:
 

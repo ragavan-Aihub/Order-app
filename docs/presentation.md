@@ -94,14 +94,14 @@ Stress this if someone asks about online payment. The app does not take money. T
 kicker: Customer app
 
 - A new visit shows the welcome screen: logo, shop name, description, and the welcome photo if one is set.
-- They tap **Continue with Google**. There is no password.
-- Someone who already ordered with a mobile number can prove that number with a text code. Google is then linked to the same account, so earlier orders stay put.
+- They tap **Continue with Google** or **Continue with Email**. There is no password and no SMS on this screen.
+- Email sends a link from **Supabase Auth**. That is this shop finishing sign-in.
 - They can **Skip** and look at products first. Sign-in is required to save an address, open orders, or place an order.
 - Someone who is already signed in opens straight on Home.
-- A Google sign-in stores the name and email. The Customers list gets a row only after a mobile number is confirmed.
+- A Google or email sign-in stores the name and email. The Customers list gets a row only after a mobile number is confirmed.
 
 ???
-Skip is for looking, not for ordering. Google is the sign-in on screen. The text code is only for someone who already ordered with a mobile number.
+Skip is for looking, not for ordering. Google is the main sign-in. Email is the backup. SMS login is off.
 
 ---
 
@@ -347,7 +347,7 @@ If someone asks for voice, say it is not in the app and it is not a switch we ca
 
 kicker: Safety
 
-- Customers sign in with Google and see their own orders. A text code is used only to prove a mobile number that already has orders, and that links Google to the same account.
+- Customers sign in with Google or an email link and see their own orders. SMS login is off.
 - Shop staff use an admin login. Anyone else is turned away.
 - A closed shop is enforced in the database, including on an older installed app.
 - Posters, the logo, and the welcome photo have to be pictures uploaded for this shop.
@@ -370,7 +370,7 @@ kicker: For a technical listener
 | Delivery app | Expo Android app. Same admin login as the website. |
 | Database | Shared shop data, order rules, and file storage. |
 | Google sign-in | Customer sign-in. The app never holds the Google secret. |
-| Text codes | Used only when a customer proves a mobile number that already has orders. A practice number can use a fixed code and does not send a real text. |
+| Email link | Customer backup sign-in. Mail currently comes from Supabase Auth. |
 
 Push alerts are sent by the server, not by the phone app holding a master key.
 

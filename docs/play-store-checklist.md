@@ -34,11 +34,10 @@ Publish HTTPS page naming **Farm2Flavours** (legal business) as operator. Develo
 
 Must cover **customer app** data only (do not mention internal staff tools or other apps):
 
-- Mobile number and SMS OTP (sign-in)
-- Name, delivery addresses, orders, pay-on-delivery choice (cash/UPI)
+- Google account and/or email (sign-in); name; delivery addresses; receiver phone on an address; orders; pay-on-delivery choice (cash/UPI)
 - Push notifications (order updates, optional “notify me”, and a shop poster only when the shop turns that poster’s phone alert on)
 - **No** microphone or voice recording (not collected)
-- Service providers: Supabase (hosting/data/auth), 2Factor.in (OTP SMS), Google FCM (push via Expo)
+- Service providers: Supabase (hosting/data/auth), Google Sign-In, Google FCM (push via Expo)
 - Contact, retention, deletion requests, not directed at children
 
 **Data safety** answers in Play Console must match this policy.
@@ -54,7 +53,7 @@ Must cover **customer app** data only (do not mention internal staff tools or ot
 - Privacy policy URL
 - Contact email (business)
 
-**App access:** Login required (OTP). Provide reviewer instructions: test phone number and how OTP is received (use **production SMS**, not Supabase Test OTP, before public launch).
+**App access:** Login required (Google or email link). Provide reviewer instructions: a test Google account, and that the email link arrives from **Supabase Auth**.
 
 ---
 
@@ -72,7 +71,8 @@ Must cover **customer app** data only (do not mention internal staff tools or ot
    - `EXPO_PUBLIC_SUPABASE_URL`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
    - `EXPO_PUBLIC_BUSINESS_ID`
-   - Do not add a microphone permission. Voice ordering is not in the app.
+   - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+   - Do not add a microphone permission. Voice ordering is not in the app. Add Play’s **App signing** SHA-1 as a second Android OAuth client before a Play upload.
 2. Bump the user-facing version and `android.versionCode` for every upload ([release-versions.md](release-versions.md)): bug fix `1.0.x`, feature `1.x.0`. After the build is on Play, set the Supabase version row so older installs see an update prompt.
 3. Build:
 
@@ -82,7 +82,7 @@ cd mobile && npx eas-cli build -p android --profile production
 
 4. Upload AAB to **Internal testing** first; smoke-test order → admin confirm → push on device.
 5. **In-app Play review prompt (live check before wide promotion):** The customer app asks for a store rating after **2 successful new order placements** (not cart updates), once per install. Implementation: `mobile/src/services/store-review.ts` (`expo-store-review`). It does **not** run in dev/Expo Go — verify on an **Internal testing** or production install from Play: place two real orders, confirm the native review UI appears (Google may still choose not to show it). Do this **after publish**, before promoting to production or heavy marketing.
-6. Promote to **Production** (staged rollout) when [go-live-checklist.md](go-live-checklist.md) is complete (migrations, real SMS, live catalog, admin HTTPS) and the live review prompt check above is satisfactory.
+6. Promote to **Production** (staged rollout) when [go-live-checklist.md](go-live-checklist.md) is complete (migrations, Google/email sign-in, live catalog, admin HTTPS) and the live review prompt check above is satisfactory.
 
 Optional: `eas submit -p android` after linking the Play app.
 
