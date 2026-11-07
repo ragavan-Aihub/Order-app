@@ -19,7 +19,7 @@ Rules:
 
 ## Admin panel (website only)
 
-One number, in `admin/config/admin-version.ts` (also `admin/package.json`). Staff see **Version 1.0.0** on the sign-in page and at the bottom of the menu. There is no Play Store version code and no update popup. After you deploy on Vercel, a browser refresh shows the new version.
+One number, in `admin/config/admin-version.ts` (also `admin/package.json`). Staff see **Version 1.1.0** on the sign-in page and at the bottom of the menu. There is no Play Store version code and no update popup. After you deploy on Vercel, a browser refresh shows the new version.
 
 | Kind | Example |
 |------|---------|
