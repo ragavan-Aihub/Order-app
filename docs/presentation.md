@@ -94,13 +94,14 @@ Stress this if someone asks about online payment. The app does not take money. T
 kicker: Customer app
 
 - A new visit shows the welcome screen: logo, shop name, description, and the welcome photo if one is set.
-- They enter a 10-digit mobile number. The code arrives by text. There is no password.
+- They tap **Continue with Google**. There is no password.
+- Someone who already ordered with a mobile number can prove that number with a text code. Google is then linked to the same account, so earlier orders stay put.
 - They can **Skip** and look at products first. Sign-in is required to save an address, open orders, or place an order.
 - Someone who is already signed in opens straight on Home.
-- The first sign-in adds them to **Customers**, with source **App**.
+- A Google sign-in stores the name and email. The Customers list gets a row only after a mobile number is confirmed.
 
 ???
-Skip is for looking, not for ordering. The text code is the sign-in.
+Skip is for looking, not for ordering. Google is the sign-in on screen. The text code is only for someone who already ordered with a mobile number.
 
 ---
 
@@ -224,7 +225,7 @@ Notify me only reaches people who installed the app and allowed notifications.
 
 kicker: Admin panel
 
-Staff sign in with email and password. A customer phone login cannot open the shop website.
+Staff sign in with email and password. A customer sign-in cannot open the shop website.
 
 **Menu**
 
@@ -256,7 +257,7 @@ kicker: Admin panel
 
 **Customers**
 
-- App customers appear on their own. Staff can also add a phone or walk-in customer.
+- A customer appears here after a mobile number is confirmed. Staff can also add a phone or walk-in customer. A Google-only sign-in stays on the orders, not in this list, until that number is confirmed.
 - Up to 3 addresses, plus delivery notes the customer does not type themselves.
 - Communities group addresses for the shop only. Customers never see the community name.
 
@@ -346,7 +347,7 @@ If someone asks for voice, say it is not in the app and it is not a switch we ca
 
 kicker: Safety
 
-- Customers prove the phone number with a text code. They see their own orders.
+- Customers sign in with Google and see their own orders. A text code is used only to prove a mobile number that already has orders, and that links Google to the same account.
 - Shop staff use an admin login. Anyone else is turned away.
 - A closed shop is enforced in the database, including on an older installed app.
 - Posters, the logo, and the welcome photo have to be pictures uploaded for this shop.
@@ -368,7 +369,8 @@ kicker: For a technical listener
 | Admin panel | Website. Staff actions run only after an admin sign-in. |
 | Delivery app | Expo Android app. Same admin login as the website. |
 | Database | Shared shop data, order rules, and file storage. |
-| Text codes | Sent for sign-in. A practice number can use a fixed code and does not send a real text. |
+| Google sign-in | Customer sign-in. The app never holds the Google secret. |
+| Text codes | Used only when a customer proves a mobile number that already has orders. A practice number can use a fixed code and does not send a real text. |
 
 Push alerts are sent by the server, not by the phone app holding a master key.
 

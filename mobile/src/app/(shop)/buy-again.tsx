@@ -118,7 +118,7 @@ export default function BuyAgainScreen() {
     return (
       <EmptyState
         title="Sign in to continue"
-        message="Use your mobile number to see items from your recent orders."
+        message="Sign in with Google to see items from your recent orders."
         actionLabel="Sign in"
         onAction={() => router.push({ pathname: '/login', params: { next: 'buy-again' } })}
       />

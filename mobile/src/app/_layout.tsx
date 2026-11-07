@@ -17,6 +17,7 @@ import { NetworkProvider } from '@/network/NetworkProvider';
 import { captureNotificationLaunchTarget } from '@/notifications/pending-push-deeplink';
 import { configureOrderNotificationHandler } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
+import { consumeAuthUrl, watchAuthDeepLinks } from '@/services/auth-deeplink';
 import { isNetworkFailure } from '@/services/network';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
@@ -75,6 +76,9 @@ export default function RootLayout() {
       configureOrderNotificationHandler();
       void captureNotificationLaunchTarget();
     }
+    return watchAuthDeepLinks((url) => {
+      void consumeAuthUrl(url);
+    });
   }, []);
   return (
     <SafeAreaProvider>
@@ -95,6 +99,8 @@ export default function RootLayout() {
             options={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
           />
           <Stack.Screen name="login" options={{ headerShown: false, title: 'Login' }} />
+          <Stack.Screen name="link-phone" options={{ headerShown: false, title: 'Mobile number' }} />
+          <Stack.Screen name="auth/callback" options={{ headerShown: false, title: 'Sign in' }} />
           <Stack.Screen name="(shop)" options={{ headerShown: false }} />
           <Stack.Screen name="products" options={{ headerShown: false }} />
           <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />

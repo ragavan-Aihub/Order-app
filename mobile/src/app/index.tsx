@@ -1,7 +1,9 @@
 import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
+
+import { GoogleSignIn } from '@/components/GoogleSignIn';
 
 import {
   captureNotificationLaunchTarget,
@@ -20,8 +22,6 @@ type Opening =
   | { kind: 'home' }
   | { kind: 'welcome' }
   | { kind: 'redirect'; href: Href };
-
-type WelcomeProps = { allowSkip: boolean; next: string };
 
 async function decideOpening(): Promise<Opening> {
   await captureNotificationLaunchTarget();
@@ -50,7 +50,6 @@ void startOpening();
 export default function WelcomeScreen() {
   const router = useRouter();
   const [opening, setOpening] = useState<Opening | null>(null);
-  const [WelcomeScreenView, setWelcomeScreenView] = useState<ComponentType<WelcomeProps> | null>(null);
   const openedOnce = useRef(false);
 
   useFocusEffect(
@@ -83,32 +82,17 @@ export default function WelcomeScreen() {
     }, [router]),
   );
 
-  useEffect(() => {
-    if (opening?.kind !== 'welcome') {
-      return;
-    }
-    let active = true;
-    void import('@/components/WelcomeSignup').then((mod) => {
-      if (active) {
-        setWelcomeScreenView(() => mod.WelcomeSignup);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [opening]);
-
   if (opening?.kind === 'redirect') {
     return <Redirect href={opening.href} />;
   }
 
-  if (opening?.kind !== 'welcome' || !WelcomeScreenView) {
+  if (opening?.kind !== 'welcome') {
     return null;
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#DDF1E3' }} onLayout={hideSplash}>
-      <WelcomeScreenView allowSkip next="home" />
+      <GoogleSignIn allowSkip next="home" />
     </View>
   );
 }

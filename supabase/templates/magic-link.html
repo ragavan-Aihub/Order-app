@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background:#f3f6ec;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6ec;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border-radius:24px;padding:32px 28px;">
+            <tr>
+              <td align="center" style="padding-bottom:16px;">
+                <p style="margin:0;font-size:13px;letter-spacing:0.08em;color:#1b7a3a;font-weight:700;">FARM2FLAVOUR</p>
+                <h1 style="margin:12px 0 0;font-size:24px;line-height:30px;color:#14532d;">Open the app to sign in</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="color:#4b5c4b;font-size:16px;line-height:24px;padding-bottom:24px;">
+                Tap the button below. It expires shortly and can only be used once.
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-bottom:20px;">
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#1b7a3a;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:14px 28px;border-radius:28px;">
+                  Open Farm2Flavour
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="color:#7a8a7a;font-size:13px;line-height:20px;">
+                Prefer to open the installed app directly?<br />
+                <a href="farm2flavour://auth/callback?token_hash={{ .TokenHash }}&amp;type=magiclink" style="color:#1b7a3a;">Open Farm2Flavour app</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

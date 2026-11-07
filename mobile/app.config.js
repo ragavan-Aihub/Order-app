@@ -152,7 +152,15 @@ module.exports = ({ config }) => {
   let plugins = config.plugins ?? [];
   android.permissions = (android.permissions ?? []).filter((permission) => !/RECORD_AUDIO$/.test(permission));
   android.blockedPermissions = [
-    ...new Set([...(android.blockedPermissions ?? []), 'android.permission.RECORD_AUDIO']),
+    ...new Set([
+      ...(android.blockedPermissions ?? []),
+      'android.permission.RECORD_AUDIO',
+      'android.permission.READ_SMS',
+      'android.permission.RECEIVE_SMS',
+      'android.permission.SEND_SMS',
+      'android.permission.RECEIVE_MMS',
+      'android.permission.RECEIVE_WAP_PUSH',
+    ]),
   ];
   plugins = plugins.filter((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-speech-recognition');
   const ios = { ...config.ios };

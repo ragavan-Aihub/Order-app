@@ -1,3 +1,5 @@
+import '@/services/webcrypto';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -51,6 +53,7 @@ export function getSupabaseClient(): SupabaseClient | null {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
+        flowType: 'pkce',
       },
       global: { fetch: timedFetch },
     });

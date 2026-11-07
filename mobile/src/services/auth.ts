@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { AUTH_REDIRECT } from '@/services/google-auth';
 import { getIsOffline, isNetworkFailure } from '@/services/network';
 import { getSupabaseClient } from '@/services/supabase';
 import { toE164India } from '@/utils/validation';
@@ -29,6 +30,79 @@ function mapOtpError(message: string) {
     return 'The login SMS could not be sent. Check 2Factor.in balance, DLT/sender setup, and the send-auth-sms Edge Function logs.';
   }
   return message;
+}
+
+export async function requestEmailOtp(email: string) {
+  if (await getIsOffline()) {
+    throw new Error(OFFLINE_AUTH);
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: AUTH_REDIRECT,
+      },
+    });
+    if (error) {
+      throw new Error(mapOtpError(error.message));
+    }
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      throw new Error(OFFLINE_AUTH);
+    }
+    throw error;
+  }
+}
+
+export async function verifyEmailOtp(email: string, token: string) {
+  if (await getIsOffline()) {
+    throw new Error(OFFLINE_AUTH);
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: token.replace(/\D/g, '').slice(0, 6),
+      type: 'email',
+    });
+    if (error) {
+      throw new Error(mapOtpError(error.message));
+    }
+    if (!data.session) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('Could not verify OTP. Request a new code and try again.');
+      }
+    }
+    if (!env.businessId) {
+      throw new Error('Business is not configured.');
+    }
+    const { error: profileError } = await supabase.rpc('ensure_customer_profile', {
+      p_business_id: env.businessId,
+      p_name: null,
+      p_mobile: null,
+    });
+    if (profileError && isNetworkFailure(profileError.message)) {
+      throw new Error(OFFLINE_AUTH);
+    }
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      throw new Error(OFFLINE_AUTH);
+    }
+    throw error;
+  }
 }
 
 export async function requestOtp(mobile: string) {

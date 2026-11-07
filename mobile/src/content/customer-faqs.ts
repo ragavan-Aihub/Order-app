@@ -55,8 +55,8 @@ export const CUSTOMER_FAQS: CustomerFaq[] = [
       'Not yet. It is shown so you know it is on the way, but it cannot be added. Tap Notify me if you want a message when it can be ordered.',
   },
   {
-    question: 'I did not get the sign-in code.',
+    question: 'How do I sign in?',
     answer:
-      'Check the mobile number, wait about a minute, then tap Resend.',
+      'Tap Continue with Google and choose the Google account on the phone. Or Continue with Email: we send a sign-in link from Supabase Auth (subject Your sign-in link). That is this shop finishing sign-in. Open it on this phone.',
   },
 ];

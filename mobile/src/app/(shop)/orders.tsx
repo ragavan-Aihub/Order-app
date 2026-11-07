@@ -118,7 +118,7 @@ export default function MyOrdersScreen() {
     return (
       <EmptyState
         title="Sign in to continue"
-        message="Use your mobile number to see orders you have placed."
+        message="Sign in with Google to see orders you have placed."
         actionLabel="Sign in"
         onAction={() => router.push({ pathname: '/login', params: { next: 'orders' } })}
       />

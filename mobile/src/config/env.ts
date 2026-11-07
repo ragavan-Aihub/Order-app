@@ -6,6 +6,7 @@ export const env = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
   businessId: process.env.EXPO_PUBLIC_BUSINESS_ID ?? '',
+  googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
   samApiUrl: (process.env.EXPO_PUBLIC_SAM_API_URL ?? extra?.samApiUrl ?? '').trim(),
   voiceOrdering: false,
 };

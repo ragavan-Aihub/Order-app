@@ -485,7 +485,7 @@ export async function placeOrder(
     throw sessionError;
   }
   if (!signedIn) {
-    throw new Error('Please sign in with your mobile number.');
+    throw new Error('Please sign in.');
   }
 
   const totalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -723,7 +723,7 @@ export async function replaceOpenOrderItems(
   } = await supabase.auth.getSession();
   const user = session?.user;
   if (!user) {
-    throw new Error('Please sign in with your mobile number.');
+    throw new Error('Please sign in.');
   }
   const { data: current, error: loadError } = await supabase
     .from('orders')
@@ -804,7 +804,7 @@ export async function cancelMyOrder(orderId: string, reason?: string): Promise<O
   } = await supabase.auth.getSession();
   const user = session?.user;
   if (!user) {
-    throw new Error('Please sign in with your mobile number.');
+    throw new Error('Please sign in.');
   }
   const { data: updated, error: updateError } = await withTimeout(
     supabase

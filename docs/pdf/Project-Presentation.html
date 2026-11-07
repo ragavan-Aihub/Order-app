@@ -192,13 +192,14 @@
         <h1>How a customer gets in</h1>
         <div class="body"><ul>
 <li>A new visit shows the welcome screen: logo, shop name, description, and the welcome photo if one is set.</li>
-<li>They enter a 10-digit mobile number. The code arrives by text. There is no password.</li>
+<li>They tap <strong>Continue with Google</strong>. There is no password.</li>
+<li>Someone who already ordered with a mobile number can prove that number with a text code. Google is then linked to the same account, so earlier orders stay put.</li>
 <li>They can <strong>Skip</strong> and look at products first. Sign-in is required to save an address, open orders, or place an order.</li>
 <li>Someone who is already signed in opens straight on Home.</li>
-<li>The first sign-in adds them to <strong>Customers</strong>, with source <strong>App</strong>.</li>
+<li>A Google sign-in stores the name and email. The Customers list gets a row only after a mobile number is confirmed.</li>
 </ul>
 </div>
-        <p class="notes">Skip is for looking, not for ordering. The text code is the sign-in.</p>
+        <p class="notes">Skip is for looking, not for ordering. Google is the sign-in on screen. The text code is only for someone who already ordered with a mobile number.</p>
         <p class="num">6 / 22</p>
       </section>
 <section class="slide" data-index="6">
@@ -310,7 +311,7 @@
 <section class="slide" data-index="12">
         <p class="kicker">Admin panel</p>
         <h1>The shop’s website</h1>
-        <div class="body"><p>Staff sign in with email and password. A customer phone login cannot open the shop website.</p>
+        <div class="body"><p>Staff sign in with email and password. A customer sign-in cannot open the shop website.</p>
 <p><strong>Menu</strong></p>
 <p>Dashboard, Orders, Reports, Audit log, Products, Customers, Profile, Announcements, Shop status.</p>
 <p><strong>A normal day</strong></p>
@@ -337,7 +338,7 @@
 </ul>
 <p><strong>Customers</strong></p>
 <ul>
-<li>App customers appear on their own. Staff can also add a phone or walk-in customer.</li>
+<li>A customer appears here after a mobile number is confirmed. Staff can also add a phone or walk-in customer. A Google-only sign-in stays on the orders, not in this list, until that number is confirmed.</li>
 <li>Up to 3 addresses, plus delivery notes the customer does not type themselves.</li>
 <li>Communities group addresses for the shop only. Customers never see the community name.</li>
 </ul>
@@ -418,7 +419,7 @@
         <p class="kicker">Safety</p>
         <h1>How access is kept in bounds</h1>
         <div class="body"><ul>
-<li>Customers prove the phone number with a text code. They see their own orders.</li>
+<li>Customers sign in with Google and see their own orders. A text code is used only to prove a mobile number that already has orders, and that links Google to the same account.</li>
 <li>Shop staff use an admin login. Anyone else is turned away.</li>
 <li>A closed shop is enforced in the database, including on an older installed app.</li>
 <li>Posters, the logo, and the welcome photo have to be pictures uploaded for this shop.</li>
@@ -456,8 +457,12 @@
 <td>Shared shop data, order rules, and file storage.</td>
 </tr>
 <tr>
+<td>Google sign-in</td>
+<td>Customer sign-in. The app never holds the Google secret.</td>
+</tr>
+<tr>
 <td>Text codes</td>
-<td>Sent for sign-in. A practice number can use a fixed code and does not send a real text.</td>
+<td>Used only when a customer proves a mobile number that already has orders. A practice number can use a fixed code and does not send a real text.</td>
 </tr>
 </tbody></table>
 <p>Push alerts are sent by the server, not by the phone app holding a master key.</p>

@@ -28,7 +28,7 @@ import type { AddressLabel } from '@/utils/address';
 
 function formatMobile(value: string | null) {
   const digits = (value ?? '').replace(/\D/g, '').slice(-10);
-  return digits.length === 10 ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}` : value;
+  return digits.length === 10 ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}` : null;
 }
 
 function shopDigits(phone: string | null | undefined) {
@@ -72,7 +72,12 @@ export default function AccountScreen() {
     const saved = getSelectedAddress();
     const profileName = profile?.name?.trim() || '';
     const generic = !profileName || profileName.toLowerCase() === 'customer';
-    setName(generic ? saved?.name?.trim() || null : profileName);
+    const metadata = user.user_metadata ?? {};
+    const googleName =
+      (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
+      (typeof metadata.name === 'string' && metadata.name.trim()) ||
+      '';
+    setName(generic ? saved?.name?.trim() || googleName || null : profileName);
     setMobile(profile?.mobile || user.phone || saved?.mobile || null);
     setDelivery(saved);
   }, []);
@@ -117,14 +122,14 @@ export default function AccountScreen() {
             <Text style={styles.name} numberOfLines={1}>
               {signedIn ? name || 'Welcome' : 'Welcome'}
             </Text>
-            {signedIn ? (
+            {signedIn && formatMobile(mobile) ? (
               <View style={styles.phoneRow}>
                 <Ionicons name="call" size={13} color="rgba(255,255,255,0.9)" />
                 <Text style={styles.phone} numberOfLines={1}>
-                  {formatMobile(mobile) || 'Signed in'}
+                  {formatMobile(mobile)}
                 </Text>
               </View>
-            ) : (
+            ) : signedIn ? null : (
               <Text style={styles.phone} numberOfLines={2}>
                 Sign in to see orders and save your profile.
               </Text>

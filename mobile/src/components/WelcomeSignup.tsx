@@ -33,6 +33,7 @@ type WelcomeSignupProps = {
   allowSkip: boolean;
   next?: string;
   initialMobile?: string;
+  linkGoogle?: boolean;
 };
 
 function shopInitial(name: string) {
@@ -40,7 +41,12 @@ function shopInitial(name: string) {
   return letter || '?';
 }
 
-export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: WelcomeSignupProps) {
+export function WelcomeSignup({
+  allowSkip,
+  next = 'home',
+  initialMobile = '',
+  linkGoogle = false,
+}: WelcomeSignupProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { requireConnection } = useNetworkStatus();
@@ -149,7 +155,18 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
         ]}
       >
         <View style={styles.topBar}>
-          <View />
+          {linkGoogle ? (
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+              style={styles.skip}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="arrow-back" size={22} color={BRAND_DARK} />
+            </Pressable>
+          ) : (
+            <View />
+          )}
           {allowSkip ? (
             <Pressable
               onPress={async () => {
@@ -234,9 +251,9 @@ export function WelcomeSignup({ allowSkip, next = 'home', initialMobile = '' }: 
               We'll send a one-time password (OTP) to verify your number.
             </Text>
           </View>
-          {allowSkip ? null : (
-            <Text style={styles.hint}>Sign in with this number to place your order.</Text>
-          )}
+          <Text style={styles.hint}>
+            We'll send a one-time code to this number so we know it is yours. That opens earlier orders placed with this number.
+          </Text>
         </View>
 
         <View style={[styles.spacer, showBanner && styles.spacerGrow]} />
