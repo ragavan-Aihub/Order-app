@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Product } from '@/types/product';
 
 const PRODUCT_COLUMNS =
-  'id, business_id, name, description, ingredients, price, image_url, available, active, category_id, created_at, updated_at';
+  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, minimum_weight_grams, maximum_weight_grams, image_url, available, active, category_id, created_at, updated_at';
 
 const PRODUCT_COLUMNS_FALLBACK =
   'id, business_id, name, description, price, image_url, available, created_at, updated_at';
@@ -82,8 +82,9 @@ export async function getAllProducts(): Promise<Product[]> {
     const named = await attachCategoryNames(supabase, businessId, (data as Product[]).map((row) => ({
       ...row,
       active: row.active !== false,
+      selling_type: row.selling_type === 'kg' || row.selling_type === 'fixed_pack' ? row.selling_type : 'quantity',
     })));
-    return attachTransacted(supabase, named);
+    return attachTransacted(supabase, await attachPacks(supabase, named));
   }
 
   const fallback = await supabase
@@ -100,6 +101,38 @@ export async function getAllProducts(): Promise<Product[]> {
     supabase,
     (fallback.data as Product[]).map((row) => ({ ...row, active: row.active !== false })),
   );
+}
+
+async function attachPacks(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  products: Product[],
+): Promise<Product[]> {
+  const ids = products.map((product) => product.id);
+  if (ids.length === 0) {
+    return products;
+  }
+  const { data } = await supabase
+    .from('product_pack_options')
+    .select('id, product_id, weight_grams, selling_price, is_active, display_order')
+    .in('product_id', ids)
+    .order('display_order', { ascending: true });
+  const byProduct = new Map<string, NonNullable<Product['packs']>>();
+  for (const row of data ?? []) {
+    const list = byProduct.get(row.product_id) ?? [];
+    list.push({
+      id: row.id,
+      product_id: row.product_id,
+      weight_grams: Number(row.weight_grams),
+      selling_price: Number(row.selling_price),
+      is_active: Boolean(row.is_active),
+      display_order: Number(row.display_order) || 0,
+    });
+    byProduct.set(row.product_id, list);
+  }
+  return products.map((product) => ({
+    ...product,
+    packs: byProduct.get(product.id) ?? [],
+  }));
 }
 
 export async function getProductById(id: string): Promise<Product | null> {

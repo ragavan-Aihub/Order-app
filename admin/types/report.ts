@@ -12,6 +12,17 @@ export const REPORT_CHANNELS = [
 export type ReportRangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom';
 export type ReportPaymentFilter = 'all' | 'paid' | 'pending' | 'outstanding' | 'refunded';
 
+export type ReportItemLine = {
+  order_number: number | null;
+  product_name: string;
+  quantity: number;
+  subtotal: number;
+  selling_type?: string | null;
+  selling_unit?: string | null;
+  pack_weight_grams?: number | null;
+  weight_grams?: number | null;
+};
+
 export type ReportFilters = {
   preset: ReportRangePreset;
   fromYmd: string;

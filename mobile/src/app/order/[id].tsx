@@ -36,6 +36,7 @@ import {
   type OrderWithItems,
 } from '@/types/order';
 import { formatOrderNumber, formatPrice, formatStepTime } from '@/utils/format';
+import { formatOrderItemQty, formatOrderItemUnit } from '@/utils/selling-units';
 
 function fullDeliveryAddress(order: OrderWithItems): string {
   const base = order.delivery_address.trim();
@@ -321,10 +322,10 @@ export default function OrderDetailScreen() {
                     accessibilityLabel={item.product_name}
                   />
                   <Text style={styles.itemName} numberOfLines={2}>
-                    {item.product_name}
+                    {formatOrderItemUnit(item)}
                   </Text>
                   <View style={styles.qtyPill}>
-                    <Text style={styles.qtyPillText}>{item.quantity}x</Text>
+                    <Text style={styles.qtyPillText}>{formatOrderItemQty(item)}</Text>
                   </View>
                   <Text style={styles.itemPriceCol}>{formatPrice(item.subtotal)}</Text>
                 </View>

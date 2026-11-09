@@ -18,6 +18,7 @@ import { AddressFields, type AddressFieldsValue } from '@/components/AddressFiel
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
+import { catalogPriceLabel, parseKgInput, roundMoney } from '@/lib/selling-units';
 import { createAdminOrder, createCustomer, deleteCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
@@ -96,7 +97,14 @@ function fromBook(row?: CustomerAddress | null, person?: CustomerOption | null):
 
 type ProductRow =
   | { id: string; kind: 'search'; query: string }
-  | { id: string; kind: 'line'; productId: string; quantity: number };
+  | {
+      id: string;
+      kind: 'line';
+      productId: string;
+      quantity: number;
+      weightKg?: string;
+      packOptionId?: string;
+    };
 
 function groupProductsForQuery(products: Product[], query: string) {
   const needle = query.trim().toLowerCase();
@@ -213,12 +221,24 @@ export function AdminOrderForm({
       if (!product) {
         return [];
       }
+      const type = product.selling_type ?? 'quantity';
+      let subtotal = roundMoney(product.price * row.quantity);
+      if (type === 'kg') {
+        const parsed = parseKgInput(row.weightKg ?? '');
+        const grams = 'grams' in parsed ? parsed.grams : 0;
+        subtotal = roundMoney((product.price_per_kg ?? product.price) * (grams / 1000));
+      } else if (type === 'fixed_pack') {
+        const pack = (product.packs ?? []).find((item) => item.id === row.packOptionId && item.is_active);
+        subtotal = roundMoney((pack?.selling_price ?? product.price) * row.quantity);
+      }
       return [
         {
           rowId: row.id,
           product,
           quantity: row.quantity,
-          subtotal: product.price * row.quantity,
+          weightKg: row.weightKg,
+          packOptionId: row.packOptionId,
+          subtotal,
         },
       ];
     });
@@ -361,10 +381,13 @@ export function AdminOrderForm({
       }
 
       const existingIndex = current.findIndex(
-        (row) => row.kind === 'line' && row.productId === product.id,
+        (row) =>
+          row.kind === 'line' &&
+          row.productId === product.id &&
+          (product.selling_type ?? 'quantity') !== 'fixed_pack',
       );
 
-      if (existingIndex >= 0) {
+      if (existingIndex >= 0 && (product.selling_type ?? 'quantity') === 'quantity') {
         const merged = current.map((row, i) =>
           i === existingIndex && row.kind === 'line'
             ? { ...row, quantity: row.quantity + 1 }
@@ -377,7 +400,15 @@ export function AdminOrderForm({
       }
 
       const next = [...current];
-      next[index] = { id: searchRowId, kind: 'line', productId: product.id, quantity: 1 };
+      const firstPack = (product.packs ?? []).find((pack) => pack.is_active);
+      next[index] = {
+        id: searchRowId,
+        kind: 'line',
+        productId: product.id,
+        quantity: 1,
+        weightKg: product.selling_type === 'kg' ? '1' : undefined,
+        packOptionId: product.selling_type === 'fixed_pack' ? firstPack?.id : undefined,
+      };
       return ensureTrailingSearch(next, createProductRowId);
     });
 
@@ -497,6 +528,22 @@ export function AdminOrderForm({
       first?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
+    for (const line of lines) {
+      const type = line.product.selling_type ?? 'quantity';
+      if (type === 'kg') {
+        const parsed = parseKgInput(line.weightKg ?? '');
+        if ('error' in parsed) {
+          setError(`${line.product.name}: ${parsed.error}`);
+          productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+      if (type === 'fixed_pack' && !line.packOptionId) {
+        setError(`Choose a pack size for ${line.product.name}.`);
+        productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+    }
     setSubmitting(true);
     const customer = await ensureCustomer();
     if ('error' in customer) {
@@ -519,7 +566,15 @@ export function AdminOrderForm({
         city: useTypedAddress ? ship.city : undefined,
         pincode: useTypedAddress ? ship.pincode : undefined,
         notes,
-        items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
+        items: lines.map((line) => {
+          const parsedKg = line.product.selling_type === 'kg' ? parseKgInput(line.weightKg ?? '') : null;
+          return {
+            productId: line.product.id,
+            quantity: line.quantity,
+            weightGrams: parsedKg && 'grams' in parsedKg ? parsedKg.grams : undefined,
+            packOptionId: line.packOptionId,
+          };
+        }),
         paymentMethod: payChoice === 'later' ? 'pending' : payChoice,
       });
     } catch {
@@ -843,7 +898,9 @@ export function AdminOrderForm({
                     if (!product) {
                       return null;
                     }
-                    const subtotal = product.price * row.quantity;
+                    const line = lines.find((item) => item.rowId === row.id);
+                    const subtotal = line?.subtotal ?? product.price * row.quantity;
+                    const type = product.selling_type ?? 'quantity';
                     return (
                       <li
                         key={row.id}
@@ -851,9 +908,53 @@ export function AdminOrderForm({
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-stone-900">{product.name}</p>
-                          <p className="text-xs tabular-nums text-stone-400">{formatPrice(product.price)} each</p>
+                          <p className="text-xs tabular-nums text-stone-400">{catalogPriceLabel(product)}</p>
+                          {type === 'kg' ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={row.weightKg ?? ''}
+                              onChange={(event) =>
+                                setProductRows((current) =>
+                                  current.map((item) =>
+                                    item.id === row.id && item.kind === 'line'
+                                      ? { ...item, weightKg: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              placeholder="Kg"
+                              className="mt-1 min-h-8 w-24 rounded border border-stone-200 px-2 text-sm"
+                            />
+                          ) : null}
+                          {type === 'fixed_pack' ? (
+                            <select
+                              value={row.packOptionId ?? ''}
+                              onChange={(event) =>
+                                setProductRows((current) =>
+                                  current.map((item) =>
+                                    item.id === row.id && item.kind === 'line'
+                                      ? { ...item, packOptionId: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              className="mt-1 min-h-8 w-full max-w-[12rem] rounded border border-stone-200 px-2 text-sm"
+                            >
+                              {(product.packs ?? [])
+                                .filter((pack) => pack.is_active)
+                                .map((pack) => (
+                                  <option key={pack.id} value={pack.id}>
+                                    {pack.weight_grams}g · ₹{pack.selling_price}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : null}
                         </div>
                         <div className="flex justify-center">
+                          {type === 'kg' ? (
+                            <span className="text-sm text-stone-500">Kg</span>
+                          ) : (
                           <div className="flex items-center rounded-lg border border-stone-200 bg-white">
                             <button
                               type="button"
@@ -873,6 +974,7 @@ export function AdminOrderForm({
                               <Plus size={14} />
                             </button>
                           </div>
+                          )}
                         </div>
                         <span className="text-right text-sm font-semibold tabular-nums text-stone-900">
                           {formatPrice(subtotal)}

@@ -359,7 +359,10 @@ export default function HomeScreen() {
   const quantityById = useMemo(() => {
     const map: Record<string, number> = {};
     for (const item of items) {
-      map[item.product.id] = item.quantity;
+      if (item.product.selling_type === 'kg' || item.product.selling_type === 'fixed_pack') {
+        continue;
+      }
+      map[item.product.id] = (map[item.product.id] ?? 0) + item.quantity;
     }
     return map;
   }, [items]);

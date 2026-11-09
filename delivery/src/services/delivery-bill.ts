@@ -5,6 +5,7 @@ import * as Sharing from 'expo-sharing';
 import { getBusinessBillHeader } from '@/services/business';
 import type { OrderWithItems, PaymentMethod } from '@/types/order';
 import { formatOrderListDate, formatOrderNumber } from '@/utils/format';
+import { formatOrderItemQty, formatOrderItemUnit } from '@/utils/selling-units';
 
 function escapeHtml(value: string): string {
   return value
@@ -107,8 +108,8 @@ function billHtml(
             ? item.subtotal / item.quantity
             : item.subtotal;
       return `<tr>
-        <td>${escapeHtml(item.product_name)}</td>
-        <td class="num">${item.quantity}</td>
+        <td>${escapeHtml(formatOrderItemUnit(item))}</td>
+        <td class="num">${escapeHtml(formatOrderItemQty(item))}</td>
         <td class="num">${escapeHtml(formatInr(unit))}</td>
         <td class="num">${escapeHtml(formatInr(item.subtotal))}</td>
       </tr>`;

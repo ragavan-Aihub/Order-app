@@ -16,6 +16,7 @@ import type {
   OrderWithItems,
 } from '@/types/order';
 import { OPEN_ORDER_STATUSES, isOpenOrderStatus } from '@/types/order';
+import { cartLineTotal } from '@/utils/selling-units';
 
 const OFFLINE_ORDER =
   'You are not connected to the internet. Please connect to the internet and try again';
@@ -488,7 +489,7 @@ export async function placeOrder(
     throw new Error('Please sign in.');
   }
 
-  const totalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const totalAmount = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
   const startedAt = new Date(Date.now() - 60_000).toISOString();
 
   try {
@@ -593,8 +594,10 @@ export async function placeOrder(
           product_id: item.product.id,
           product_name: item.product.name,
           product_price: item.product.price,
-          quantity: item.quantity,
+          quantity: item.product.selling_type === 'kg' ? 1 : item.quantity,
           subtotal: item.product.price * item.quantity,
+          weight_grams: item.weightGrams ?? null,
+          pack_option_id: item.packOptionId ?? null,
         })),
       ),
       PLACE_MS,
@@ -868,7 +871,7 @@ export async function getMyOrdersWithItems(): Promise<OrderWithItems[]> {
     const { data: items } = await withTimeout(
       supabase
         .from('order_items')
-        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, created_at')
         .in(
           'order_id',
           orders.map((order) => order.id),
@@ -913,7 +916,7 @@ export async function listMyOrderItems(orderId: string): Promise<OrderItem[] | n
     const { data, error } = await withTimeout(
       supabase
         .from('order_items')
-        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, created_at')
         .eq('order_id', orderId)
         .order('created_at', { ascending: true }),
       ACTION_MS,

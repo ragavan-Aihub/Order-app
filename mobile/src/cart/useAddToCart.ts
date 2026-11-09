@@ -15,7 +15,11 @@ export function useAddToCart() {
   );
 
   return useCallback(
-    (product: Product, quantity = 1) => {
+    (
+      product: Product,
+      quantity = 1,
+      extras?: { weightGrams?: number; packOptionId?: string; packWeightGrams?: number },
+    ) => {
       if (product.available === false) {
         return false;
       }
@@ -24,7 +28,7 @@ export function useAddToCart() {
         router.push('/new-order');
         return false;
       }
-      return addItem(product, quantity);
+      return addItem(product, quantity, extras);
     },
     [addItem, openOrderBlock],
   );

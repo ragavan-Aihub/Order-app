@@ -1,9 +1,11 @@
 import { memo, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { ProductCard } from '@/components/ProductCard';
 import { colors, radius } from '@/config/theme';
 import type { Product } from '@/types/product';
+import { sellingTypeOf } from '@/utils/selling-units';
 
 type HomeProductGridItemProps = {
   product: Product;
@@ -32,9 +34,16 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
   onNotifyPress,
   onLayout,
 }: HomeProductGridItemProps) {
+  const router = useRouter();
+  const needsDetails = sellingTypeOf(product) !== 'quantity';
+
   const handleAdd = useCallback(() => {
+    if (needsDetails) {
+      router.push({ pathname: '/product/[id]', params: { id: product.id } });
+      return;
+    }
     onAddToCart(product, 1);
-  }, [onAddToCart, product]);
+  }, [needsDetails, onAddToCart, product, router]);
 
   const handleIncrease = useCallback(() => {
     onIncrease(product.id);
@@ -66,7 +75,8 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
     >
       <ProductCard
         product={product}
-        quantity={quantity}
+        quantity={needsDetails ? 0 : quantity}
+        onPress={() => router.push({ pathname: '/product/[id]', params: { id: product.id } })}
         onAddToCart={handleAdd}
         onIncrease={handleIncrease}
         onDecrease={handleDecrease}

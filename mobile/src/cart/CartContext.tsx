@@ -13,10 +13,14 @@ import { getSelectedAddress, subscribeAddressBook } from '@/cart/address-book';
 import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { isOpenOrderStatus, type Order } from '@/types/order';
 import type { Product } from '@/types/product';
+import { cartLineKey, cartLineTotal, sellingTypeOf } from '@/utils/selling-units';
 
 export type CartItem = {
   product: Product;
   quantity: number;
+  weightGrams?: number | null;
+  packOptionId?: string | null;
+  packWeightGrams?: number | null;
 };
 
 export type RowChange = { kind: 'new' } | { kind: 'changed'; from: number } | null;
@@ -30,10 +34,14 @@ type CartContextValue = {
   openOrder: Order | null;
   openOrderBlock: Order | null;
   openOrderReady: boolean;
-  addItem: (product: Product, quantity?: number) => boolean;
-  increase: (productId: string) => void;
-  decrease: (productId: string) => void;
-  remove: (productId: string) => void;
+  addItem: (
+    product: Product,
+    quantity?: number,
+    extras?: { weightGrams?: number; packOptionId?: string; packWeightGrams?: number },
+  ) => boolean;
+  increase: (productId: string, lineKey?: string) => void;
+  decrease: (productId: string, lineKey?: string) => void;
+  remove: (productId: string, lineKey?: string) => void;
   replaceItems: (next: CartItem[]) => void;
   clearCart: () => void;
   beginEditOrder: (orderId: string, next: CartItem[], order?: Order) => void;
@@ -54,17 +62,30 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 function clampCart(items: CartItem[]) {
   return items
-    .filter((item) => item.product.available !== false && item.quantity > 0)
+    .filter((item) => {
+      if (item.product.available === false) {
+        return false;
+      }
+      if (sellingTypeOf(item.product) === 'kg') {
+        return (item.weightGrams ?? 0) > 0;
+      }
+      return item.quantity > 0;
+    })
     .slice(0, MAX_CART_ITEMS)
-    .map((item) => ({
-      ...item,
-      quantity: Math.min(MAX_ITEM_QTY, Math.max(1, Math.floor(item.quantity))),
-    }));
+    .map((item) => {
+      if (sellingTypeOf(item.product) === 'kg') {
+        return { ...item, quantity: 1, weightGrams: item.weightGrams ?? 0 };
+      }
+      return {
+        ...item,
+        quantity: Math.min(MAX_ITEM_QTY, Math.max(1, Math.floor(item.quantity))),
+      };
+    });
 }
 
 function cartFingerprint(items: CartItem[]) {
   return clampCart(items)
-    .map((item) => `${item.product.id}:${item.quantity}`)
+    .map((item) => `${cartLineKey(item)}:${item.quantity}:${item.weightGrams ?? 0}`)
     .sort()
     .join('|');
 }
@@ -282,8 +303,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items, ready]);
 
   const value = useMemo<CartContextValue>(() => {
-    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalAmount = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const itemCount = items.reduce((sum, item) => sum + (sellingTypeOf(item.product) === 'kg' ? 1 : item.quantity), 0);
+    const totalAmount = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
     const editing = Boolean(openOrder && editingOrderId === openOrder.id);
     const originalQty = new Map((originalItems ?? []).map((item) => [item.product.id, item.quantity]));
 
@@ -322,13 +343,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const now = items.find((item) => item.product.id === productId)?.quantity;
         return now !== undefined && now !== before ? { kind: 'changed', from: before } : null;
       },
-      addItem(product, quantity = 1) {
+      addItem(product, quantity = 1, extras) {
         if (product.available === false) {
           return false;
         }
+        const type = sellingTypeOf(product);
         const add = Math.max(1, Math.floor(quantity));
+        const nextLine: CartItem = {
+          product,
+          quantity: type === 'kg' ? 1 : add,
+          weightGrams: extras?.weightGrams ?? (type === 'kg' ? 0 : null),
+          packOptionId: extras?.packOptionId ?? null,
+          packWeightGrams: extras?.packWeightGrams ?? null,
+        };
+        const key = cartLineKey(nextLine);
         setItems((current) => {
-          const existing = current.find((item) => item.product.id === product.id);
+          const existing = current.find((item) => cartLineKey(item) === key);
+          if (type === 'kg') {
+            const without = current.filter((item) => item.product.id !== product.id);
+            if (!existing && without.length >= MAX_CART_ITEMS) {
+              notifyLimit('items');
+              return current;
+            }
+            return [...without, nextLine];
+          }
           if (existing) {
             if (existing.quantity >= MAX_ITEM_QTY) {
               notifyLimit('qty');
@@ -338,25 +376,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
             if (existing.quantity + add > MAX_ITEM_QTY) {
               notifyLimit('qty');
             }
-            return current.map((item) =>
-              item.product.id === product.id ? { ...item, quantity: nextQty } : item,
-            );
+            return current.map((item) => (cartLineKey(item) === key ? { ...item, quantity: nextQty } : item));
           }
           if (current.length >= MAX_CART_ITEMS) {
             notifyLimit('items');
             return current;
           }
-          if (add > MAX_ITEM_QTY) {
-            notifyLimit('qty');
-          }
-          return [...current, { product, quantity: Math.min(MAX_ITEM_QTY, add) }];
+          return [...current, nextLine];
         });
         return true;
       },
-      increase(productId) {
+      increase(productId, lineKey) {
         setItems((current) => {
-          const existing = current.find((item) => item.product.id === productId);
-          if (!existing) {
+          const key = lineKey ?? productId;
+          const existing = current.find((item) => cartLineKey(item) === key);
+          if (!existing || sellingTypeOf(existing.product) === 'kg') {
             return current;
           }
           if (existing.quantity >= MAX_ITEM_QTY) {
@@ -364,21 +398,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
             return current;
           }
           return current.map((item) =>
-            item.product.id === productId ? { ...item, quantity: item.quantity + 1 } : item,
+            cartLineKey(item) === key ? { ...item, quantity: item.quantity + 1 } : item,
           );
         });
       },
-      decrease(productId) {
+      decrease(productId, lineKey) {
         setItems((current) =>
           current
-            .map((item) =>
-              item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item,
-            )
-            .filter((item) => item.quantity > 0),
+            .map((item) => {
+              const key = lineKey ?? productId;
+              if (cartLineKey(item) !== key || sellingTypeOf(item.product) === 'kg') {
+                return item;
+              }
+              return { ...item, quantity: item.quantity - 1 };
+            })
+            .filter((item) => (sellingTypeOf(item.product) === 'kg' ? (item.weightGrams ?? 0) > 0 : item.quantity > 0)),
         );
       },
-      remove(productId) {
-        setItems((current) => current.filter((item) => item.product.id !== productId));
+      remove(productId, lineKey) {
+        const key = lineKey ?? productId;
+        setItems((current) => current.filter((item) => cartLineKey(item) !== key));
       },
       replaceItems(next) {
         const usable = next.filter((item) => item.product.available !== false && item.quantity > 0);

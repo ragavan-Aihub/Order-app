@@ -29,6 +29,7 @@ import { getDeliveryOrder, updateDeliveryOrderStatus } from '@/services/orders';
 import { isPaymentCollected, normalizeOrderStatus } from '@/services/order-status-flow';
 import { NEXT_STATUSES, type OrderStatus, type OrderWithItems } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
+import { formatOrderItemUnit } from '@/utils/selling-units';
 
 function mapsUrl(address: string, pincode: string): string {
   const query = encodeURIComponent(`${address}${pincode ? ` ${pincode}` : ''}`.trim());
@@ -400,7 +401,7 @@ export default function DeliveryOrderScreen() {
               size={compact ? 40 : 48}
             />
             <Text style={[styles.itemName, compact && styles.itemNameCompact]} numberOfLines={compact ? 2 : 3}>
-              {item.product_name}
+              {formatOrderItemUnit(item)}
             </Text>
             <Text style={[styles.itemPrice, compact && styles.itemPriceCompact]}>{formatPrice(item.subtotal)}</Text>
           </View>

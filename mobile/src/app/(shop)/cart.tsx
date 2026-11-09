@@ -39,6 +39,7 @@ import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
+import { cartLineKey, cartLineTotal, formatOrderItemUnit, sellingTypeOf } from '@/utils/selling-units';
 import { useTopInset } from '@/utils/safe-area';
 
 export default function CartScreen() {
@@ -217,8 +218,8 @@ export default function CartScreen() {
       return;
     }
     Alert.alert(`Remove ${item.product.name}?`, 'It will be taken off this order when you tap Update order.', [
-      { text: 'Keep', style: 'cancel', onPress: () => swipeables.current.get(item.product.id)?.close() },
-      { text: 'Remove', style: 'destructive', onPress: () => remove(item.product.id) },
+      { text: 'Keep', style: 'cancel', onPress: () => swipeables.current.get(cartLineKey(item))?.close() },
+      { text: 'Remove', style: 'destructive', onPress: () => remove(item.product.id, cartLineKey(item)) },
     ]);
   }
 
@@ -227,7 +228,7 @@ export default function CartScreen() {
       confirmRemove(item);
       return;
     }
-    decrease(item.product.id);
+    decrease(item.product.id, cartLineKey(item));
   }
 
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
@@ -444,17 +445,18 @@ export default function CartScreen() {
         {offline ? <OfflineBanner /> : null}
         <View style={styles.itemList}>
         {items.map((item, index) => {
-          const subtotal = item.product.price * item.quantity;
+          const subtotal = cartLineTotal(item);
           const change = rowChange(item.product.id);
           const isLast = index === items.length - 1;
           return (
-            <View key={item.product.id}>
+            <View key={cartLineKey(item)}>
               <Swipeable
                 ref={(swipeable) => {
+                  const key = cartLineKey(item);
                   if (swipeable) {
-                    swipeables.current.set(item.product.id, swipeable);
+                    swipeables.current.set(key, swipeable);
                   } else {
-                    swipeables.current.delete(item.product.id);
+                    swipeables.current.delete(key);
                   }
                 }}
                 overshootRight={false}
@@ -482,11 +484,21 @@ export default function CartScreen() {
                   recyclingKey={item.product.id}
                   accessibilityLabel={item.product.name}
                 />
-                <View style={styles.detailsLeft}>
+                <Pressable
+                  style={styles.detailsLeft}
+                  onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.product.id } })}
+                >
                   <Text style={styles.name} numberOfLines={2}>
                     {item.product.name}
                   </Text>
-                  <Text style={styles.unit}>{formatPrice(item.product.price)} each</Text>
+                  <Text style={styles.unit}>{formatOrderItemUnit({
+                    product_name: item.product.name,
+                    quantity: item.quantity,
+                    selling_type: item.product.selling_type,
+                    selling_unit: item.product.selling_unit,
+                    pack_weight_grams: item.packWeightGrams,
+                    weight_grams: item.weightGrams,
+                  })}</Text>
                   {change?.kind === 'new' ? (
                     <View style={[styles.tag, styles.tagNew]}>
                       <Text style={[styles.tagLabel, styles.tagNewLabel]}>New</Text>
@@ -496,16 +508,20 @@ export default function CartScreen() {
                       <Text style={[styles.tagLabel, styles.tagChangedLabel]}>Was {change.from}</Text>
                     </View>
                   ) : null}
-                </View>
+                </Pressable>
                 <View style={styles.detailsRight}>
                   <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
+                  {sellingTypeOf(item.product) === 'kg' ? (
+                    <Text style={styles.unit}>Tap product to change weight</Text>
+                  ) : (
                   <QuantityStepper
                     compact
                     dense
                     value={item.quantity}
                     onDecrease={() => onDecrease(item)}
-                    onIncrease={() => increase(item.product.id)}
+                    onIncrease={() => increase(item.product.id, cartLineKey(item))}
                   />
+                  )}
                 </View>
               </View>
               </Swipeable>

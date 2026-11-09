@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { MobileOrderRowCard } from '@/components/MobileOrderRowCard';
+import { ReportsItemLines } from '@/components/ReportsItemLines';
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
 import { ReportsFilters, ScrollToOutstanding } from '@/components/ReportsFilters';
 import { TableScroll } from '@/components/TableScroll';
@@ -299,6 +300,8 @@ export default async function ReportsPage({
           </>
         )}
       </section>
+
+      <ReportsItemLines lines={data.itemLines} />
     </div>
   );
 }

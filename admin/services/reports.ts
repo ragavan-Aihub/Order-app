@@ -15,6 +15,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import { displayPaymentStatus, type Order } from '@/types/order';
 import {
   type ReportFilters,
+  type ReportItemLine,
   type ReportPaymentFilter,
 } from '@/types/report';
 import {
@@ -60,6 +61,7 @@ export type ReportsData = {
   summary: ReportSummary;
   outstanding: OutstandingRow[];
   orders: Order[];
+  itemLines: ReportItemLine[];
   totalMatching: number;
   pageSize: number;
   pageCount: number;
@@ -342,6 +344,7 @@ export async function getReportsData(filters: ReportFilters): Promise<QueryResul
   const pageCount = Math.max(1, Math.ceil(totalMatching / PAGE_SIZE));
   const page = Math.min(filters.page, pageCount);
   const paged = orders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const itemLines = await fetchItemLines(supabase, orders);
 
   return {
     ok: true,
@@ -351,9 +354,43 @@ export async function getReportsData(filters: ReportFilters): Promise<QueryResul
       summary,
       outstanding,
       orders: paged,
+      itemLines,
       totalMatching,
       pageSize: PAGE_SIZE,
       pageCount,
     },
   };
+}
+
+async function fetchItemLines(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  orders: Order[],
+): Promise<ReportItemLine[]> {
+  const byId = new Map(orders.filter((order) => order.status !== 'cancelled').map((order) => [order.id, order]));
+  const ids = [...byId.keys()];
+  const lines: ReportItemLine[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const { data } = await supabase
+      .from('order_items')
+      .select('order_id, product_name, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams')
+      .in('order_id', chunk);
+    for (const row of data ?? []) {
+      const order = byId.get(row.order_id);
+      if (!order) {
+        continue;
+      }
+      lines.push({
+        order_number: order.order_number,
+        product_name: row.product_name,
+        quantity: Number(row.quantity),
+        subtotal: Number(row.subtotal),
+        selling_type: row.selling_type,
+        selling_unit: row.selling_unit,
+        pack_weight_grams: row.pack_weight_grams,
+        weight_grams: row.weight_grams,
+      });
+    }
+  }
+  return lines;
 }

@@ -18,6 +18,7 @@ import {
   readImageFromNavigatorClipboard,
   readImageFromNextPaste,
 } from '@/lib/pasted-image';
+import { QUANTITY_UNIT_NAMES, type SellingType } from '@/lib/selling-units';
 import { saveProduct } from '@/services/product-actions';
 import { ProductDeleteButton } from '@/components/ProductDeleteButton';
 
@@ -36,6 +37,18 @@ type ProductFormProps = {
     name: string;
     description: string;
     price: number;
+    selling_type?: SellingType;
+    selling_unit?: string | null;
+    price_per_kg?: number | null;
+    minimum_weight_grams?: number | null;
+    maximum_weight_grams?: number | null;
+    packs?: Array<{
+      id: string;
+      weight_grams: number;
+      selling_price: number;
+      is_active: boolean;
+      display_order: number;
+    }>;
     image_url: string | null;
     category_id?: string | null;
     transacted?: boolean;
@@ -68,7 +81,24 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   const isEdit = Boolean(product);
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
-  const [price, setPrice] = useState(product?.price != null ? product.price.toFixed(2) : '');
+  const [sellingType, setSellingType] = useState<SellingType>(product?.selling_type ?? 'quantity');
+  const [sellingUnit, setSellingUnit] = useState(product?.selling_unit ?? 'Piece');
+  const initialPrice =
+    product?.selling_type === 'kg' && product.price_per_kg != null ? product.price_per_kg : product?.price;
+  const [price, setPrice] = useState(initialPrice != null ? Number(initialPrice).toFixed(2) : '');
+  const gramsToKg = (grams?: number | null) =>
+    grams && grams > 0 ? String(grams / 1000) : '';
+  const [minimumKg, setMinimumKg] = useState(gramsToKg(product?.minimum_weight_grams));
+  const [maximumKg, setMaximumKg] = useState(gramsToKg(product?.maximum_weight_grams));
+  const [packs, setPacks] = useState(
+    () =>
+      product?.packs?.map((pack) => ({
+        id: pack.id,
+        weight_grams: String(pack.weight_grams),
+        selling_price: Number(pack.selling_price).toFixed(2),
+        is_active: pack.is_active,
+      })) ?? [{ weight_grams: '100', selling_price: '', is_active: true }],
+  );
   const [categoryId, setCategoryId] = useState(product?.category_id ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(safePreviewSrc(product?.image_url ?? ''));
@@ -183,7 +213,10 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     setImageError(null);
 
     const priceValue = Number(price);
-    if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > PRICE_MAX) {
+    if (
+      sellingType !== 'fixed_pack' &&
+      (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > PRICE_MAX)
+    ) {
       setError('Enter a valid price.');
       return;
     }
@@ -195,7 +228,23 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     }
     formData.set('name', name.trim());
     formData.set('description', description.trim().slice(0, DESCRIPTION_MAX));
+    formData.set('selling_type', sellingType);
+    formData.set('selling_unit', sellingUnit);
     formData.set('price', price);
+    formData.set('minimum_kg', minimumKg);
+    formData.set('maximum_kg', maximumKg);
+    formData.set(
+      'packs',
+      JSON.stringify(
+        packs.map((pack, index) => ({
+          id: pack.id,
+          weight_grams: Number(pack.weight_grams),
+          selling_price: Number(pack.selling_price),
+          is_active: pack.is_active,
+          display_order: index,
+        })),
+      ),
+    );
     if (categoriesEnabled) {
       formData.set('category_id', categoryId);
     }
@@ -340,17 +389,54 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
           </div>
         </label>
 
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-stone-700">
+            Selling type <span className="text-red-500">*</span>
+          </span>
+          <select
+            value={sellingType}
+            onChange={(event) => {
+              const next = event.target.value as SellingType;
+              setSellingType(next);
+              if (next === 'quantity' && !QUANTITY_UNIT_NAMES.includes(sellingUnit as (typeof QUANTITY_UNIT_NAMES)[number])) {
+                setSellingUnit('Piece');
+              }
+            }}
+            className={fieldClass}
+          >
+            <option value="quantity">Quantity (bottle, piece, packet, box)</option>
+            <option value="kg">Kg (customer enters weight)</option>
+            <option value="fixed_pack">Fixed pack (100g, 250g, …)</option>
+          </select>
+        </label>
+
         <div className={`grid gap-4 ${categoriesEnabled ? 'sm:grid-cols-2' : 'sm:max-w-sm'}`}>
+          {sellingType === 'quantity' ? (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-stone-700">
+                Unit name <span className="text-red-500">*</span>
+              </span>
+              <select value={sellingUnit} onChange={(event) => setSellingUnit(event.target.value)} className={fieldClass}>
+                {QUANTITY_UNIT_NAMES.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {sellingType !== 'fixed_pack' ? (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-stone-700">
-              Price (₹) <span className="text-red-500">*</span>
+              {sellingType === 'kg' ? 'Price per Kg (₹)' : `Price per ${sellingUnit || 'unit'} (₹)`}{' '}
+              <span className="text-red-500">*</span>
             </span>
             <div className="flex min-h-11 overflow-hidden rounded-lg border border-stone-300 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
               <span className="flex items-center border-r border-stone-200 bg-stone-50 px-3 text-sm font-medium text-stone-500">
                 ₹
               </span>
               <input
-                required
+                required={sellingType !== 'fixed_pack'}
                 type="number"
                 min="0"
                 max={PRICE_MAX}
@@ -362,6 +448,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
               />
             </div>
           </label>
+          ) : null}
 
           {categoriesEnabled ? (
             <label className="block">
@@ -381,6 +468,101 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
             </label>
           ) : null}
         </div>
+
+        {sellingType === 'kg' ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-stone-700">Minimum Kg (optional)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={minimumKg}
+                onChange={(event) => setMinimumKg(event.target.value)}
+                placeholder="e.g. 0.25"
+                className={fieldClass}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-stone-700">Maximum Kg (optional)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={maximumKg}
+                onChange={(event) => setMaximumKg(event.target.value)}
+                placeholder="e.g. 5"
+                className={fieldClass}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        {sellingType === 'fixed_pack' ? (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-stone-700">Pack options</p>
+            {packs.map((pack, index) => (
+              <div key={pack.id ?? `new-${index}`} className="grid gap-2 rounded-lg border border-stone-200 p-3 sm:grid-cols-[7rem_7rem_auto_auto]">
+                <label className="block text-xs text-stone-500">
+                  Weight (g)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={pack.weight_grams}
+                    onChange={(event) =>
+                      setPacks((current) =>
+                        current.map((row, i) => (i === index ? { ...row, weight_grams: event.target.value } : row)),
+                      )
+                    }
+                    className={`${fieldClass} mt-1 min-h-10`}
+                  />
+                </label>
+                <label className="block text-xs text-stone-500">
+                  Selling price (₹)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={pack.selling_price}
+                    onChange={(event) =>
+                      setPacks((current) =>
+                        current.map((row, i) => (i === index ? { ...row, selling_price: event.target.value } : row)),
+                      )
+                    }
+                    className={`${fieldClass} mt-1 min-h-10`}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-stone-700 sm:mt-6">
+                  <input
+                    type="checkbox"
+                    checked={pack.is_active}
+                    onChange={(event) =>
+                      setPacks((current) =>
+                        current.map((row, i) => (i === index ? { ...row, is_active: event.target.checked } : row)),
+                      )
+                    }
+                  />
+                  Active
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setPacks((current) => current.filter((_, i) => i !== index))}
+                  className="text-sm font-medium text-red-700 hover:underline sm:mt-6"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setPacks((current) => [...current, { weight_grams: '', selling_price: '', is_active: true }])
+              }
+              className="text-sm font-semibold text-emerald-700 hover:underline"
+            >
+              Add pack option
+            </button>
+          </div>
+        ) : null}
 
         <p className="flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

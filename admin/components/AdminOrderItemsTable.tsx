@@ -7,6 +7,7 @@ import {
   type OrderDiffTableRow,
 } from '@/lib/order-modification-diff';
 import type { OrderItem, OrderModificationItemSnapshot } from '@/types/order';
+import { formatOrderItemQty, formatOrderItemUnit } from '@/lib/selling-units';
 import { formatPrice } from '@/utils/format';
 
 const STATUS_LABEL: Record<OrderDiffRowKind, string> = {
@@ -279,8 +280,8 @@ export function AdminOrderItemsTable({
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="border-t border-stone-200">
-                  <td className="px-3 py-2">{item.product_name}</td>
-                  <td className="px-3 py-2 tabular-nums">{item.quantity}</td>
+                  <td className="px-3 py-2">{formatOrderItemUnit(item)}</td>
+                  <td className="px-3 py-2 tabular-nums">{formatOrderItemQty(item)}</td>
                   <td className="px-3 py-2 tabular-nums">{formatPrice(item.product_price)}</td>
                   <td className="px-3 py-2 tabular-nums">{formatPrice(item.subtotal)}</td>
                 </tr>

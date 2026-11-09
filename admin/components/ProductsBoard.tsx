@@ -7,8 +7,8 @@ import { AvailabilityToggle } from '@/components/AvailabilityToggle';
 import { ProductCatalogMenu } from '@/components/ProductCatalogMenu';
 import { ProductTableThumbnail } from '@/components/ProductTableThumbnail';
 import { TableScroll } from '@/components/TableScroll';
+import { catalogPriceLabel } from '@/lib/selling-units';
 import type { Product } from '@/types/product';
-import { formatPrice } from '@/utils/format';
 
 export function ProductsBoard({
   products,
@@ -108,7 +108,7 @@ export function ProductsBoard({
                   {categoriesEnabled ? (
                     <p className="text-xs text-stone-500">{product.category_name ?? 'Uncategorized'}</p>
                   ) : null}
-                  <p className="mt-1">{formatPrice(product.price)}</p>
+                  <p className="mt-1">{catalogPriceLabel(product)}</p>
                   <div className="mt-3 flex flex-col gap-2">
                     <ProductCatalogMenu
                       productId={product.id}
@@ -164,7 +164,7 @@ export function ProductsBoard({
                         ) : null}
                         <p className="text-sm text-stone-500">{product.description}</p>
                       </td>
-                      <td className="px-4 py-3">{formatPrice(product.price)}</td>
+                      <td className="px-4 py-3">{catalogPriceLabel(product)}</td>
                       {categoriesEnabled ? (
                         <td className="px-4 py-3 text-stone-600">{product.category_name ?? '—'}</td>
                       ) : null}

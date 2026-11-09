@@ -6,7 +6,7 @@ import { QuantityStepper } from '@/components/QuantityStepper';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import type { Product } from '@/types/product';
-import { formatPrice } from '@/utils/format';
+import { catalogPriceLabel } from '@/utils/selling-units';
 
 type ProductCardProps = {
   product: Product;
@@ -72,7 +72,7 @@ export const ProductCard = memo(function ProductCard({
         </Text>
         <View style={styles.bodySpacer} />
         <View style={styles.footerRow}>
-          <Text style={[styles.price, compact && styles.priceCompact]}>{formatPrice(product.price)}</Text>
+          <Text style={[styles.price, compact && styles.priceCompact]}>{catalogPriceLabel(product)}</Text>
           {comingSoon && onNotifyPress ? (
             <Pressable
               onPress={onNotifyPress}

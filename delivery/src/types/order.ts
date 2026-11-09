@@ -30,6 +30,10 @@ export type OrderItem = {
   product_price?: number | null;
   quantity: number;
   subtotal: number;
+  selling_type?: string | null;
+  selling_unit?: string | null;
+  pack_weight_grams?: number | null;
+  weight_grams?: number | null;
   image_url?: string | null;
 };
 

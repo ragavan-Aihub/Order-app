@@ -9,7 +9,7 @@ let memoryProducts: Product[] | null = null;
 let inflight: Promise<Product[]> | null = null;
 
 const PRODUCT_ROW_SELECT =
-  'id, business_id, name, description, ingredients, price, image_url, available, active, category_id, created_at, updated_at';
+  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, minimum_weight_grams, maximum_weight_grams, image_url, available, active, category_id, created_at, updated_at';
 
 /** Drop cached catalog so the next fetch hits the network (e.g. after “now available” push). */
 export function invalidateProductCatalogCache(): void {
@@ -56,7 +56,7 @@ async function fetchLiveProducts(): Promise<Product[]> {
         memoryProducts = sortProductsForDisplay(cached ?? []);
         return memoryProducts;
       }
-      const products = sortProductsForDisplay(data as Product[]);
+      const products = sortProductsForDisplay(await attachPacks(supabase, data as Product[]));
       memoryProducts = products;
       void writeCachedProducts(products);
       return products;
@@ -131,9 +131,44 @@ export async function fetchProductByIdLive(id: string): Promise<Product | null> 
     const products = await refreshAvailableProducts();
     return products.find((product) => product.id === id) ?? null;
   }
-  const product = data as Product;
+  const [product] = await attachPacks(supabase, [data as Product]);
   mergeIntoCatalog(product);
   return product;
+}
+
+async function attachPacks(
+  supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  products: Product[],
+): Promise<Product[]> {
+  const ids = products.map((product) => product.id);
+  if (!supabase || ids.length === 0) {
+    return products.map((product) => ({ ...product, packs: product.packs ?? [] }));
+  }
+  const { data } = await supabase
+    .from('product_pack_options')
+    .select('id, product_id, weight_grams, selling_price, is_active, display_order')
+    .eq('is_active', true)
+    .in('product_id', ids)
+    .order('display_order', { ascending: true });
+  const byProduct = new Map<string, NonNullable<Product['packs']>>();
+  for (const row of data ?? []) {
+    const list = byProduct.get(row.product_id) ?? [];
+    list.push({
+      id: row.id,
+      product_id: row.product_id,
+      weight_grams: Number(row.weight_grams),
+      selling_price: Number(row.selling_price),
+      is_active: Boolean(row.is_active),
+      display_order: Number(row.display_order) || 0,
+    });
+    byProduct.set(row.product_id, list);
+  }
+  return products.map((product) => ({
+    ...product,
+    selling_type:
+      product.selling_type === 'kg' || product.selling_type === 'fixed_pack' ? product.selling_type : 'quantity',
+    packs: byProduct.get(product.id) ?? product.packs ?? [],
+  }));
 }
 
 /** Bypass in-memory / disk cache (e.g. after a “now available” push). */

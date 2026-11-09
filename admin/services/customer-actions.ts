@@ -486,7 +486,7 @@ export async function createAdminOrder(input: {
   address?: string;
   pincode?: string;
   notes?: string;
-  items: Array<{ productId: string; quantity: number }>;
+  items: Array<{ productId: string; quantity: number; weightGrams?: number; packOptionId?: string }>;
   paymentMethod?: PaymentMethod;
 }): Promise<{ error: string | null; orderId?: string }> {
   const ctx = await requireAdmin();
@@ -562,21 +562,15 @@ export async function createAdminOrder(input: {
     deliveryAddress = `${deliveryAddress}\n\nOrder notes: ${notes}`;
   }
 
-  const qtyByProduct = new Map<string, number>();
-  for (const item of input.items) {
-    if (item.quantity < 1) {
-      continue;
-    }
-    qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + item.quantity);
-  }
-  if (qtyByProduct.size === 0) {
+  const usableItems = input.items.filter((item) => item.quantity >= 1 || (item.weightGrams ?? 0) > 0);
+  if (usableItems.length === 0) {
     return { error: 'Add at least one product.' };
   }
 
-  const productIds = [...qtyByProduct.keys()];
+  const productIds = [...new Set(usableItems.map((item) => item.productId))];
   const { data: products } = await ctx.supabase
     .from('products')
-    .select('id, name, price, available, active')
+    .select('id, name, price, selling_type, price_per_kg, available, active')
     .eq('business_id', ctx.businessId)
     .in('id', productIds);
 
@@ -589,16 +583,67 @@ export async function createAdminOrder(input: {
     return { error: `${unavailable.name} is not available.` };
   }
 
-  const lines = products.map((product) => {
-    const quantity = qtyByProduct.get(product.id) ?? 0;
-    return {
+  const { data: packRows } = await ctx.supabase
+    .from('product_pack_options')
+    .select('id, product_id, weight_grams, selling_price, is_active')
+    .in('product_id', productIds);
+
+  const lines: Array<{
+    product_id: string;
+    product_name: string;
+    product_price: number;
+    quantity: number;
+    weight_grams: number | null;
+    pack_option_id: string | null;
+    subtotal: number;
+  }> = [];
+  for (const item of usableItems) {
+    const product = products.find((row) => row.id === item.productId)!;
+    const type = product.selling_type === 'kg' || product.selling_type === 'fixed_pack' ? product.selling_type : 'quantity';
+    if (type === 'kg') {
+      const grams = item.weightGrams ?? 0;
+      if (grams < 1) {
+        return { error: `Enter a weight for ${product.name}.` };
+      }
+      const perKg = Number(product.price_per_kg ?? product.price);
+      lines.push({
+        product_id: product.id,
+        product_name: product.name,
+        product_price: perKg,
+        quantity: 1,
+        weight_grams: grams,
+        pack_option_id: null,
+        subtotal: Math.round(perKg * (grams / 1000) * 100) / 100,
+      });
+      continue;
+    }
+    if (type === 'fixed_pack') {
+      const pack = (packRows ?? []).find((row) => row.id === item.packOptionId && row.is_active);
+      if (!pack) {
+        return { error: `Choose a pack size for ${product.name}.` };
+      }
+      const unit = Number(pack.selling_price);
+      lines.push({
+        product_id: product.id,
+        product_name: product.name,
+        product_price: unit,
+        quantity: item.quantity,
+        weight_grams: null,
+        pack_option_id: pack.id,
+        subtotal: Math.round(unit * item.quantity * 100) / 100,
+      });
+      continue;
+    }
+    lines.push({
       product_id: product.id,
       product_name: product.name,
       product_price: Number(product.price),
-      quantity,
-      subtotal: Number(product.price) * quantity,
-    };
-  });
+      quantity: item.quantity,
+      weight_grams: null,
+      pack_option_id: null,
+      subtotal: Number(product.price) * item.quantity,
+    });
+  }
   const total = lines.reduce((sum, line) => sum + line.subtotal, 0);
   const paymentMethod: PaymentMethod =
     input.paymentMethod === 'cash' || input.paymentMethod === 'upi' ? input.paymentMethod : 'pending';
@@ -643,7 +688,13 @@ export async function createAdminOrder(input: {
   const { error: itemsError } = await ctx.supabase.from('order_items').insert(
     lines.map((line) => ({
       order_id: order.id,
-      ...line,
+      product_id: line.product_id,
+      product_name: line.product_name,
+      product_price: line.product_price,
+      quantity: line.quantity,
+      subtotal: line.subtotal,
+      weight_grams: line.weight_grams,
+      pack_option_id: line.pack_option_id,
     })),
   );
 

@@ -7,6 +7,9 @@ const STORAGE_KEY = 'farm2flavour.cart.v1';
 type StoredCartItem = {
   product: Product;
   quantity: number;
+  weightGrams?: number | null;
+  packOptionId?: string | null;
+  packWeightGrams?: number | null;
 };
 
 let cached: StoredCartItem[] | null = null;
@@ -35,12 +38,15 @@ function parseItems(raw: string): StoredCartItem[] {
       if (!item || typeof item !== 'object') {
         return false;
       }
-      const quantity = (item as StoredCartItem).quantity;
+      const stored = item as StoredCartItem;
+      const quantity = stored.quantity;
+      const weightGrams = stored.weightGrams;
       return (
-        isProduct((item as StoredCartItem).product) &&
+        isProduct(stored.product) &&
         typeof quantity === 'number' &&
-        Number.isInteger(quantity) &&
-        quantity > 0
+        Number.isFinite(quantity) &&
+        quantity > 0 &&
+        (stored.product.selling_type !== 'kg' || (typeof weightGrams === 'number' && weightGrams > 0))
       );
     });
   } catch {

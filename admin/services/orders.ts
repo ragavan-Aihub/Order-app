@@ -166,7 +166,7 @@ async function annotateAdminModifiedOrders(
   const ids = orders.map((order) => order.id);
   const { data: lineItems } = await supabase
     .from('order_items')
-    .select('order_id, product_id, product_name, product_price, quantity, subtotal')
+    .select('order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams')
     .in('order_id', ids);
 
   const itemsByOrder = new Map<string, OrderItem[]>();
@@ -213,7 +213,7 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
     }
     const { data: fallbackItems } = await supabase
       .from('order_items')
-      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, created_at')
       .eq('order_id', id)
       .order('created_at', { ascending: true });
     const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [
@@ -248,7 +248,7 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
   const [{ data: items }, statusEvents] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, created_at')
+      .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, created_at')
       .eq('order_id', id)
       .order('created_at', { ascending: true }),
     loadStatusEvents(supabase, id),
