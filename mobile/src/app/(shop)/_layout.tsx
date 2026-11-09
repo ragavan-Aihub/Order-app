@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShopCatalogProvider } from '@/catalog/ShopCatalogContext';
 import { OrderPushRegistration } from '@/components/OrderPushRegistration';
 import { colors, radius } from '@/config/theme';
-import { NotificationPermissionProvider } from '@/notifications/NotificationPermissionProvider';
 
 function ShopTabBarButton({ children, style, accessibilityState, ...rest }: BottomTabBarButtonProps) {
   const focused = accessibilityState?.selected;
@@ -158,10 +157,8 @@ function ShopTabs() {
 export default function ShopTabsLayout() {
   return (
     <ShopCatalogProvider>
-      <NotificationPermissionProvider>
-        <OrderPushRegistration />
-        <ShopTabs />
-      </NotificationPermissionProvider>
+      <OrderPushRegistration />
+      <ShopTabs />
     </ShopCatalogProvider>
   );
 }

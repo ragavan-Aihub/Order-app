@@ -14,6 +14,7 @@ import { loadCart } from '@/cart/cart-storage';
 import { OfflineScreen } from '@/components/OfflineScreen';
 import { colors, spacing } from '@/config/theme';
 import { NetworkProvider } from '@/network/NetworkProvider';
+import { NotificationPermissionProvider } from '@/notifications/NotificationPermissionProvider';
 import { captureNotificationLaunchTarget } from '@/notifications/pending-push-deeplink';
 import { configureOrderNotificationHandler } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
@@ -84,6 +85,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <CartProvider>
         <NetworkProvider>
+          <NotificationPermissionProvider>
           <StatusBar style="dark" />
           <AppUpdatePrompt />
           <Stack
@@ -121,6 +123,7 @@ export default function RootLayout() {
             }}
           />
         </Stack>
+          </NotificationPermissionProvider>
         </NetworkProvider>
       </CartProvider>
     </SafeAreaProvider>

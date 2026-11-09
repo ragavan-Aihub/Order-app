@@ -20,7 +20,8 @@ export async function configureOrderNotificationHandler() {
   });
 }
 
-async function ensureAndroidChannel() {
+/** Android 13+ will not show the OS notification prompt until a channel exists. */
+export async function ensureAndroidOrderNotificationChannel() {
   if (Platform.OS !== 'android') {
     return;
   }
@@ -53,7 +54,7 @@ export async function registerForOrderPush(): Promise<RegisterPushResult> {
   }
 
   const Notifications = await import('expo-notifications');
-  await ensureAndroidChannel();
+  await ensureAndroidOrderNotificationChannel();
 
   const { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') {

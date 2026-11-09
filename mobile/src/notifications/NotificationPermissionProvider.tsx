@@ -16,7 +16,7 @@ import {
   registerNotificationPreprompt,
   type NotificationPrepromptResult,
 } from '@/notifications/notification-permission-prequest';
-import { registerForOrderPush } from '@/notifications/order-push';
+import { ensureAndroidOrderNotificationChannel, registerForOrderPush } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
 import { requestOsNotificationPermissionOnce } from '@/notifications/request-os-notification-permission';
 import { getSupabaseClient } from '@/services/supabase';
@@ -52,13 +52,19 @@ export function NotificationPermissionProvider({ children }: { children: ReactNo
   }, []);
 
   const runAllowFlow = useCallback(async (): Promise<NotificationPrepromptResult> => {
+    const supabase = getSupabaseClient();
+    const userId = supabase ? (await supabase.auth.getSession()).data.session?.user?.id : undefined;
     const permission = await requestOsNotificationPermissionOnce();
     if (permission === 'granted') {
-      await setNotificationPrepromptDismissed();
+      if (userId) {
+        await setNotificationPrepromptDismissed(userId);
+      }
       await registerForOrderPush();
       return 'granted';
     }
-    await setNotificationPrepromptDismissed();
+    if (userId) {
+      await setNotificationPrepromptDismissed(userId);
+    }
     return 'denied';
   }, []);
 
@@ -83,15 +89,21 @@ export function NotificationPermissionProvider({ children }: { children: ReactNo
     }
     evalInFlight.current = true;
     try {
-      if (await isNotificationPrepromptDismissed()) {
-        offeredRef.current = true;
+      const supabase = getSupabaseClient();
+      const userId = supabase ? (await supabase.auth.getSession()).data.session?.user?.id : undefined;
+      if (!userId) {
         return;
       }
+      await ensureAndroidOrderNotificationChannel();
       const Notifications = await import('expo-notifications');
       const permission = await Notifications.getPermissionsAsync();
       if (permission.status === 'granted') {
         offeredRef.current = true;
         void registerForOrderPush();
+        return;
+      }
+      if (await isNotificationPrepromptDismissed(userId)) {
+        offeredRef.current = true;
         return;
       }
       if (!shouldShowCustomPreprompt(permission)) {
@@ -154,7 +166,11 @@ export function NotificationPermissionProvider({ children }: { children: ReactNo
   }, []);
 
   const closeWithoutAllow = useCallback(async () => {
-    await setNotificationPrepromptDismissed();
+    const supabase = getSupabaseClient();
+    const userId = supabase ? (await supabase.auth.getSession()).data.session?.user?.id : undefined;
+    if (userId) {
+      await setNotificationPrepromptDismissed(userId);
+    }
     setVisible(false);
     finishPending('denied');
   }, [finishPending]);

@@ -101,6 +101,11 @@ export function useOrderPushRegistration() {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
           void tryRegister();
         }
+        if (event === 'SIGNED_IN') {
+          setTimeout(() => {
+            if (active) void tryRegister();
+          }, 2000);
+        }
       });
       authSubscription = data.subscription;
     }

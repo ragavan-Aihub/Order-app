@@ -2,6 +2,7 @@ import { Alert, Linking } from 'react-native';
 
 import { productNotifyCopy } from '@/copy/product-notify';
 import { requestNotificationPermissionViaPreprompt } from '@/notifications/notification-permission-prequest';
+import { ensureAndroidOrderNotificationChannel, registerForOrderPush } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
 
 export function promptOpenNotificationSettings(): void {
@@ -29,4 +30,24 @@ export async function ensurePushForProductNotify(): Promise<'granted' | 'denied'
   }
 
   return requestNotificationPermissionViaPreprompt();
+}
+
+/** Home "Not now" must not skip alerts for a new order. Ask again on the confirmation screen. */
+export async function offerNotificationsAfterPlacingOrder(): Promise<void> {
+  if (!isPushAvailable()) {
+    return;
+  }
+
+  await ensureAndroidOrderNotificationChannel();
+  const Notifications = await import('expo-notifications');
+  const existing = await Notifications.getPermissionsAsync();
+  if (existing.status === 'granted') {
+    await registerForOrderPush();
+    return;
+  }
+  if (existing.status === 'denied' && existing.canAskAgain === false) {
+    return;
+  }
+
+  await requestNotificationPermissionViaPreprompt();
 }

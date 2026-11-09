@@ -20,6 +20,7 @@ import { OrderProgress } from '@/components/OrderProgress';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
 import { colors, radius, shadow, spacing } from '@/config/theme';
+import { offerNotificationsAfterPlacingOrder } from '@/notifications/ensure-push-permission';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
 import { recordSuccessfulPlacementAndMaybeAskForReview } from '@/services/store-review';
 import { canCancelOrder, isOpenOrderStatus, type OrderWithItems } from '@/types/order';
@@ -114,13 +115,16 @@ export default function OrderStatusScreen() {
     }, [load]),
   );
 
-  const storeReviewHandled = useRef(false);
+  const afterPlaceHandled = useRef(false);
   useEffect(() => {
-    if (storeReviewHandled.current || fresh !== 'placed' || !order || order.status === 'cancelled') {
+    if (afterPlaceHandled.current || fresh !== 'placed' || !order || order.status === 'cancelled') {
       return;
     }
-    storeReviewHandled.current = true;
-    recordSuccessfulPlacementAndMaybeAskForReview().catch(() => undefined);
+    afterPlaceHandled.current = true;
+    void (async () => {
+      await offerNotificationsAfterPlacingOrder();
+      await recordSuccessfulPlacementAndMaybeAskForReview();
+    })().catch(() => undefined);
   }, [fresh, order]);
 
   const status = order?.status ?? first(params.status) ?? 'new';
