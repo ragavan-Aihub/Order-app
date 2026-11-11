@@ -26,6 +26,7 @@ import {
   volumeOptionPrice,
   weightOptionPrice,
 } from '@/lib/selling-units';
+import { lineStockUnits, stockLimitOf } from '@/lib/stock';
 import { createAdminOrder, createCustomer, deleteCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
@@ -113,6 +114,21 @@ type ProductRow =
       volumeMl?: number;
       packOptionId?: string;
     };
+
+function productUnitsInRows(
+  rows: ProductRow[],
+  products: Product[],
+  productId: string,
+  exceptRowId?: string,
+): number {
+  return rows.reduce((sum, row) => {
+    if (row.kind !== 'line' || row.productId !== productId || row.id === exceptRowId) {
+      return sum;
+    }
+    const product = products.find((item) => item.id === productId);
+    return sum + lineStockUnits(product?.selling_type, row.quantity, row.weightGrams, row.volumeMl);
+  }, 0);
+}
 
 function groupProductsForQuery(products: Product[], query: string) {
   const needle = query.trim().toLowerCase();
@@ -396,33 +412,46 @@ export function AdminOrderForm({
           (product.selling_type ?? 'quantity') !== 'fixed_pack',
       );
 
+      const stock = stockLimitOf(product.stock_qty);
       if (existingIndex >= 0 && (product.selling_type ?? 'quantity') === 'quantity') {
-        const merged = current.map((row, i) =>
-          i === existingIndex && row.kind === 'line'
-            ? { ...row, quantity: row.quantity + 1 }
-            : row,
-        );
+        const merged = current.map((row, i) => {
+          if (i !== existingIndex || row.kind !== 'line') {
+            return row;
+          }
+          const nextUnits = lineStockUnits(product.selling_type, row.quantity + 1, row.weightGrams, row.volumeMl);
+          if (stock != null && productUnitsInRows(current, products, product.id, row.id) + nextUnits > stock) {
+            return row;
+          }
+          return { ...row, quantity: row.quantity + 1 };
+        });
         const cleared = merged.map((row) =>
           row.id === searchRowId && row.kind === 'search' ? { ...row, query: '' } : row,
         );
         return ensureTrailingSearch(cleared, createProductRowId);
       }
 
-      const next = [...current];
       const firstPack = (product.packs ?? []).find((pack) => pack.is_active);
+      const weightGrams =
+        product.selling_type === 'kg'
+          ? (product.weightOptions ?? []).find((option) => option.is_active)?.weight_grams
+          : undefined;
+      const volumeMl =
+        product.selling_type === 'liter'
+          ? (product.volumeOptions ?? []).find((option) => option.is_active)?.volume_ml
+          : undefined;
+      const addUnits = lineStockUnits(product.selling_type, 1, weightGrams, volumeMl);
+      if (stock != null && productUnitsInRows(current, products, product.id) + addUnits > stock) {
+        return current;
+      }
+
+      const next = [...current];
       next[index] = {
         id: searchRowId,
         kind: 'line',
         productId: product.id,
         quantity: 1,
-        weightGrams:
-          product.selling_type === 'kg'
-            ? (product.weightOptions ?? []).find((option) => option.is_active)?.weight_grams
-            : undefined,
-        volumeMl:
-          product.selling_type === 'liter'
-            ? (product.volumeOptions ?? []).find((option) => option.is_active)?.volume_ml
-            : undefined,
+        weightGrams,
+        volumeMl,
         packOptionId: product.selling_type === 'fixed_pack' ? firstPack?.id : undefined,
       };
       return ensureTrailingSearch(next, createProductRowId);
@@ -439,6 +468,16 @@ export function AdminOrderForm({
 
   function setLineRowQty(rowId: string, quantity: number) {
     setProductRows((current) => {
+      const target = current.find((row) => row.id === rowId && row.kind === 'line');
+      if (target && target.kind === 'line' && quantity > target.quantity) {
+        const product = products.find((item) => item.id === target.productId);
+        const stock = stockLimitOf(product?.stock_qty);
+        if (stock != null) {
+          const others = productUnitsInRows(current, products, target.productId, rowId);
+          const size = lineStockUnits(product?.selling_type, 1, target.weightGrams, target.volumeMl) || 1;
+          quantity = Math.min(quantity, Math.max(0, Math.floor((stock - others) / size)));
+        }
+      }
       let next = current.map((row) =>
         row.id === rowId && row.kind === 'line' ? { ...row, quantity } : row,
       );

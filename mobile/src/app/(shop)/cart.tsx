@@ -392,6 +392,16 @@ export default function CartScreen() {
           setMinOrderOpen(true);
           return;
         }
+        if (result.reason === 'stock') {
+          hapticError();
+          showAppDialog({
+            title: 'Limited stock',
+            message: result.message,
+            icon: 'alert-circle',
+            tone: 'warning',
+          });
+          return;
+        }
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'cart' } });
           return;

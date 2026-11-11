@@ -9,7 +9,7 @@ let memoryProducts: Product[] | null = null;
 let inflight: Promise<Product[]> | null = null;
 
 const PRODUCT_ROW_SELECT =
-  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, price_per_liter, image_url, available, active, category_id, created_at, updated_at';
+  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, price_per_liter, image_url, available, stock_qty, active, category_id, created_at, updated_at';
 
 /** Drop cached catalog so the next fetch hits the network (e.g. after “now available” push). */
 export function invalidateProductCatalogCache(): void {

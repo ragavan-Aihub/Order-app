@@ -8,6 +8,7 @@ import { ProductCatalogMenu } from '@/components/ProductCatalogMenu';
 import { ProductTableThumbnail } from '@/components/ProductTableThumbnail';
 import { TableScroll } from '@/components/TableScroll';
 import { catalogPriceLabel } from '@/lib/selling-units';
+import { stockLeftLabel } from '@/lib/stock';
 import type { Product } from '@/types/product';
 
 export function ProductsBoard({
@@ -109,6 +110,11 @@ export function ProductsBoard({
                   ) : null}
                   <p className="truncate text-sm text-stone-500">{product.description}</p>
                   <p className="mt-1">{catalogPriceLabel(product)}</p>
+                  {stockLeftLabel(product.stock_qty, product.selling_type) ? (
+                    <p className="text-xs font-medium text-amber-800">
+                      {stockLeftLabel(product.stock_qty, product.selling_type)}
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-col gap-2">
                     <ProductCatalogMenu
                       productId={product.id}
@@ -163,6 +169,11 @@ export function ProductsBoard({
                           </p>
                         ) : null}
                         <p className="text-sm text-stone-500">{product.description}</p>
+                        {stockLeftLabel(product.stock_qty, product.selling_type) ? (
+                          <p className="text-xs font-medium text-amber-800">
+                            {stockLeftLabel(product.stock_qty, product.selling_type)}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">{catalogPriceLabel(product)}</td>
                       {categoriesEnabled ? (

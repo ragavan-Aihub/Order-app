@@ -18,6 +18,7 @@ export type Product = {
   volumeOptions?: VolumeOption[];
   image_url: string | null;
   available: boolean;
+  stock_qty?: number | null;
   active?: boolean;
   category_id?: string | null;
   category_name?: string | null;

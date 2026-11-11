@@ -6,6 +6,7 @@ import { notifyProductAvailablePush } from '@/lib/product-status-push';
 import { isSupabaseConfigured } from '@/config/env';
 import { logAdminAudit } from '@/services/admin-audit';
 import { createServerSupabaseClient } from '@/services/supabase/server';
+import { parseStockInput } from '@/lib/stock';
 import { MAX_IMAGE_BYTES, uploadProductImageBytes } from '@/services/storage';
 
 const NAME_MAX = 120;
@@ -72,6 +73,17 @@ export async function updateProductAvailability(
   const ctx = await requireAdmin();
   if ('error' in ctx) {
     return { error: ctx.error };
+  }
+  if (available) {
+    const { data: current } = await ctx.supabase
+      .from('products')
+      .select('stock_qty')
+      .eq('id', productId)
+      .eq('business_id', ctx.businessId)
+      .maybeSingle();
+    if (current && current.stock_qty === 0) {
+      return { error: 'Set available stock first. 0 remaining means this item is sold out.' };
+    }
   }
   const { data, error } = await ctx.supabase
     .from('products')
@@ -205,6 +217,17 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
   const volumesRaw = String(formData.get('volumes') ?? '').trim();
   const packsRaw = String(formData.get('packs') ?? '').trim();
   const categoryRaw = String(formData.get('category_id') ?? '').trim();
+  const stockParsed = parseStockInput(String(formData.get('stock_qty') ?? ''), sellingType);
+  if (!stockParsed.ok) {
+    return {
+      error:
+        sellingType === 'kg'
+          ? 'Available stock must be kilograms (for example 1 or 0.5), or blank for unlimited.'
+          : sellingType === 'liter'
+            ? 'Available stock must be liters, or blank for unlimited.'
+            : 'Available stock must be a whole number, or blank for unlimited.',
+    };
+  }
   const imageRemoved = formData.get('image_removed') === '1';
   const image = formData.get('image');
   const imageBlob =
@@ -401,7 +424,9 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
     maximum_weight_grams: null,
     image_url: imageUrl,
     business_id: ctx.businessId,
-    ...(existing ? {} : { available: true, active: true }),
+    stock_qty: stockParsed.value,
+    ...(existing ? {} : { available: stockParsed.value === 0 ? false : true, active: true }),
+    ...(stockParsed.value === 0 ? { available: false } : {}),
     ...(categoriesEnabled ? { category_id: categoryId } : {}),
   };
 

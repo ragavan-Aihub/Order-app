@@ -14,6 +14,7 @@ import { getSelectedAddress, subscribeAddressBook } from '@/cart/address-book';
 import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { isOpenOrderStatus, type Order } from '@/types/order';
 import type { Product } from '@/types/product';
+import { lineStockUnits, maxLineQty, stockLimitOf, stockMessage, unitSizeOf } from '@/utils/stock';
 import { cartLineKey, cartLineTotal, sellingTypeOf } from '@/utils/selling-units';
 
 export type CartItem = {
@@ -63,15 +64,37 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-function mergeCartLine(items: CartItem[], incoming: CartItem): CartItem[] {
+function unitsOfProduct(items: CartItem[], productId: string, exceptKey?: string): number {
+  return items.reduce((sum, item) => {
+    if (item.product.id !== productId || (exceptKey && cartLineKey(item) === exceptKey)) {
+      return sum;
+    }
+    return sum + lineStockUnits(item);
+  }, 0);
+}
+
+function reservedUnitsOf(original: CartItem[] | null | undefined, productId: string): number {
+  if (!original?.length) {
+    return 0;
+  }
+  return unitsOfProduct(original, productId);
+}
+
+function mergeCartLine(items: CartItem[], incoming: CartItem, reservedUnits: number): CartItem[] {
   const key = cartLineKey(incoming);
   const existing = items.find((item) => cartLineKey(item) === key);
+  const others = unitsOfProduct(items, incoming.product.id, key);
+  const size = unitSizeOf(incoming.product, { weightGrams: incoming.weightGrams, volumeMl: incoming.volumeMl });
+  const max = maxLineQty(incoming.product.stock_qty, reservedUnits, others, size);
+  if (max < 1 && !existing) {
+    return items;
+  }
   if (!existing) {
-    return [...items, incoming];
+    return [...items, { ...incoming, quantity: Math.min(incoming.quantity, max) }];
   }
   return items.map((item) =>
     cartLineKey(item) === key
-      ? { ...item, quantity: Math.min(MAX_ITEM_QTY, item.quantity + incoming.quantity) }
+      ? { ...item, quantity: Math.min(max, item.quantity + incoming.quantity) }
       : item,
   );
 }
@@ -113,6 +136,15 @@ function notifyLimit(kind: 'items' | 'qty') {
   });
 }
 
+function notifyStock(left: number, sellingType?: string | null) {
+  showAppDialog({
+    title: 'Limited stock',
+    message: stockMessage(left, sellingType),
+    icon: 'alert-circle',
+    tone: 'warning',
+  });
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -138,7 +170,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const beginEditOrder = useCallback((orderId: string, next: CartItem[], order?: Order, additions?: CartItem[]) => {
     const original = clampCart(next);
-    const merged = clampCart((additions ?? []).reduce((rows, line) => mergeCartLine(rows, line), original));
+    const merged = clampCart(
+      (additions ?? []).reduce(
+        (rows, line) => mergeCartLine(rows, line, reservedUnitsOf(original, line.product.id)),
+        original,
+      ),
+    );
     setOpenOrderReady(false);
     if (order?.id === orderId) {
       setOpenOrder(order);
@@ -379,16 +416,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
           packWeightGrams: extras?.packWeightGrams ?? null,
         };
         const key = cartLineKey(nextLine);
+        const reserved = editing ? reservedUnitsOf(originalItems, product.id) : 0;
+        const size = unitSizeOf(product, { weightGrams: nextLine.weightGrams, volumeMl: nextLine.volumeMl });
         setItems((current) => {
           const existing = current.find((item) => cartLineKey(item) === key);
+          const others = unitsOfProduct(current, product.id, key);
+          const lineMax = maxLineQty(product.stock_qty, reserved, others, size);
+          const remaining = Math.max(0, (stockLimitOf(product.stock_qty) ?? 0) + reserved - others);
           if (existing) {
-            if (existing.quantity >= MAX_ITEM_QTY) {
-              notifyLimit('qty');
+            if (existing.quantity >= lineMax) {
+              if (lineMax < MAX_ITEM_QTY) {
+                notifyStock(remaining, type);
+              } else {
+                notifyLimit('qty');
+              }
               return current;
             }
-            const nextQty = Math.min(MAX_ITEM_QTY, existing.quantity + add);
-            if (existing.quantity + add > MAX_ITEM_QTY) {
-              notifyLimit('qty');
+            const nextQty = Math.min(lineMax, existing.quantity + add);
+            if (existing.quantity + add > lineMax) {
+              if (lineMax < MAX_ITEM_QTY) {
+                notifyStock(remaining, type);
+              } else {
+                notifyLimit('qty');
+              }
             }
             return current.map((item) => (cartLineKey(item) === key ? { ...item, quantity: nextQty } : item));
           }
@@ -396,7 +446,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
             notifyLimit('items');
             return current;
           }
-          return [...current, nextLine];
+          if (lineMax < 1) {
+            notifyStock(remaining, type);
+            return current;
+          }
+          return [...current, { ...nextLine, quantity: Math.min(add, lineMax) }];
         });
         return true;
       },
@@ -407,8 +461,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
           if (!existing) {
             return current;
           }
-          if (existing.quantity >= MAX_ITEM_QTY) {
-            notifyLimit('qty');
+          const reserved = editing ? reservedUnitsOf(originalItems, existing.product.id) : 0;
+          const others = unitsOfProduct(current, existing.product.id, key);
+          const size = unitSizeOf(existing.product, {
+            weightGrams: existing.weightGrams,
+            volumeMl: existing.volumeMl,
+          });
+          const lineMax = maxLineQty(existing.product.stock_qty, reserved, others, size);
+          if (existing.quantity >= lineMax) {
+            if (lineMax < MAX_ITEM_QTY) {
+              notifyStock(
+                Math.max(0, (stockLimitOf(existing.product.stock_qty) ?? 0) + reserved - others),
+                sellingTypeOf(existing.product),
+              );
+            } else {
+              notifyLimit('qty');
+            }
             return current;
           }
           return current.map((item) =>

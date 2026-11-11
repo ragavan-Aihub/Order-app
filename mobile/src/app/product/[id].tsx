@@ -27,6 +27,7 @@ import { fetchProductByIdLive, invalidateProductCatalogCache } from '@/services/
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 import { hapticError, hapticSelect } from '@/utils/haptics';
+import { maxLineQty, stockLeftLabel, stockLimitOf, stockMessage, unitSizeOf } from '@/utils/stock';
 import {
   catalogPriceLabel,
   cartLineTotal,
@@ -274,6 +275,9 @@ export default function ProductDetailsScreen() {
           {comingSoon ? null : (
             <View style={styles.priceRow}>
               <Text style={styles.price}>{catalogPriceLabel(product)}</Text>
+              {stockLeftLabel(product.stock_qty, product.selling_type) ? (
+                <Text style={styles.stockLeft}>{stockLeftLabel(product.stock_qty, product.selling_type)}</Text>
+              ) : null}
             </View>
           )}
           {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
@@ -372,11 +376,18 @@ export default function ProductDetailsScreen() {
             onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
             onIncrease={() =>
               setQuantity((value) => {
-                if (value >= MAX_ITEM_QTY) {
+                const size = unitSizeOf(product, { weightGrams: weightGramsSel, volumeMl: volumeMlSel });
+                const tracked = stockLimitOf(product.stock_qty) != null && size > 0;
+                const cap = tracked ? maxLineQty(product.stock_qty, 0, 0, size) : MAX_ITEM_QTY;
+                if (value >= cap) {
                   hapticError();
+                  const stockCap = stockLimitOf(product.stock_qty);
                   showAppDialog({
-                    title: 'Order limit',
-                    message: CART_LIMIT_QTY,
+                    title: stockCap != null && cap < MAX_ITEM_QTY ? 'Limited stock' : 'Order limit',
+                    message:
+                      stockCap != null && cap < MAX_ITEM_QTY
+                        ? stockMessage(stockCap, product.selling_type)
+                        : CART_LIMIT_QTY,
                     icon: 'alert-circle',
                     tone: 'warning',
                   });
@@ -452,8 +463,14 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
     gap: spacing.xs,
+  },
+  stockLeft: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.warning,
   },
   unitPill: {
     paddingHorizontal: 10,

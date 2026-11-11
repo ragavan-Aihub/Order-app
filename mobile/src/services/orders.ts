@@ -624,6 +624,9 @@ export async function placeOrder(
       if (isNetworkFailure(itemsError)) {
         throw new Error(OFFLINE_ORDER);
       }
+      if (/only \d+ left/i.test(itemsError.message ?? '')) {
+        throw new Error(itemsError.message);
+      }
       throw new Error('Could not save the order items. Try again.');
     }
   }

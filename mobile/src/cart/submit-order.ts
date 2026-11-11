@@ -4,6 +4,7 @@ import { refreshBusiness } from '@/services/business';
 import { isNetworkFailure } from '@/services/network';
 import { cartLineTotal } from '@/utils/selling-units';
 import { belowMinOrder, minOrderAmountOf, minOrderMessage } from '@/utils/min-order';
+import { lineStockUnits, stockLimitOf, stockMessage } from '@/utils/stock';
 import {
   findOpenOrderForAddress,
   getMyOrderById,
@@ -25,6 +26,7 @@ export type SubmitOrderResult =
         | 'network'
         | 'error'
         | 'min_order'
+        | 'stock'
         | 'open_order'
         | 'locked';
       message: string;
@@ -51,6 +53,24 @@ export async function submitShopOrder(
       reason: 'unavailable',
       message: `${blocked.product.name} is coming soon or no longer sold. Remove it from the cart.`,
     };
+  }
+  if (!editingOrderId) {
+    const byProduct = new Map<string, { name: string; units: number; stock: number | null; type: string | null }>();
+    for (const item of items) {
+      const current = byProduct.get(item.product.id) ?? {
+        name: item.product.name,
+        units: 0,
+        stock: stockLimitOf(item.product.stock_qty),
+        type: item.product.selling_type ?? null,
+      };
+      current.units += lineStockUnits(item);
+      byProduct.set(item.product.id, current);
+    }
+    for (const row of byProduct.values()) {
+      if (row.stock != null && row.units > row.stock) {
+        return { ok: false, reason: 'stock', message: `${row.name}: ${stockMessage(row.stock, row.type)}` };
+      }
+    }
   }
 
   const shop = await refreshBusiness().catch(() => null);
@@ -115,6 +135,9 @@ export async function submitShopOrder(
           ? `You already have order #${open.order_number} for this address. Edit that order, or place a new order at another address.`
           : 'You already have an open order for this address. Edit that order, or place a new order at another address.',
       };
+    }
+    if (/only \d+ left/i.test(message) || /sold out/i.test(message)) {
+      return { ok: false, reason: 'stock', message };
     }
     if (message.toLowerCase().includes('sign in')) {
       return { ok: false, reason: 'auth', message };

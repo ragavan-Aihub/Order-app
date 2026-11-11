@@ -33,6 +33,7 @@ export function AvailabilityToggle({
     const result = await updateProductAvailability(productId, next);
     setSaving(false);
     if (result.error) {
+      notice.show(result.error);
       return;
     }
     setOn(next);

@@ -70,6 +70,7 @@ type ProductFormProps = {
     }>;
     image_url: string | null;
     category_id?: string | null;
+    stock_qty?: number | null;
     transacted?: boolean;
   };
   categoriesEnabled?: boolean;
@@ -117,6 +118,13 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
       })) ?? [],
   );
   const [customGrams, setCustomGrams] = useState('');
+  const [stockQty, setStockQty] = useState(() =>
+    product?.stock_qty != null && Number.isFinite(product.stock_qty)
+      ? product.selling_type === 'kg' || product.selling_type === 'liter'
+        ? String(product.stock_qty / 1000)
+        : String(product.stock_qty)
+      : '',
+  );
 
   function togglePresetWeight(grams: number) {
     setWeights((current) => {
@@ -327,6 +335,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     formData.set('description', description.trim().slice(0, DESCRIPTION_MAX));
     formData.set('selling_type', sellingType);
     formData.set('price', price);
+    formData.set('stock_qty', stockQty.trim());
     formData.set(
       'volumes',
       JSON.stringify(
@@ -515,6 +524,39 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
               {description.length}/{DESCRIPTION_MAX}
             </span>
           </div>
+        </label>
+
+        <label className="block sm:max-w-sm">
+          <span className="mb-1.5 block text-sm font-medium text-stone-700">
+            {sellingType === 'kg'
+              ? 'Available stock (Kg, optional)'
+              : sellingType === 'liter'
+                ? 'Available stock (L, optional)'
+                : 'Available stock (optional)'}
+          </span>
+          <input
+            type="number"
+            min={0}
+            step={sellingType === 'kg' || sellingType === 'liter' ? '0.001' : '1'}
+            inputMode="decimal"
+            value={stockQty}
+            onChange={(event) =>
+              setStockQty(
+                sellingType === 'kg' || sellingType === 'liter'
+                  ? event.target.value.replace(/[^\d.]/g, '').slice(0, 8)
+                  : event.target.value.replace(/[^\d]/g, '').slice(0, 6),
+              )
+            }
+            placeholder="Leave blank for unlimited"
+            className={fieldClass}
+          />
+          <span className="mt-1.5 block text-xs text-stone-500">
+            {sellingType === 'kg'
+              ? 'Enter kilograms. 1 Kg allows ten 100 g orders (or four 250 g). 0 marks the product sold out.'
+              : sellingType === 'liter'
+                ? 'Enter liters. 1 L allows ten 100 ml orders. 0 marks the product sold out.'
+                : 'Use a number only for limited items. Each Add counts as 1 piece or pack. 0 marks the product sold out.'}
+          </span>
         </label>
 
         <label className="block">

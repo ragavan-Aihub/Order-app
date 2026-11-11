@@ -9,6 +9,7 @@ import { colors, radius, shadow, spacing } from '@/config/theme';
 import { hapticTap } from '@/utils/haptics';
 import type { Product } from '@/types/product';
 import { catalogPriceAmountLabel, catalogUnitLabel, sellingTypeOf } from '@/utils/selling-units';
+import { stockLeftLabel } from '@/utils/stock';
 
 type ProductCardProps = {
   product: Product;
@@ -41,6 +42,7 @@ export const ProductCard = memo(function ProductCard({
   const needsOptions = sellingTypeOf(product) !== 'quantity';
   const unit = catalogUnitLabel(product);
   const price = catalogPriceAmountLabel(product);
+  const stockLeft = comingSoon ? null : stockLeftLabel(product.stock_qty, product.selling_type);
 
   const header = (
     <>
@@ -70,6 +72,11 @@ export const ProductCard = memo(function ProductCard({
         {unit ? (
           <Text style={[styles.unit, comingSoon && styles.dimmedText]} numberOfLines={1}>
             {unit}
+          </Text>
+        ) : null}
+        {stockLeft ? (
+          <Text style={styles.stockLeft} numberOfLines={1}>
+            {stockLeft}
           </Text>
         ) : null}
       </View>
@@ -218,6 +225,13 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '600',
     color: colors.textMuted,
+  },
+  stockLeft: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    color: colors.warning,
   },
   dimmedText: {
     color: colors.textMuted,
