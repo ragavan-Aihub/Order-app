@@ -3,7 +3,6 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatSavedAddressLabel, getAddressBook, splitDeliveryAddress } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { OrderProgress } from '@/components/OrderProgress';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
@@ -158,14 +158,15 @@ export default function OrderStatusScreen() {
     if (!order) {
       return;
     }
-    Alert.alert(
-      'Cancel this order?',
-      `Order #${formatOrderNumber(order.order_number)} will be cancelled. This cannot be undone.`,
-      [
-        { text: 'Keep order', style: 'cancel' },
+    showAppDialog({
+      title: 'Cancel this order?',
+      message: `Order #${formatOrderNumber(order.order_number)} will be cancelled. This cannot be undone.`,
+      icon: 'close-circle',
+      tone: 'danger',
+      actions: [
         {
-          text: 'Cancel order',
-          style: 'destructive',
+          label: 'Cancel order',
+          variant: 'danger',
           onPress: () => {
             setCancelling(true);
             cancelMyOrder(order.id)
@@ -174,29 +175,40 @@ export default function OrderStatusScreen() {
                 return load(true);
               })
               .catch((error) => {
-                Alert.alert(
-                  'Could not cancel',
-                  error instanceof Error ? error.message : 'Try again in a moment.',
-                );
+                showAppDialog({
+                  title: 'Could not cancel',
+                  message: error instanceof Error ? error.message : 'Try again in a moment.',
+                  icon: 'cloud-offline',
+                  tone: 'warning',
+                });
               })
               .finally(() => setCancelling(false));
           },
         },
       ],
-    );
+    });
   }
 
   function openMore() {
     if (!order || !canChange) {
       return;
     }
-    Alert.alert(`Order #${formatOrderNumber(order.order_number)}`, undefined, [
-      { text: 'Modify order', onPress: () => goModifyOrder(order, beginEditOrder) },
-      ...(canCancelOrder(order.status)
-        ? [{ text: 'Cancel order', style: 'destructive' as const, onPress: () => setTimeout(confirmCancel, 200) }]
-        : []),
-      { text: 'Close', style: 'cancel' },
-    ]);
+    showAppDialog({
+      title: `Order #${formatOrderNumber(order.order_number)}`,
+      icon: 'receipt',
+      actions: [
+        { label: 'Modify order', onPress: () => goModifyOrder(order, beginEditOrder) },
+        ...(canCancelOrder(order.status)
+          ? [
+              {
+                label: 'Cancel order',
+                variant: 'danger' as const,
+                onPress: confirmCancel,
+              },
+            ]
+          : []),
+      ],
+    });
   }
 
   return (

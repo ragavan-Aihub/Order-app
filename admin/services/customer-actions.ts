@@ -486,7 +486,7 @@ export async function createAdminOrder(input: {
   address?: string;
   pincode?: string;
   notes?: string;
-  items: Array<{ productId: string; quantity: number; weightGrams?: number; packOptionId?: string }>;
+  items: Array<{ productId: string; quantity: number; weightGrams?: number; volumeMl?: number; packOptionId?: string }>;
   paymentMethod?: PaymentMethod;
 }): Promise<{ error: string | null; orderId?: string }> {
   const ctx = await requireAdmin();
@@ -562,7 +562,9 @@ export async function createAdminOrder(input: {
     deliveryAddress = `${deliveryAddress}\n\nOrder notes: ${notes}`;
   }
 
-  const usableItems = input.items.filter((item) => item.quantity >= 1 || (item.weightGrams ?? 0) > 0);
+  const usableItems = input.items.filter(
+    (item) => item.quantity >= 1 || (item.weightGrams ?? 0) > 0 || (item.volumeMl ?? 0) > 0,
+  );
   if (usableItems.length === 0) {
     return { error: 'Add at least one product.' };
   }
@@ -570,7 +572,7 @@ export async function createAdminOrder(input: {
   const productIds = [...new Set(usableItems.map((item) => item.productId))];
   const { data: products } = await ctx.supabase
     .from('products')
-    .select('id, name, price, selling_type, price_per_kg, available, active')
+    .select('id, name, price, selling_type, price_per_kg, price_per_liter, available, active')
     .eq('business_id', ctx.businessId)
     .in('id', productIds);
 
@@ -588,32 +590,77 @@ export async function createAdminOrder(input: {
     .select('id, product_id, weight_grams, selling_price, is_active')
     .in('product_id', productIds);
 
+  const { data: weightRows } = await ctx.supabase
+    .from('product_weight_options')
+    .select('product_id, weight_grams, is_active')
+    .in('product_id', productIds);
+
+  const { data: volumeRows } = await ctx.supabase
+    .from('product_volume_options')
+    .select('product_id, volume_ml, is_active')
+    .in('product_id', productIds);
+
   const lines: Array<{
     product_id: string;
     product_name: string;
     product_price: number;
     quantity: number;
     weight_grams: number | null;
+    volume_ml: number | null;
     pack_option_id: string | null;
     subtotal: number;
   }> = [];
   for (const item of usableItems) {
     const product = products.find((row) => row.id === item.productId)!;
-    const type = product.selling_type === 'kg' || product.selling_type === 'fixed_pack' ? product.selling_type : 'quantity';
+    const type =
+      product.selling_type === 'kg' || product.selling_type === 'liter' || product.selling_type === 'fixed_pack'
+        ? product.selling_type
+        : 'quantity';
     if (type === 'kg') {
       const grams = item.weightGrams ?? 0;
-      if (grams < 1) {
-        return { error: `Enter a weight for ${product.name}.` };
+      const validOption = (weightRows ?? []).some(
+        (row) => row.product_id === product.id && row.is_active && row.weight_grams === grams,
+      );
+      if (!validOption) {
+        return { error: `Choose a weight option for ${product.name}.` };
+      }
+      if (item.quantity < 1 || item.quantity > 10) {
+        return { error: `Check the quantity for ${product.name}.` };
       }
       const perKg = Number(product.price_per_kg ?? product.price);
       lines.push({
         product_id: product.id,
         product_name: product.name,
         product_price: perKg,
-        quantity: 1,
+        quantity: item.quantity,
         weight_grams: grams,
+        volume_ml: null,
         pack_option_id: null,
-        subtotal: Math.round(perKg * (grams / 1000) * 100) / 100,
+        subtotal: Math.round(perKg * (grams / 1000) * item.quantity * 100) / 100,
+      });
+      continue;
+    }
+    if (type === 'liter') {
+      const ml = item.volumeMl ?? 0;
+      const validOption = (volumeRows ?? []).some(
+        (row) => row.product_id === product.id && row.is_active && row.volume_ml === ml,
+      );
+      if (!validOption) {
+        return { error: `Choose a volume option for ${product.name}.` };
+      }
+      if (item.quantity < 1 || item.quantity > 10) {
+        return { error: `Check the quantity for ${product.name}.` };
+      }
+      const perL = Number(product.price_per_liter ?? product.price);
+      lines.push({
+        product_id: product.id,
+        product_name: product.name,
+        product_price: perL,
+        quantity: item.quantity,
+        weight_grams: null,
+        volume_ml: ml,
+        pack_option_id: null,
+        subtotal: Math.round(perL * (ml / 1000) * item.quantity * 100) / 100,
       });
       continue;
     }
@@ -629,6 +676,7 @@ export async function createAdminOrder(input: {
         product_price: unit,
         quantity: item.quantity,
         weight_grams: null,
+        volume_ml: null,
         pack_option_id: pack.id,
         subtotal: Math.round(unit * item.quantity * 100) / 100,
       });
@@ -640,6 +688,7 @@ export async function createAdminOrder(input: {
       product_price: Number(product.price),
       quantity: item.quantity,
       weight_grams: null,
+      volume_ml: null,
       pack_option_id: null,
       subtotal: Number(product.price) * item.quantity,
     });
@@ -694,6 +743,7 @@ export async function createAdminOrder(input: {
       quantity: line.quantity,
       subtotal: line.subtotal,
       weight_grams: line.weight_grams,
+      volume_ml: line.volume_ml,
       pack_option_id: line.pack_option_id,
     })),
   );

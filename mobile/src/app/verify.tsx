@@ -158,11 +158,9 @@ export default function VerifyScreen() {
           ? '/orders'
           : next === 'buy-again' || next === 'reorder'
             ? '/buy-again'
-            : next === 'account'
-              ? '/account'
-              : next === 'sam'
-                ? '/sam'
-                : '/home';
+            : next === 'sam'
+              ? '/sam'
+              : '/home';
 
   async function goToApp() {
     await markEnteredShop();

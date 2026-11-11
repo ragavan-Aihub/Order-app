@@ -19,6 +19,11 @@ export const colors = {
   danger: '#B91C1C',
   warning: '#C2410C',
   info: '#1D4ED8',
+  /** Neutral placeholder fill (image wells, skeletons). */
+  placeholder: '#E7E5E4',
+  placeholderHighlight: '#F5F5F4',
+  /** Soft brand outline for secondary actions on cards. */
+  primaryOutline: 'rgba(15, 118, 110, 0.32)',
 } as const;
 
 export const spacing = {
@@ -37,6 +42,13 @@ export const shadow = {
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  card: {
+    shadowColor: '#1C1917',
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
   md: {
     shadowColor: '#0F766E',
     shadowOpacity: 0.18,
@@ -50,5 +62,6 @@ export const radius = {
   sm: 10,
   md: 16,
   lg: 24,
+  xl: 20,
   pill: 999,
 } as const;

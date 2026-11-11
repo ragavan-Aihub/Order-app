@@ -84,7 +84,10 @@ export async function updateProductAvailability(
     return { error: 'Could not update this product.' };
   }
   if (available) {
-    await notifyProductAvailablePush(productId);
+    const {
+      data: { session },
+    } = await ctx.supabase.auth.getSession();
+    await notifyProductAvailablePush(productId, session?.access_token);
   }
   await logAdminAudit(auditCtx(ctx), {
     action: 'product.availability',
@@ -194,11 +197,12 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
   const description = String(formData.get('description') ?? '').trim().slice(0, DESCRIPTION_MAX);
   const sellingTypeRaw = String(formData.get('selling_type') ?? 'quantity').trim();
   const sellingType =
-    sellingTypeRaw === 'kg' || sellingTypeRaw === 'fixed_pack' ? sellingTypeRaw : 'quantity';
-  const sellingUnit = String(formData.get('selling_unit') ?? '').trim().slice(0, 40);
+    sellingTypeRaw === 'kg' || sellingTypeRaw === 'liter' || sellingTypeRaw === 'fixed_pack'
+      ? sellingTypeRaw
+      : 'quantity';
   const price = parsePrice(String(formData.get('price') ?? ''));
-  const minKg = String(formData.get('minimum_kg') ?? '').trim();
-  const maxKg = String(formData.get('maximum_kg') ?? '').trim();
+  const weightsRaw = String(formData.get('weights') ?? '').trim();
+  const volumesRaw = String(formData.get('volumes') ?? '').trim();
   const packsRaw = String(formData.get('packs') ?? '').trim();
   const categoryRaw = String(formData.get('category_id') ?? '').trim();
   const imageRemoved = formData.get('image_removed') === '1';
@@ -209,37 +213,81 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
   if (!name || name.length > NAME_MAX) {
     return { error: 'Enter a product name up to 120 characters.' };
   }
-  if (sellingType === 'quantity' && !sellingUnit) {
-    return { error: 'Choose a unit name (Bottle, Piece, Packet, Box, or Container).' };
-  }
   let unitPrice = price;
   if (sellingType !== 'fixed_pack' && unitPrice == null) {
-    return { error: sellingType === 'kg' ? 'Enter a valid price per Kg.' : 'Enter a valid price.' };
+    return {
+      error:
+        sellingType === 'kg'
+          ? 'Enter a valid price per Kg.'
+          : sellingType === 'liter'
+            ? 'Enter a valid price per Liter.'
+            : 'Enter a valid price.',
+    };
   }
-  const gramsFromKg = (raw: string): number | null => {
-    if (!raw) {
-      return null;
-    }
-    if (!/^\d+(\.\d{1,2})?$/.test(raw)) {
-      return Number.NaN;
-    }
-    return Math.round(Number(raw) * 1000);
+  type WeightInput = {
+    id?: string;
+    weight_grams: number;
+    is_active: boolean;
+    display_order: number;
   };
-  const minimumWeightGrams = gramsFromKg(minKg);
-  const maximumWeightGrams = gramsFromKg(maxKg);
+  let weights: WeightInput[] = [];
   if (sellingType === 'kg') {
-    if (minimumWeightGrams !== null && Number.isNaN(minimumWeightGrams)) {
-      return { error: 'Minimum weight must be a Kg value with up to two decimal places.' };
+    try {
+      const parsed = JSON.parse(weightsRaw || '[]') as WeightInput[];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return { error: 'Add at least one weight option.' };
+      }
+      weights = parsed.map((row, index) => ({
+        id: typeof row.id === 'string' && isUuid(row.id) ? row.id : undefined,
+        weight_grams: Number(row.weight_grams),
+        is_active: row.is_active !== false,
+        display_order: Number(row.display_order) || index,
+      }));
+      if (weights.some((row) => !Number.isInteger(row.weight_grams) || row.weight_grams < 1 || row.weight_grams > 100_000)) {
+        return { error: 'Each weight must be a whole number of grams between 1 and 100000.' };
+      }
+      const grams = weights.map((row) => row.weight_grams);
+      if (new Set(grams).size !== grams.length) {
+        return { error: 'Each weight option must be unique.' };
+      }
+      if (!weights.some((row) => row.is_active)) {
+        return { error: 'Keep at least one weight option active.' };
+      }
+    } catch {
+      return { error: 'Could not save weight options.' };
     }
-    if (maximumWeightGrams !== null && Number.isNaN(maximumWeightGrams)) {
-      return { error: 'Maximum weight must be a Kg value with up to two decimal places.' };
-    }
-    if (
-      minimumWeightGrams != null &&
-      maximumWeightGrams != null &&
-      maximumWeightGrams < minimumWeightGrams
-    ) {
-      return { error: 'Maximum weight must be at least the minimum weight.' };
+  }
+  type VolumeInput = {
+    id?: string;
+    volume_ml: number;
+    is_active: boolean;
+    display_order: number;
+  };
+  let volumes: VolumeInput[] = [];
+  if (sellingType === 'liter') {
+    try {
+      const parsed = JSON.parse(volumesRaw || '[]') as VolumeInput[];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return { error: 'Add at least one volume option.' };
+      }
+      volumes = parsed.map((row, index) => ({
+        id: typeof row.id === 'string' && isUuid(row.id) ? row.id : undefined,
+        volume_ml: Number(row.volume_ml),
+        is_active: row.is_active !== false,
+        display_order: Number(row.display_order) || index,
+      }));
+      if (volumes.some((row) => !Number.isInteger(row.volume_ml) || row.volume_ml < 1 || row.volume_ml > 100_000)) {
+        return { error: 'Each volume must be a whole number of ml between 1 and 100000.' };
+      }
+      const mls = volumes.map((row) => row.volume_ml);
+      if (new Set(mls).size !== mls.length) {
+        return { error: 'Each volume option must be unique.' };
+      }
+      if (!volumes.some((row) => row.is_active)) {
+        return { error: 'Keep at least one volume option active.' };
+      }
+    } catch {
+      return { error: 'Could not save volume options.' };
     }
   }
   type PackInput = {
@@ -346,10 +394,11 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
     description,
     price: unitPrice,
     selling_type: sellingType,
-    selling_unit: sellingType === 'quantity' ? sellingUnit : sellingType === 'kg' ? 'Kg' : 'pack',
+    selling_unit: sellingType === 'kg' ? 'Kg' : sellingType === 'liter' ? 'L' : sellingType === 'fixed_pack' ? 'pack' : null,
     price_per_kg: sellingType === 'kg' ? unitPrice : null,
-    minimum_weight_grams: sellingType === 'kg' ? minimumWeightGrams : null,
-    maximum_weight_grams: sellingType === 'kg' ? maximumWeightGrams : null,
+    price_per_liter: sellingType === 'liter' ? unitPrice : null,
+    minimum_weight_grams: null,
+    maximum_weight_grams: null,
     image_url: imageUrl,
     business_id: ctx.businessId,
     ...(existing ? {} : { available: true, active: true }),
@@ -417,6 +466,100 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
       if (!keepIds.has(row.id)) {
         await ctx.supabase
           .from('product_pack_options')
+          .update({ is_active: false })
+          .eq('id', row.id)
+          .eq('product_id', savedId);
+      }
+    }
+  }
+
+  if (savedId && sellingType === 'liter') {
+    const { data: allVolumes } = await ctx.supabase
+      .from('product_volume_options')
+      .select('id, volume_ml')
+      .eq('product_id', savedId);
+    const knownIds = new Set((allVolumes ?? []).map((row) => row.id));
+    const byMl = new Map((allVolumes ?? []).map((row) => [row.volume_ml, row.id]));
+    const keepIds = new Set<string>();
+    for (const row of volumes) {
+      const existingId = (row.id && knownIds.has(row.id) ? row.id : undefined) ?? byMl.get(row.volume_ml);
+      if (existingId) {
+        const { error: volumeError } = await ctx.supabase
+          .from('product_volume_options')
+          .update({
+            volume_ml: row.volume_ml,
+            is_active: row.is_active,
+            display_order: row.display_order,
+          })
+          .eq('id', existingId)
+          .eq('product_id', savedId);
+        if (volumeError) {
+          return { error: volumeError.message || 'Could not save volume options.' };
+        }
+        keepIds.add(existingId);
+      } else {
+        const { error: volumeError } = await ctx.supabase.from('product_volume_options').insert({
+          product_id: savedId,
+          volume_ml: row.volume_ml,
+          is_active: row.is_active,
+          display_order: row.display_order,
+        });
+        if (volumeError) {
+          return { error: volumeError.message || 'Could not save volume options.' };
+        }
+      }
+    }
+    for (const row of allVolumes ?? []) {
+      if (!keepIds.has(row.id)) {
+        await ctx.supabase
+          .from('product_volume_options')
+          .update({ is_active: false })
+          .eq('id', row.id)
+          .eq('product_id', savedId);
+      }
+    }
+  }
+
+  if (savedId && sellingType === 'kg') {
+    const { data: allWeights } = await ctx.supabase
+      .from('product_weight_options')
+      .select('id, weight_grams')
+      .eq('product_id', savedId);
+    const knownIds = new Set((allWeights ?? []).map((row) => row.id));
+    const byGrams = new Map((allWeights ?? []).map((row) => [row.weight_grams, row.id]));
+    const keepIds = new Set<string>();
+    for (const row of weights) {
+      const existingId = (row.id && knownIds.has(row.id) ? row.id : undefined) ?? byGrams.get(row.weight_grams);
+      if (existingId) {
+        const { error: weightError } = await ctx.supabase
+          .from('product_weight_options')
+          .update({
+            weight_grams: row.weight_grams,
+            is_active: row.is_active,
+            display_order: row.display_order,
+          })
+          .eq('id', existingId)
+          .eq('product_id', savedId);
+        if (weightError) {
+          return { error: weightError.message || 'Could not save weight options.' };
+        }
+        keepIds.add(existingId);
+      } else {
+        const { error: weightError } = await ctx.supabase.from('product_weight_options').insert({
+          product_id: savedId,
+          weight_grams: row.weight_grams,
+          is_active: row.is_active,
+          display_order: row.display_order,
+        });
+        if (weightError) {
+          return { error: weightError.message || 'Could not save weight options.' };
+        }
+      }
+    }
+    for (const row of allWeights ?? []) {
+      if (!keepIds.has(row.id)) {
+        await ctx.supabase
+          .from('product_weight_options')
           .update({ is_active: false })
           .eq('id', row.id)
           .eq('product_id', savedId);

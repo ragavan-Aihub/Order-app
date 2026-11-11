@@ -9,7 +9,7 @@ let memoryProducts: Product[] | null = null;
 let inflight: Promise<Product[]> | null = null;
 
 const PRODUCT_ROW_SELECT =
-  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, minimum_weight_grams, maximum_weight_grams, image_url, available, active, category_id, created_at, updated_at';
+  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, price_per_liter, image_url, available, active, category_id, created_at, updated_at';
 
 /** Drop cached catalog so the next fetch hits the network (e.g. after “now available” push). */
 export function invalidateProductCatalogCache(): void {
@@ -150,6 +150,48 @@ async function attachPacks(
     .eq('is_active', true)
     .in('product_id', ids)
     .order('display_order', { ascending: true });
+  const literIds = products.filter((product) => product.selling_type === 'liter').map((product) => product.id);
+  const volumesByProduct = new Map<string, NonNullable<Product['volumeOptions']>>();
+  if (literIds.length > 0) {
+    const { data: volumeData } = await supabase
+      .from('product_volume_options')
+      .select('id, product_id, volume_ml, is_active, display_order')
+      .eq('is_active', true)
+      .in('product_id', literIds)
+      .order('display_order', { ascending: true });
+    for (const row of volumeData ?? []) {
+      const list = volumesByProduct.get(row.product_id) ?? [];
+      list.push({
+        id: row.id,
+        product_id: row.product_id,
+        volume_ml: Number(row.volume_ml),
+        is_active: Boolean(row.is_active),
+        display_order: Number(row.display_order) || 0,
+      });
+      volumesByProduct.set(row.product_id, list);
+    }
+  }
+  const kgIds = products.filter((product) => product.selling_type === 'kg').map((product) => product.id);
+  const weightsByProduct = new Map<string, NonNullable<Product['weightOptions']>>();
+  if (kgIds.length > 0) {
+    const { data: weightData } = await supabase
+      .from('product_weight_options')
+      .select('id, product_id, weight_grams, is_active, display_order')
+      .eq('is_active', true)
+      .in('product_id', kgIds)
+      .order('display_order', { ascending: true });
+    for (const row of weightData ?? []) {
+      const list = weightsByProduct.get(row.product_id) ?? [];
+      list.push({
+        id: row.id,
+        product_id: row.product_id,
+        weight_grams: Number(row.weight_grams),
+        is_active: Boolean(row.is_active),
+        display_order: Number(row.display_order) || 0,
+      });
+      weightsByProduct.set(row.product_id, list);
+    }
+  }
   const byProduct = new Map<string, NonNullable<Product['packs']>>();
   for (const row of data ?? []) {
     const list = byProduct.get(row.product_id) ?? [];
@@ -166,8 +208,12 @@ async function attachPacks(
   return products.map((product) => ({
     ...product,
     selling_type:
-      product.selling_type === 'kg' || product.selling_type === 'fixed_pack' ? product.selling_type : 'quantity',
+      product.selling_type === 'kg' || product.selling_type === 'liter' || product.selling_type === 'fixed_pack'
+        ? product.selling_type
+        : 'quantity',
     packs: byProduct.get(product.id) ?? product.packs ?? [],
+    weightOptions: weightsByProduct.get(product.id) ?? product.weightOptions ?? [],
+    volumeOptions: volumesByProduct.get(product.id) ?? product.volumeOptions ?? [],
   }));
 }
 

@@ -8,7 +8,7 @@ import {
   routeForPushLaunch,
   takePendingPushLaunch,
 } from '@/notifications/pending-push-deeplink';
-import { homeParamsForAvailableProductPush } from '@/notifications/product-available-push-route';
+import { queueAvailableProductOrder } from '@/notifications/available-product-order';
 import { isPushAvailable } from '@/notifications/push-runtime';
 import { invalidateProductCatalogCache } from '@/services/products';
 import { getSupabaseClient } from '@/services/supabase';
@@ -26,10 +26,7 @@ export function useOrderPushRegistration() {
       },
       onOpenProduct: (productId: string) => {
         invalidateProductCatalogCache();
-        router.replace({
-          pathname: '/home',
-          params: homeParamsForAvailableProductPush(productId),
-        });
+        queueAvailableProductOrder(productId);
       },
       onOpenHome: () => {
         router.replace('/home');

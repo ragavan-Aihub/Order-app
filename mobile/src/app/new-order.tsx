@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -12,10 +12,12 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
+import { cartItemFromAdd } from '@/cart/add-line';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { clearNewOrderIntent, takeNewOrderIntent } from '@/cart/new-order-intent';
 import { newOrderEligibilityForAddresses, type AddressNewOrderRow } from '@/cart/open-cart-guard';
 import { colors, spacing } from '@/config/theme';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { NewOrderAddressPicker } from '@/sam/NewOrderAddressPicker';
 import { findOpenOrderForAddress } from '@/services/orders';
 
@@ -71,7 +73,7 @@ export default function NewOrderScreen() {
       await selectAddress(address.id);
       const pending = takeNewOrderIntent();
       if (pending) {
-        addItem(pending.product, pending.quantity);
+        addItem(pending.product, pending.quantity, pending.extras);
       }
       if (next === 'cart') {
         router.replace('/cart');
@@ -79,7 +81,12 @@ export default function NewOrderScreen() {
         leave();
       }
     } catch (error) {
-      Alert.alert('Could not switch address', error instanceof Error ? error.message : 'Please try again.');
+      showAppDialog({
+        title: 'Could not switch address',
+        message: error instanceof Error ? error.message : 'Please try again.',
+        icon: 'location',
+        tone: 'warning',
+      });
     } finally {
       setBusy(false);
     }
@@ -103,9 +110,11 @@ export default function NewOrderScreen() {
           choose(address).catch(() => undefined);
         }}
         onModify={(order) => {
-          clearNewOrderIntent();
-          leave();
-          goModifyOrder(order, beginEditOrder);
+          const pending = takeNewOrderIntent();
+          const additions = pending
+            ? [cartItemFromAdd(pending.product, pending.quantity, pending.extras)]
+            : undefined;
+          goModifyOrder(order, beginEditOrder, { skipConfirm: true, additions });
         }}
         onViewOrder={(order) => router.push({ pathname: '/confirmation', params: { id: order.id } })}
         onAdd={() => router.push({ pathname: '/address/form', params: { next: 'back' } })}

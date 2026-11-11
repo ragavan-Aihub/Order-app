@@ -102,7 +102,7 @@ export async function updateOrderStatus(
   }
 
   revalidateOrder(orderId);
-  void notifyOrderStatusPush(orderId, status);
+  await notifyOrderStatusPush(orderId, status, session.access_token);
   const orderLabel = formatOrderNumber(current.order_number ?? 0);
   await logAdminAudit(
     { supabase, businessId: profile.business_id, adminUserId: user.id },

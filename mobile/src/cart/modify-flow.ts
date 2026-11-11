@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
-import { Alert } from 'react-native';
 
 import type { CartItem } from '@/cart/CartContext';
+import { showAppDialog } from '@/components/AppDialogHost';
 import {
   enrichCartItemsForEdit,
   instantCartItemsForEdit,
@@ -40,28 +40,57 @@ export function unlockModify() {
 }
 
 export function alertUpdateLimit(status: string) {
-  Alert.alert('Modify limit reached', orderLockedMessage(status));
+  showAppDialog({
+    title: 'Modify limit reached',
+    message: orderLockedMessage(status),
+    icon: 'lock-closed',
+    tone: 'warning',
+  });
 }
 
 export function alertShopModified() {
-  Alert.alert('Cannot modify', orderShopModifiedMessage());
+  showAppDialog({
+    title: 'Cannot modify',
+    message: orderShopModifiedMessage(),
+    icon: 'alert-circle',
+    tone: 'warning',
+  });
 }
 
 export function alertModifyDiscarded(status: OrderStatus | null, orderNumber: number | null) {
   const label = orderNumber ? `Order #${formatOrderNumber(orderNumber)}` : 'Your order';
   if (status === 'cancelled') {
-    Alert.alert(`${label} was cancelled`, 'Your changes were not saved.');
+    showAppDialog({
+      title: `${label} was cancelled`,
+      message: 'Your changes were not saved.',
+      icon: 'close-circle',
+      tone: 'danger',
+    });
     return;
   }
   if (status === 'delivered') {
-    Alert.alert(`${label} was delivered`, 'Your changes were not saved.');
+    showAppDialog({
+      title: `${label} was delivered`,
+      message: 'Your changes were not saved.',
+      icon: 'checkmark-circle',
+    });
     return;
   }
   if (status === 'out_for_delivery') {
-    Alert.alert(`${label} is out for delivery`, 'Your changes were not saved. The order will arrive as originally placed.');
+    showAppDialog({
+      title: `${label} is out for delivery`,
+      message: 'Your changes were not saved. The order will arrive as originally placed.',
+      icon: 'bicycle',
+      tone: 'warning',
+    });
     return;
   }
-  Alert.alert(`${label} can no longer be changed`, 'Your changes were not saved.');
+  showAppDialog({
+    title: `${label} can no longer be changed`,
+    message: 'Your changes were not saved.',
+    icon: 'lock-closed',
+    tone: 'warning',
+  });
 }
 
 function orderWithItems(order: Order | OrderWithItems): OrderWithItems | undefined {
@@ -71,18 +100,27 @@ function orderWithItems(order: Order | OrderWithItems): OrderWithItems | undefin
   return order;
 }
 
+type BeginEditOrder = (
+  orderId: string,
+  items: CartItem[],
+  order?: Order,
+  additions?: CartItem[],
+) => void;
+
 function openCartForEdit(
   order: Order,
   items: CartItem[],
-  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
+  beginEditOrder: BeginEditOrder,
+  additions?: CartItem[],
 ) {
-  beginEditOrder(order.id, items, order);
-  router.navigate({ pathname: '/cart', params: { focus: 'add' } });
+  beginEditOrder(order.id, items, order, additions);
+  router.navigate('/cart');
 }
 
 function backgroundEnrichEdit(
   order: OrderWithItems,
-  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
+  beginEditOrder: BeginEditOrder,
+  additions?: CartItem[],
 ) {
   void Promise.all([
     selectAddressForOrder(order).catch(() => undefined),
@@ -91,7 +129,7 @@ function backgroundEnrichEdit(
   ])
     .then(([, enriched, fresh]) => {
       if (enriched.length) {
-        beginEditOrder(order.id, enriched, fresh ?? order);
+        beginEditOrder(order.id, enriched, fresh ?? order, additions);
       }
     })
     .catch(() => undefined);
@@ -99,9 +137,10 @@ function backgroundEnrichEdit(
 
 function enterModifyOrder(
   order: Order | OrderWithItems,
-  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
+  beginEditOrder: BeginEditOrder,
+  additions?: CartItem[],
 ) {
-  if (!tryLockModify()) {
+  if (!tryLockModify() && !additions?.length) {
     return;
   }
 
@@ -111,12 +150,12 @@ function enterModifyOrder(
     if (instant.length) {
       void getMyOrderById(order.id)
         .then((fresh) => {
-          openCartForEdit(fresh ?? order, instant, beginEditOrder);
-          backgroundEnrichEdit(snapshot, beginEditOrder);
+          openCartForEdit(fresh ?? order, instant, beginEditOrder, additions);
+          backgroundEnrichEdit(snapshot, beginEditOrder, additions);
         })
         .catch(() => {
-          openCartForEdit(order, instant, beginEditOrder);
-          backgroundEnrichEdit(snapshot, beginEditOrder);
+          openCartForEdit(order, instant, beginEditOrder, additions);
+          backgroundEnrichEdit(snapshot, beginEditOrder, additions);
         })
         .finally(unlockModify);
       return;
@@ -130,10 +169,15 @@ function enterModifyOrder(
       }
       await selectAddressForOrder(order).catch(() => undefined);
       const fresh = (await getMyOrderById(order.id)) ?? order;
-      openCartForEdit(fresh, next, beginEditOrder);
+      openCartForEdit(fresh, next, beginEditOrder, additions);
     })
     .catch((error) => {
-      Alert.alert('Could not load', error instanceof Error ? error.message : 'Could not load that order.');
+      showAppDialog({
+        title: 'Could not load',
+        message: error instanceof Error ? error.message : 'Could not load that order.',
+        icon: 'cloud-offline',
+        tone: 'warning',
+      });
     })
     .finally(unlockModify);
 }
@@ -143,7 +187,12 @@ async function canEnterCustomerModify(order: Order | OrderWithItems): Promise<bo
     if (isOpenOrderStatus(order.status)) {
       alertUpdateLimit(order.status);
     } else {
-      Alert.alert('Cannot modify', 'This order can no longer be changed.');
+      showAppDialog({
+        title: 'Cannot modify',
+        message: 'This order can no longer be changed.',
+        icon: 'lock-closed',
+        tone: 'warning',
+      });
     }
     return false;
   }
@@ -155,7 +204,12 @@ async function canEnterCustomerModify(order: Order | OrderWithItems): Promise<bo
       return false;
     }
   } catch {
-    Alert.alert('Cannot modify', 'Could not verify this order. Try again in a moment.');
+    showAppDialog({
+      title: 'Cannot modify',
+      message: 'Could not verify this order. Try again in a moment.',
+      icon: 'cloud-offline',
+      tone: 'warning',
+    });
     return false;
   }
 
@@ -164,8 +218,8 @@ async function canEnterCustomerModify(order: Order | OrderWithItems): Promise<bo
 
 export function goModifyOrder(
   order: Order | OrderWithItems,
-  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
-  options?: { skipConfirm?: boolean },
+  beginEditOrder: BeginEditOrder,
+  options?: { skipConfirm?: boolean; additions?: CartItem[] },
 ) {
   void canEnterCustomerModify(order).then((allowed) => {
     if (!allowed) {
@@ -173,35 +227,46 @@ export function goModifyOrder(
     }
 
     if (options?.skipConfirm) {
-      enterModifyOrder(order, beginEditOrder);
+      enterModifyOrder(order, beginEditOrder, options.additions);
       return;
     }
 
-    Alert.alert('Modify this order?', 'Open the cart to change items on this order?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Modify order',
-        onPress: () => {
-          setTimeout(() => enterModifyOrder(order, beginEditOrder), 200);
+    const orderLabel = order.order_number
+      ? `order #${formatOrderNumber(order.order_number)}`
+      : 'this order';
+    showAppDialog({
+      title: 'Modify this order?',
+      message: options?.additions?.length
+        ? `Add these items to ${orderLabel}? Your current order will be updated when you tap Update order.`
+        : `Open the cart to change items on ${orderLabel}?`,
+      icon: 'create',
+      actions: [
+        {
+          label: 'Modify order',
+          onPress: () => {
+            enterModifyOrder(order, beginEditOrder, options?.additions);
+          },
         },
-      },
-    ]);
+      ],
+    });
   });
 }
 
 export function promptOpenOrderModify(
   order: Order,
-  beginEditOrder: (orderId: string, items: CartItem[], order?: Order) => void,
+  beginEditOrder: BeginEditOrder,
 ) {
-  Alert.alert('Open order', openOrderCartMessage(order), [
-    { text: 'Not now', style: 'cancel' },
-    {
-      text: 'Modify',
-      onPress: () => {
-        setTimeout(() => {
+  showAppDialog({
+    title: 'Open order',
+    message: openOrderCartMessage(order),
+    icon: 'bag-handle',
+    actions: [
+      {
+        label: 'Modify',
+        onPress: () => {
           goModifyOrder(order, beginEditOrder, { skipConfirm: true });
-        }, 200);
+        },
       },
-    },
-  ]);
+    ],
+  });
 }

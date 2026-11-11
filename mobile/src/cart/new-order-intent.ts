@@ -1,6 +1,7 @@
+import type { CartAddExtras } from '@/cart/add-line';
 import type { Product } from '@/types/product';
 
-type NewOrderIntent = { product: Product; quantity: number };
+type NewOrderIntent = { product: Product; quantity: number; extras?: CartAddExtras };
 
 let intent: NewOrderIntent | null = null;
 

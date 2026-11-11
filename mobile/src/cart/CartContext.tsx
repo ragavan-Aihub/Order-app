@@ -1,5 +1,6 @@
-import { Alert } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import { showAppDialog } from '@/components/AppDialogHost';
 
 import { loadCart, loadEditingOrderId, saveCart, saveEditingOrderId } from '@/cart/cart-storage';
 import {
@@ -19,6 +20,7 @@ export type CartItem = {
   product: Product;
   quantity: number;
   weightGrams?: number | null;
+  volumeMl?: number | null;
   packOptionId?: string | null;
   packWeightGrams?: number | null;
 };
@@ -34,17 +36,18 @@ type CartContextValue = {
   openOrder: Order | null;
   openOrderBlock: Order | null;
   openOrderReady: boolean;
+  cartReady: boolean;
   addItem: (
     product: Product,
     quantity?: number,
-    extras?: { weightGrams?: number; packOptionId?: string; packWeightGrams?: number },
+    extras?: { weightGrams?: number; volumeMl?: number; packOptionId?: string; packWeightGrams?: number },
   ) => boolean;
   increase: (productId: string, lineKey?: string) => void;
   decrease: (productId: string, lineKey?: string) => void;
   remove: (productId: string, lineKey?: string) => void;
   replaceItems: (next: CartItem[]) => void;
   clearCart: () => void;
-  beginEditOrder: (orderId: string, next: CartItem[], order?: Order) => void;
+  beginEditOrder: (orderId: string, next: CartItem[], order?: Order, additions?: CartItem[]) => void;
   markOrderSaved: (next: CartItem[]) => void;
   clearEditOrder: () => void;
   syncEditingItemsRevision: (revision: number) => void;
@@ -60,38 +63,54 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+function mergeCartLine(items: CartItem[], incoming: CartItem): CartItem[] {
+  const key = cartLineKey(incoming);
+  const existing = items.find((item) => cartLineKey(item) === key);
+  if (!existing) {
+    return [...items, incoming];
+  }
+  return items.map((item) =>
+    cartLineKey(item) === key
+      ? { ...item, quantity: Math.min(MAX_ITEM_QTY, item.quantity + incoming.quantity) }
+      : item,
+  );
+}
+
 function clampCart(items: CartItem[]) {
   return items
     .filter((item) => {
       if (item.product.available === false) {
         return false;
       }
-      if (sellingTypeOf(item.product) === 'kg') {
-        return (item.weightGrams ?? 0) > 0;
+      if (sellingTypeOf(item.product) === 'kg' && (item.weightGrams ?? 0) <= 0) {
+        return false;
+      }
+      if (sellingTypeOf(item.product) === 'liter' && (item.volumeMl ?? 0) <= 0) {
+        return false;
       }
       return item.quantity > 0;
     })
     .slice(0, MAX_CART_ITEMS)
-    .map((item) => {
-      if (sellingTypeOf(item.product) === 'kg') {
-        return { ...item, quantity: 1, weightGrams: item.weightGrams ?? 0 };
-      }
-      return {
-        ...item,
-        quantity: Math.min(MAX_ITEM_QTY, Math.max(1, Math.floor(item.quantity))),
-      };
-    });
+    .map((item) => ({
+      ...item,
+      quantity: Math.min(MAX_ITEM_QTY, Math.max(1, Math.floor(item.quantity))),
+    }));
 }
 
 function cartFingerprint(items: CartItem[]) {
   return clampCart(items)
-    .map((item) => `${cartLineKey(item)}:${item.quantity}:${item.weightGrams ?? 0}`)
+    .map((item) => `${cartLineKey(item)}:${item.quantity}:${item.weightGrams ?? 0}:${item.volumeMl ?? 0}`)
     .sort()
     .join('|');
 }
 
 function notifyLimit(kind: 'items' | 'qty') {
-  Alert.alert('Order limit', kind === 'items' ? CART_LIMIT_ITEMS : CART_LIMIT_QTY);
+  showAppDialog({
+    title: 'Order limit',
+    message: kind === 'items' ? CART_LIMIT_ITEMS : CART_LIMIT_QTY,
+    icon: 'alert-circle',
+    tone: 'warning',
+  });
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -117,17 +136,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setResumeEdit(false);
   }, []);
 
-  const beginEditOrder = useCallback((orderId: string, next: CartItem[], order?: Order) => {
-    const clamped = clampCart(next);
+  const beginEditOrder = useCallback((orderId: string, next: CartItem[], order?: Order, additions?: CartItem[]) => {
+    const original = clampCart(next);
+    const merged = clampCart((additions ?? []).reduce((rows, line) => mergeCartLine(rows, line), original));
     setOpenOrderReady(false);
     if (order?.id === orderId) {
       setOpenOrder(order);
     }
     setEditingOrderId(orderId);
     setEditingItemsRevision(order?.items_revision ?? 0);
-    setItems(clamped);
-    setSavedFingerprint(cartFingerprint(clamped));
-    setOriginalItems(clamped);
+    setItems(merged);
+    setSavedFingerprint(cartFingerprint(original));
+    setOriginalItems(original);
     void getMyOrderById(orderId)
       .then((fresh) => {
         if (fresh?.items_revision != null) {
@@ -303,7 +323,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items, ready]);
 
   const value = useMemo<CartContextValue>(() => {
-    const itemCount = items.reduce((sum, item) => sum + (sellingTypeOf(item.product) === 'kg' ? 1 : item.quantity), 0);
+    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
     const editing = Boolean(openOrder && editingOrderId === openOrder.id);
     const originalQty = new Map((originalItems ?? []).map((item) => [item.product.id, item.quantity]));
@@ -318,6 +338,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       openOrderBlock:
         editing || !openOrder || !isOpenOrderStatus(openOrder.status) ? null : openOrder,
       openOrderReady,
+      cartReady: ready,
       hasOrderChanges: Boolean(
         editing &&
           savedFingerprint !== null &&
@@ -351,22 +372,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const add = Math.max(1, Math.floor(quantity));
         const nextLine: CartItem = {
           product,
-          quantity: type === 'kg' ? 1 : add,
+          quantity: add,
           weightGrams: extras?.weightGrams ?? (type === 'kg' ? 0 : null),
+          volumeMl: extras?.volumeMl ?? (type === 'liter' ? 0 : null),
           packOptionId: extras?.packOptionId ?? null,
           packWeightGrams: extras?.packWeightGrams ?? null,
         };
         const key = cartLineKey(nextLine);
         setItems((current) => {
           const existing = current.find((item) => cartLineKey(item) === key);
-          if (type === 'kg') {
-            const without = current.filter((item) => item.product.id !== product.id);
-            if (!existing && without.length >= MAX_CART_ITEMS) {
-              notifyLimit('items');
-              return current;
-            }
-            return [...without, nextLine];
-          }
           if (existing) {
             if (existing.quantity >= MAX_ITEM_QTY) {
               notifyLimit('qty');
@@ -390,7 +404,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItems((current) => {
           const key = lineKey ?? productId;
           const existing = current.find((item) => cartLineKey(item) === key);
-          if (!existing || sellingTypeOf(existing.product) === 'kg') {
+          if (!existing) {
             return current;
           }
           if (existing.quantity >= MAX_ITEM_QTY) {
@@ -407,12 +421,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
           current
             .map((item) => {
               const key = lineKey ?? productId;
-              if (cartLineKey(item) !== key || sellingTypeOf(item.product) === 'kg') {
+              if (cartLineKey(item) !== key) {
                 return item;
               }
               return { ...item, quantity: item.quantity - 1 };
             })
-            .filter((item) => (sellingTypeOf(item.product) === 'kg' ? (item.weightGrams ?? 0) > 0 : item.quantity > 0)),
+            .filter((item) => item.quantity > 0),
         );
       },
       remove(productId, lineKey) {
@@ -462,6 +476,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     openOrder,
     openOrderReady,
     originalItems,
+    ready,
     refreshOpenOrder,
     resumeEdit,
     savedFingerprint,

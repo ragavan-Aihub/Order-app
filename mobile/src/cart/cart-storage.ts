@@ -8,6 +8,7 @@ type StoredCartItem = {
   product: Product;
   quantity: number;
   weightGrams?: number | null;
+  volumeMl?: number | null;
   packOptionId?: string | null;
   packWeightGrams?: number | null;
 };
@@ -41,12 +42,14 @@ function parseItems(raw: string): StoredCartItem[] {
       const stored = item as StoredCartItem;
       const quantity = stored.quantity;
       const weightGrams = stored.weightGrams;
+      const volumeMl = stored.volumeMl;
       return (
         isProduct(stored.product) &&
         typeof quantity === 'number' &&
         Number.isFinite(quantity) &&
         quantity > 0 &&
-        (stored.product.selling_type !== 'kg' || (typeof weightGrams === 'number' && weightGrams > 0))
+        (stored.product.selling_type !== 'kg' || (typeof weightGrams === 'number' && weightGrams > 0)) &&
+        (stored.product.selling_type !== 'liter' || (typeof volumeMl === 'number' && volumeMl > 0))
       );
     });
   } catch {

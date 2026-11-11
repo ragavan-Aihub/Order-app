@@ -9,6 +9,7 @@ export type Business = {
   banner_url: string | null;
   shop_closed?: boolean | null;
   shop_closed_message?: string | null;
+  min_order_amount?: number | null;
   announcement_active?: boolean | null;
   announcement_title?: string | null;
   announcement_body?: string | null;

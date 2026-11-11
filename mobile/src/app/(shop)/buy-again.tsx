@@ -19,7 +19,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { HomeHeader } from '@/components/HomeHeader';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { ProductCard } from '@/components/ProductCard';
+import { HomeProductGridItem } from '@/components/HomeProductGridItem';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
@@ -28,7 +28,7 @@ import { getReorderOrders } from '@/services/orders';
 import { getAvailableProducts } from '@/services/products';
 import { getSignedInUser } from '@/services/supabase';
 import type { Product } from '@/types/product';
-import { sortProductsForDisplay } from '@/utils/product-list-sort';
+import { productMatchesSearch, sortProductsForDisplay, sortProductsForSearch } from '@/utils/product-list-sort';
 
 export default function BuyAgainScreen() {
   const router = useRouter();
@@ -89,19 +89,21 @@ export default function BuyAgainScreen() {
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const list = !term
-      ? products
-      : products.filter(
-          (product) =>
-            product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term),
-        );
-    return sortProductsForDisplay(list);
+    const list = !term ? products : products.filter((product) => productMatchesSearch(product, term));
+    return term ? sortProductsForSearch(list, term) : sortProductsForDisplay(list);
   }, [products, query]);
 
   const quantityById = useMemo(() => {
     const map: Record<string, number> = {};
     for (const item of items) {
-      map[item.product.id] = item.quantity;
+      if (
+        item.product.selling_type === 'kg' ||
+        item.product.selling_type === 'liter' ||
+        item.product.selling_type === 'fixed_pack'
+      ) {
+        continue;
+      }
+      map[item.product.id] = (map[item.product.id] ?? 0) + item.quantity;
     }
     return map;
   }, [items]);
@@ -180,22 +182,19 @@ export default function BuyAgainScreen() {
         ) : (
           <View style={styles.grid}>
             {visibleProducts.map((product) => (
-              <View key={product.id} style={styles.gridItem}>
-                <ProductCard
-                  product={product}
-                  quantity={quantityById[product.id] ?? 0}
-                  onAddToCart={() => addToCart(product, 1)}
-                  onIncrease={() => increase(product.id)}
-                  onDecrease={() => decrease(product.id)}
-                  notifyNotified={isNotified(product.id)}
-                  notifyBusy={busyId === product.id}
-                  onNotifyPress={
-                    product.available === false
-                      ? () => void onNotifyPress(product.id, product.name)
-                      : undefined
-                  }
-                />
-              </View>
+              <HomeProductGridItem
+                key={product.id}
+                product={product}
+                quantity={quantityById[product.id] ?? 0}
+                highlighted={false}
+                highlightFromPush={false}
+                notifyNotified={isNotified(product.id)}
+                notifyBusy={busyId === product.id}
+                onAddToCart={addToCart}
+                onIncrease={increase}
+                onDecrease={decrease}
+                onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
+              />
             ))}
           </View>
         )}
@@ -263,10 +262,5 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'stretch',
     marginHorizontal: -4,
-  },
-  gridItem: {
-    width: '50%',
-    padding: 4,
-    alignItems: 'stretch',
   },
 });

@@ -373,7 +373,7 @@ async function fetchItemLines(
     const chunk = ids.slice(i, i + 200);
     const { data } = await supabase
       .from('order_items')
-      .select('order_id, product_name, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams')
+      .select('order_id, product_name, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, volume_ml')
       .in('order_id', chunk);
     for (const row of data ?? []) {
       const order = byId.get(row.order_id);
@@ -389,6 +389,7 @@ async function fetchItemLines(
         selling_unit: row.selling_unit,
         pack_weight_grams: row.pack_weight_grams,
         weight_grams: row.weight_grams,
+        volume_ml: row.volume_ml,
       });
     }
   }

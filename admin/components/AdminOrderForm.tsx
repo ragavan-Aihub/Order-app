@@ -18,7 +18,14 @@ import { AddressFields, type AddressFieldsValue } from '@/components/AddressFiel
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
-import { catalogPriceLabel, parseKgInput, roundMoney } from '@/lib/selling-units';
+import {
+  catalogPriceLabel,
+  formatVolume,
+  formatWeight,
+  roundMoney,
+  volumeOptionPrice,
+  weightOptionPrice,
+} from '@/lib/selling-units';
 import { createAdminOrder, createCustomer, deleteCustomer, findCustomerByMobile } from '@/services/customer-actions';
 import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
@@ -102,7 +109,8 @@ type ProductRow =
       kind: 'line';
       productId: string;
       quantity: number;
-      weightKg?: string;
+      weightGrams?: number;
+      volumeMl?: number;
       packOptionId?: string;
     };
 
@@ -224,9 +232,9 @@ export function AdminOrderForm({
       const type = product.selling_type ?? 'quantity';
       let subtotal = roundMoney(product.price * row.quantity);
       if (type === 'kg') {
-        const parsed = parseKgInput(row.weightKg ?? '');
-        const grams = 'grams' in parsed ? parsed.grams : 0;
-        subtotal = roundMoney((product.price_per_kg ?? product.price) * (grams / 1000));
+        subtotal = weightOptionPrice(product.price_per_kg ?? product.price, row.weightGrams ?? 0, row.quantity);
+      } else if (type === 'liter') {
+        subtotal = volumeOptionPrice(product.price_per_liter ?? product.price, row.volumeMl ?? 0, row.quantity);
       } else if (type === 'fixed_pack') {
         const pack = (product.packs ?? []).find((item) => item.id === row.packOptionId && item.is_active);
         subtotal = roundMoney((pack?.selling_price ?? product.price) * row.quantity);
@@ -236,7 +244,8 @@ export function AdminOrderForm({
           rowId: row.id,
           product,
           quantity: row.quantity,
-          weightKg: row.weightKg,
+          weightGrams: row.weightGrams,
+          volumeMl: row.volumeMl,
           packOptionId: row.packOptionId,
           subtotal,
         },
@@ -406,7 +415,14 @@ export function AdminOrderForm({
         kind: 'line',
         productId: product.id,
         quantity: 1,
-        weightKg: product.selling_type === 'kg' ? '1' : undefined,
+        weightGrams:
+          product.selling_type === 'kg'
+            ? (product.weightOptions ?? []).find((option) => option.is_active)?.weight_grams
+            : undefined,
+        volumeMl:
+          product.selling_type === 'liter'
+            ? (product.volumeOptions ?? []).find((option) => option.is_active)?.volume_ml
+            : undefined,
         packOptionId: product.selling_type === 'fixed_pack' ? firstPack?.id : undefined,
       };
       return ensureTrailingSearch(next, createProductRowId);
@@ -531,9 +547,21 @@ export function AdminOrderForm({
     for (const line of lines) {
       const type = line.product.selling_type ?? 'quantity';
       if (type === 'kg') {
-        const parsed = parseKgInput(line.weightKg ?? '');
-        if ('error' in parsed) {
-          setError(`${line.product.name}: ${parsed.error}`);
+        const valid = (line.product.weightOptions ?? []).some(
+          (option) => option.is_active && option.weight_grams === line.weightGrams,
+        );
+        if (!valid) {
+          setError(`${line.product.name}: choose a weight option (add options in the product first).`);
+          productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+      if (type === 'liter') {
+        const valid = (line.product.volumeOptions ?? []).some(
+          (option) => option.is_active && option.volume_ml === line.volumeMl,
+        );
+        if (!valid) {
+          setError(`${line.product.name}: choose a volume option (add options in the product first).`);
           productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           return;
         }
@@ -567,11 +595,11 @@ export function AdminOrderForm({
         pincode: useTypedAddress ? ship.pincode : undefined,
         notes,
         items: lines.map((line) => {
-          const parsedKg = line.product.selling_type === 'kg' ? parseKgInput(line.weightKg ?? '') : null;
           return {
             productId: line.product.id,
             quantity: line.quantity,
-            weightGrams: parsedKg && 'grams' in parsedKg ? parsedKg.grams : undefined,
+            weightGrams: line.product.selling_type === 'kg' ? line.weightGrams : undefined,
+            volumeMl: line.product.selling_type === 'liter' ? line.volumeMl : undefined,
             packOptionId: line.packOptionId,
           };
         }),
@@ -910,22 +938,52 @@ export function AdminOrderForm({
                           <p className="truncate text-sm font-semibold text-stone-900">{product.name}</p>
                           <p className="text-xs tabular-nums text-stone-400">{catalogPriceLabel(product)}</p>
                           {type === 'kg' ? (
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={row.weightKg ?? ''}
+                            <select
+                              value={row.weightGrams ?? ''}
                               onChange={(event) =>
                                 setProductRows((current) =>
                                   current.map((item) =>
                                     item.id === row.id && item.kind === 'line'
-                                      ? { ...item, weightKg: event.target.value }
+                                      ? { ...item, weightGrams: Number(event.target.value) }
                                       : item,
                                   ),
                                 )
                               }
-                              placeholder="Kg"
-                              className="mt-1 min-h-8 w-24 rounded border border-stone-200 px-2 text-sm"
-                            />
+                              className="mt-1 min-h-8 w-full max-w-[12rem] rounded border border-stone-200 px-2 text-sm"
+                            >
+                              {(product.weightOptions ?? [])
+                                .filter((option) => option.is_active)
+                                .map((option) => (
+                                  <option key={option.id} value={option.weight_grams}>
+                                    {formatWeight(option.weight_grams)} · ₹
+                                    {weightOptionPrice(product.price_per_kg ?? product.price, option.weight_grams)}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : null}
+                          {type === 'liter' ? (
+                            <select
+                              value={row.volumeMl ?? ''}
+                              onChange={(event) =>
+                                setProductRows((current) =>
+                                  current.map((item) =>
+                                    item.id === row.id && item.kind === 'line'
+                                      ? { ...item, volumeMl: Number(event.target.value) }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              className="mt-1 min-h-8 w-full max-w-[12rem] rounded border border-stone-200 px-2 text-sm"
+                            >
+                              {(product.volumeOptions ?? [])
+                                .filter((option) => option.is_active)
+                                .map((option) => (
+                                  <option key={option.id} value={option.volume_ml}>
+                                    {formatVolume(option.volume_ml)} · ₹
+                                    {volumeOptionPrice(product.price_per_liter ?? product.price, option.volume_ml)}
+                                  </option>
+                                ))}
+                            </select>
                           ) : null}
                           {type === 'fixed_pack' ? (
                             <select
@@ -952,9 +1010,6 @@ export function AdminOrderForm({
                           ) : null}
                         </div>
                         <div className="flex justify-center">
-                          {type === 'kg' ? (
-                            <span className="text-sm text-stone-500">Kg</span>
-                          ) : (
                           <div className="flex items-center rounded-lg border border-stone-200 bg-white">
                             <button
                               type="button"
@@ -974,7 +1029,6 @@ export function AdminOrderForm({
                               <Plus size={14} />
                             </button>
                           </div>
-                          )}
                         </div>
                         <span className="text-right text-sm font-semibold tabular-nums text-stone-900">
                           {formatPrice(subtotal)}

@@ -24,7 +24,6 @@ export function destinationFor(next?: string | null): Href {
   if (next === 'cart') return '/cart';
   if (next === 'orders') return '/orders';
   if (next === 'buy-again' || next === 'reorder') return '/buy-again';
-  if (next === 'account') return '/account';
   if (next === 'sam') return '/sam';
   return '/home';
 }

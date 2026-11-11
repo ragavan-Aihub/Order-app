@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -17,6 +17,7 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { LABEL_ICONS } from '@/components/AddressPickerSheet';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -56,19 +57,26 @@ export default function SavedAddressesScreen() {
   }, []);
 
   function onDelete(id: string) {
-    Alert.alert('Delete address', 'Remove this address from your saved addresses?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteAddress(id);
-          const list = await loadAddressBook();
-          setAddresses(list);
-          setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
+    showAppDialog({
+      title: 'Delete address',
+      message: 'Remove this address from your saved addresses?',
+      icon: 'trash',
+      tone: 'danger',
+      actions: [
+        {
+          label: 'Delete',
+          variant: 'danger',
+          onPress: () => {
+            void (async () => {
+              await deleteAddress(id);
+              const list = await loadAddressBook();
+              setAddresses(list);
+              setSelectedId(getSelectedAddress()?.id ?? list[0]?.id ?? null);
+            })();
+          },
         },
-      },
-    ]);
+      ],
+    });
   }
 
   async function onSelect(id: string) {

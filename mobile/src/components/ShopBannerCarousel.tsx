@@ -2,14 +2,18 @@ import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
-  type NativeScrollEvent,
+  useWindowDimensions,
   type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from 'react-native';
 
 import { colors, radius, spacing } from '@/config/theme';
+
+const BANNER_RATIO = 16 / 7;
 
 export function ShopBannerCarousel({
   banners,
@@ -21,16 +25,16 @@ export function ShopBannerCarousel({
   const scrollerRef = useRef<ScrollView>(null);
   const indexRef = useRef(0);
   const pausedRef = useRef(false);
-  const [width, setWidth] = useState(0);
+  const autoplayRef = useRef(false);
+  const { width: windowWidth } = useWindowDimensions();
+  const pageWidth = Math.max(1, Math.round(windowWidth - spacing.md * 2));
+  const pageHeight = frameHeight && frameHeight > 0 ? frameHeight : Math.round(pageWidth / BANNER_RATIO);
   const [index, setIndex] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
-  const [ready, setReady] = useState<string[]>([]);
   const [reduceMotion, setReduceMotion] = useState(false);
-  const visible = banners
+  const shown = banners
     .map((banner) => ({ url: banner.url.trim(), focusY: banner.focusY }))
     .filter((banner) => banner.url.length > 0 && !failed.includes(banner.url));
-  const shown = visible.filter((banner) => ready.includes(banner.url));
-  const pending = visible.filter((banner) => !ready.includes(banner.url));
 
   useEffect(() => {
     let active = true;
@@ -47,7 +51,14 @@ export function ShopBannerCarousel({
   }, []);
 
   useEffect(() => {
-    if (reduceMotion || shown.length < 2 || width <= 0) {
+    if (indexRef.current >= shown.length) {
+      indexRef.current = 0;
+      setIndex(0);
+    }
+  }, [shown.length]);
+
+  useEffect(() => {
+    if (reduceMotion || shown.length < 2) {
       return;
     }
     const timer = setInterval(() => {
@@ -57,99 +68,81 @@ export function ShopBannerCarousel({
       const next = (indexRef.current + 1) % shown.length;
       indexRef.current = next;
       setIndex(next);
-      scrollerRef.current?.scrollTo({ x: next * width, animated: true });
+      autoplayRef.current = true;
+      const wrapToStart = next === 0;
+      scrollerRef.current?.scrollTo({
+        x: next * pageWidth,
+        animated: !wrapToStart,
+      });
+      setTimeout(() => {
+        autoplayRef.current = false;
+      }, wrapToStart ? 50 : 450);
     }, 4000);
     return () => clearInterval(timer);
-  }, [reduceMotion, shown.length, width]);
+  }, [pageWidth, reduceMotion, shown.length]);
 
   function rememberIndex(offsetX: number) {
-    if (width <= 0) {
+    if (autoplayRef.current || pageWidth <= 0) {
       return;
     }
-    const next = Math.round(offsetX / width);
-    const clamped = Math.min(Math.max(next, 0), shown.length - 1);
+    const next = Math.round(offsetX / pageWidth);
+    const clamped = Math.min(Math.max(next, 0), Math.max(shown.length - 1, 0));
     indexRef.current = clamped;
-    if (clamped !== index) {
-      setIndex(clamped);
-    }
+    setIndex((current) => (current === clamped ? current : clamped));
   }
 
-  function onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
-    rememberIndex(event.nativeEvent.contentOffset.x);
-  }
-
-  if (visible.length === 0) {
+  if (shown.length === 0) {
     return null;
   }
 
   return (
-    <>
-      {pending.map((banner) => (
-        <Image
-          key={`probe-${banner.url}`}
-          source={{ uri: banner.url }}
-          style={styles.probe}
-          onLoad={() => setReady((current) => (current.includes(banner.url) ? current : [...current, banner.url]))}
-          onError={() => setFailed((current) => (current.includes(banner.url) ? current : [...current, banner.url]))}
-        />
-      ))}
-      {shown.length === 0 || frameHeight === 0 ? null : (
-        <View style={styles.wrap}>
-          <View
-            onLayout={(event) => {
-              const nextWidth = Math.round(event.nativeEvent.layout.width);
-              if (nextWidth > 0 && nextWidth !== width) {
-                setWidth(nextWidth);
+    <View style={styles.wrap}>
+      <ScrollView
+        ref={scrollerRef}
+        horizontal
+        pagingEnabled={Platform.OS === 'ios'}
+        snapToInterval={pageWidth}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        decelerationRate="fast"
+        showsHorizontalScrollIndicator={false}
+        onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+          rememberIndex(event.nativeEvent.contentOffset.x);
+        }}
+        onScrollBeginDrag={() => {
+          pausedRef.current = true;
+        }}
+        onMomentumScrollEnd={(event) => {
+          rememberIndex(event.nativeEvent.contentOffset.x);
+          pausedRef.current = false;
+          autoplayRef.current = false;
+        }}
+        scrollEventThrottle={16}
+        nestedScrollEnabled
+      >
+        {shown.map((banner, slide) => (
+          <View key={`${banner.url}-${slide}`} style={[styles.frame, { width: pageWidth, height: pageHeight }]}>
+            <Image
+              source={{ uri: banner.url }}
+              style={styles.image}
+              contentFit="cover"
+              contentPosition={{ top: `${banner.focusY}%`, left: '50%' }}
+              accessibilityLabel="Shop poster"
+              onError={() =>
+                setFailed((current) => (current.includes(banner.url) ? current : [...current, banner.url]))
               }
-            }}
-          >
-            {width > 0 ? (
-              <ScrollView
-                ref={scrollerRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={onScroll}
-                onScrollBeginDrag={() => {
-                  pausedRef.current = true;
-                }}
-                onMomentumScrollEnd={(event) => {
-                  rememberIndex(event.nativeEvent.contentOffset.x);
-                  pausedRef.current = false;
-                }}
-                scrollEventThrottle={16}
-                decelerationRate="fast"
-              >
-                {shown.map((banner, slide) => (
-                  <View
-                    key={`${banner.url}-${slide}`}
-                    style={[styles.frame, frameHeight ? { width, height: frameHeight } : [styles.frameRatio, { width }]]}
-                  >
-                    <Image
-                      source={{ uri: banner.url }}
-                      style={styles.image}
-                      contentFit="cover"
-                      contentPosition={{ top: `${banner.focusY}%`, left: '50%' }}
-                      accessibilityLabel="Shop poster"
-                      onError={() =>
-                        setFailed((current) => (current.includes(banner.url) ? current : [...current, banner.url]))
-                      }
-                    />
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
+            />
           </View>
-          {width > 0 && shown.length > 1 ? (
-            <View style={styles.dots}>
-              {shown.map((banner, dot) => (
-                <View key={`${banner.url}-dot-${dot}`} style={[styles.dot, dot === index && styles.dotOn]} />
-              ))}
-            </View>
-          ) : null}
+        ))}
+      </ScrollView>
+      {shown.length > 1 ? (
+        <View style={styles.dots}>
+          {shown.map((banner, dot) => (
+            <View key={`${banner.url}-dot-${dot}`} style={[styles.dot, dot === index && styles.dotOn]} />
+          ))}
         </View>
-      )}
-    </>
+      ) : null}
+    </View>
   );
 }
 
@@ -158,19 +151,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
   },
-  probe: {
-    width: 1,
-    height: 1,
-    opacity: 0,
-    position: 'absolute',
-  },
   frame: {
     borderRadius: radius.md,
     overflow: 'hidden',
     backgroundColor: colors.border,
-  },
-  frameRatio: {
-    aspectRatio: 2 / 1,
   },
   image: {
     width: '100%',

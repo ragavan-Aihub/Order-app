@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type * as Notifications from 'expo-notifications';
 
-import { homeParamsForAvailableProductPush } from '@/notifications/product-available-push-route';
+import { queueAvailableProductOrder } from '@/notifications/available-product-order';
 import { getPushNavigationTarget } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
 
@@ -41,6 +41,9 @@ export function captureNotificationLaunchTarget(): Promise<PendingPushLaunch | n
       if (!target) {
         return null;
       }
+      if (target.kind === 'product') {
+        queueAvailableProductOrder(target.productId);
+      }
       pendingLaunch = { responseId: id, target };
       return pendingLaunch;
     })().catch(() => null);
@@ -68,21 +71,9 @@ export async function markPushLaunchHandled(responseId: string): Promise<void> {
 
 export function routeForPushLaunch(
   launch: PendingPushLaunch,
-):
-  | { pathname: '/home' }
-  | {
-      pathname: '/home';
-      params: ReturnType<typeof homeParamsForAvailableProductPush>;
-    }
-  | { pathname: '/order/[id]'; params: { id: string } } {
-  if (launch.target.kind === 'home') {
+): { pathname: '/home' } | { pathname: '/order/[id]'; params: { id: string } } {
+  if (launch.target.kind === 'home' || launch.target.kind === 'product') {
     return { pathname: '/home' };
-  }
-  if (launch.target.kind === 'product') {
-    return {
-      pathname: '/home',
-      params: homeParamsForAvailableProductPush(launch.target.productId),
-    };
   }
   return { pathname: '/order/[id]', params: { id: launch.target.orderId } };
 }

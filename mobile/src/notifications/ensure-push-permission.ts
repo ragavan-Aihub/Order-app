@@ -1,15 +1,18 @@
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
 
+import { showAppDialog } from '@/components/AppDialogHost';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { requestNotificationPermissionViaPreprompt } from '@/notifications/notification-permission-prequest';
 import { ensureAndroidOrderNotificationChannel, registerForOrderPush } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
 
 export function promptOpenNotificationSettings(): void {
-  Alert.alert(productNotifyCopy.settingsTitle, productNotifyCopy.settingsBody, [
-    { text: productNotifyCopy.settingsNotNow, style: 'cancel' },
-    { text: productNotifyCopy.settingsOpen, onPress: () => void Linking.openSettings() },
-  ]);
+  showAppDialog({
+    title: productNotifyCopy.settingsTitle,
+    message: productNotifyCopy.settingsBody,
+    icon: 'notifications',
+    actions: [{ label: productNotifyCopy.settingsOpen, onPress: () => void Linking.openSettings() }],
+  });
 }
 
 /** Notify me: custom sheet (why we notify) then one system dialog; Settings if OS blocked. */

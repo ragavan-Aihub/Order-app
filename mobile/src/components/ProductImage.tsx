@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors } from '@/config/theme';
 
-const PLACEHOLDER_BG = '#E4E4E7';
+const PLACEHOLDER_BG = colors.primarySoft;
 
 export function isValidProductImageUri(uri: string | null | undefined): boolean {
   const trimmed = uri?.trim();
@@ -54,15 +54,9 @@ export function ProductImage({
         accessibilityRole="image"
         accessibilityLabel={accessibilityLabel ?? 'No product image'}
       >
-        <Ionicons
-          name="image-outline"
-          size={compact ? 20 : 28}
-          color={colors.textMuted}
-          style={styles.icon}
-        />
-        <Text style={[styles.label, compact && styles.labelCompact]} numberOfLines={1}>
-          No Image
-        </Text>
+        <View style={[styles.iconWell, compact && styles.iconWellCompact]}>
+          <Ionicons name="leaf" size={compact ? 16 : 22} color={colors.primary} />
+        </View>
       </View>
     );
   }
@@ -88,7 +82,7 @@ export function ProductImage({
 const styles = StyleSheet.create({
   frame: {
     overflow: 'hidden',
-    backgroundColor: PLACEHOLDER_BG,
+    backgroundColor: colors.canvasTint,
   },
   image: {
     ...StyleSheet.absoluteFill,
@@ -99,25 +93,22 @@ const styles = StyleSheet.create({
     backgroundColor: PLACEHOLDER_BG,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
-    gap: 4,
   },
   placeholderCompact: {
-    gap: 2,
     paddingHorizontal: 4,
   },
-  icon: {
-    opacity: 0.85,
+  iconWell: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  labelCompact: {
-    fontSize: 9,
-    lineHeight: 11,
+  iconWellCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   dimmed: {
     opacity: 0.4,

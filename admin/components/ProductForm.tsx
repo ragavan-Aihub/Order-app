@@ -18,7 +18,15 @@ import {
   readImageFromNavigatorClipboard,
   readImageFromNextPaste,
 } from '@/lib/pasted-image';
-import { QUANTITY_UNIT_NAMES, type SellingType } from '@/lib/selling-units';
+import {
+  formatVolume,
+  formatWeight,
+  type SellingType,
+  VOLUME_PRESETS_ML,
+  volumeOptionPrice,
+  WEIGHT_PRESETS_GRAMS,
+  weightOptionPrice,
+} from '@/lib/selling-units';
 import { saveProduct } from '@/services/product-actions';
 import { ProductDeleteButton } from '@/components/ProductDeleteButton';
 
@@ -40,8 +48,19 @@ type ProductFormProps = {
     selling_type?: SellingType;
     selling_unit?: string | null;
     price_per_kg?: number | null;
-    minimum_weight_grams?: number | null;
-    maximum_weight_grams?: number | null;
+    price_per_liter?: number | null;
+    weightOptions?: Array<{
+      id: string;
+      weight_grams: number;
+      is_active: boolean;
+      display_order: number;
+    }>;
+    volumeOptions?: Array<{
+      id: string;
+      volume_ml: number;
+      is_active: boolean;
+      display_order: number;
+    }>;
     packs?: Array<{
       id: string;
       weight_grams: number;
@@ -82,15 +101,84 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [sellingType, setSellingType] = useState<SellingType>(product?.selling_type ?? 'quantity');
-  const [sellingUnit, setSellingUnit] = useState(product?.selling_unit ?? 'Piece');
   const initialPrice =
-    product?.selling_type === 'kg' && product.price_per_kg != null ? product.price_per_kg : product?.price;
+    product?.selling_type === 'kg' && product.price_per_kg != null
+      ? product.price_per_kg
+      : product?.selling_type === 'liter' && product.price_per_liter != null
+        ? product.price_per_liter
+        : product?.price;
   const [price, setPrice] = useState(initialPrice != null ? Number(initialPrice).toFixed(2) : '');
-  const gramsToKg = (grams?: number | null) =>
-    grams && grams > 0 ? String(grams / 1000) : '';
-  const [minimumKg, setMinimumKg] = useState(gramsToKg(product?.minimum_weight_grams));
-  const [maximumKg, setMaximumKg] = useState(gramsToKg(product?.maximum_weight_grams));
-  const [packs, setPacks] = useState(
+  const [weights, setWeights] = useState<Array<{ id?: string; weight_grams: number; is_active: boolean }>>(
+    () =>
+      product?.weightOptions?.map((row) => ({
+        id: row.id,
+        weight_grams: row.weight_grams,
+        is_active: row.is_active,
+      })) ?? [],
+  );
+  const [customGrams, setCustomGrams] = useState('');
+
+  function togglePresetWeight(grams: number) {
+    setWeights((current) => {
+      const found = current.find((row) => row.weight_grams === grams);
+      if (!found) {
+        return [...current, { weight_grams: grams, is_active: true }];
+      }
+      return current.map((row) => (row.weight_grams === grams ? { ...row, is_active: !row.is_active } : row));
+    });
+  }
+
+  function addCustomWeight() {
+    const grams = Number(customGrams);
+    if (!Number.isInteger(grams) || grams < 1 || grams > 100_000) {
+      setError('Enter a whole number of grams between 1 and 100000.');
+      return;
+    }
+    setError(null);
+    setWeights((current) =>
+      current.some((row) => row.weight_grams === grams)
+        ? current.map((row) => (row.weight_grams === grams ? { ...row, is_active: true } : row))
+        : [...current, { weight_grams: grams, is_active: true }],
+    );
+    setCustomGrams('');
+  }
+  const [volumes, setVolumes] = useState<Array<{ id?: string; volume_ml: number; is_active: boolean }>>(
+    () =>
+      product?.volumeOptions?.map((row) => ({
+        id: row.id,
+        volume_ml: row.volume_ml,
+        is_active: row.is_active,
+      })) ?? [],
+  );
+  const [customMl, setCustomMl] = useState('');
+
+  function togglePresetVolume(ml: number) {
+    setVolumes((current) => {
+      const found = current.find((row) => row.volume_ml === ml);
+      if (!found) {
+        return [...current, { volume_ml: ml, is_active: true }];
+      }
+      return current.map((row) => (row.volume_ml === ml ? { ...row, is_active: !row.is_active } : row));
+    });
+  }
+
+  function addCustomVolume() {
+    const ml = Number(customMl);
+    if (!Number.isInteger(ml) || ml < 1 || ml > 100_000) {
+      setError('Enter a whole number of ml between 1 and 100000.');
+      return;
+    }
+    setError(null);
+    setVolumes((current) =>
+      current.some((row) => row.volume_ml === ml)
+        ? current.map((row) => (row.volume_ml === ml ? { ...row, is_active: true } : row))
+        : [...current, { volume_ml: ml, is_active: true }],
+    );
+    setCustomMl('');
+  }
+  const [packs, setPacks] = useState<
+    Array<{ id?: string; weight_grams: string; selling_price: string; is_active: boolean }>
+  >(
     () =>
       product?.packs?.map((pack) => ({
         id: pack.id,
@@ -212,6 +300,15 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     setError(null);
     setImageError(null);
 
+    if (sellingType === 'kg' && !weights.some((row) => row.is_active)) {
+      setError('Add at least one weight option for this Kg product.');
+      return;
+    }
+    if (sellingType === 'liter' && !volumes.some((row) => row.is_active)) {
+      setError('Add at least one volume option for this Liter product.');
+      return;
+    }
+
     const priceValue = Number(price);
     if (
       sellingType !== 'fixed_pack' &&
@@ -229,10 +326,23 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
     formData.set('name', name.trim());
     formData.set('description', description.trim().slice(0, DESCRIPTION_MAX));
     formData.set('selling_type', sellingType);
-    formData.set('selling_unit', sellingUnit);
     formData.set('price', price);
-    formData.set('minimum_kg', minimumKg);
-    formData.set('maximum_kg', maximumKg);
+    formData.set(
+      'volumes',
+      JSON.stringify(
+        [...volumes]
+          .sort((a, b) => a.volume_ml - b.volume_ml)
+          .map((row, index) => ({ ...row, display_order: index })),
+      ),
+    );
+    formData.set(
+      'weights',
+      JSON.stringify(
+        [...weights]
+          .sort((a, b) => a.weight_grams - b.weight_grams)
+          .map((row, index) => ({ ...row, display_order: index })),
+      ),
+    );
     formData.set(
       'packs',
       JSON.stringify(
@@ -372,6 +482,24 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
           />
         </label>
 
+        {categoriesEnabled ? (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-stone-700">Category (optional)</span>
+            <select
+              value={categoryId}
+              onChange={(event) => setCategoryId(event.target.value)}
+              className={fieldClass}
+            >
+              <option value="">No category</option>
+              {categories.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium text-stone-700">Description</span>
           <div className="relative">
@@ -395,40 +523,21 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
           </span>
           <select
             value={sellingType}
-            onChange={(event) => {
-              const next = event.target.value as SellingType;
-              setSellingType(next);
-              if (next === 'quantity' && !QUANTITY_UNIT_NAMES.includes(sellingUnit as (typeof QUANTITY_UNIT_NAMES)[number])) {
-                setSellingUnit('Piece');
-              }
-            }}
+            onChange={(event) => setSellingType(event.target.value as SellingType)}
             className={fieldClass}
           >
-            <option value="quantity">Quantity (bottle, piece, packet, box)</option>
-            <option value="kg">Kg (customer enters weight)</option>
+            <option value="quantity">Qty (count)</option>
+            <option value="kg">Kg (customer picks a weight option)</option>
+            <option value="liter">Liter (customer picks a volume option)</option>
             <option value="fixed_pack">Fixed pack (100g, 250g, …)</option>
           </select>
         </label>
 
-        <div className={`grid gap-4 ${categoriesEnabled ? 'sm:grid-cols-2' : 'sm:max-w-sm'}`}>
-          {sellingType === 'quantity' ? (
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-stone-700">
-                Unit name <span className="text-red-500">*</span>
-              </span>
-              <select value={sellingUnit} onChange={(event) => setSellingUnit(event.target.value)} className={fieldClass}>
-                {QUANTITY_UNIT_NAMES.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+        <div className="grid gap-4 sm:max-w-sm">
           {sellingType !== 'fixed_pack' ? (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-stone-700">
-              {sellingType === 'kg' ? 'Price per Kg (₹)' : `Price per ${sellingUnit || 'unit'} (₹)`}{' '}
+              {sellingType === 'kg' ? 'Price per Kg (₹)' : sellingType === 'liter' ? 'Price per Liter (₹)' : 'Price (₹)'}{' '}
               <span className="text-red-500">*</span>
             </span>
             <div className="flex min-h-11 overflow-hidden rounded-lg border border-stone-300 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
@@ -436,7 +545,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
                 ₹
               </span>
               <input
-                required={sellingType !== 'fixed_pack'}
+                required
                 type="number"
                 min="0"
                 max={PRICE_MAX}
@@ -449,50 +558,199 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
             </div>
           </label>
           ) : null}
-
-          {categoriesEnabled ? (
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-stone-700">Category (optional)</span>
-              <select
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
-                className={fieldClass}
-              >
-                <option value="">No category</option>
-                {categories.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
         </div>
 
         {sellingType === 'kg' ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-stone-700">Minimum Kg (optional)</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={minimumKg}
-                onChange={(event) => setMinimumKg(event.target.value)}
-                placeholder="e.g. 0.25"
-                className={fieldClass}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-stone-700">Maximum Kg (optional)</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={maximumKg}
-                onChange={(event) => setMaximumKg(event.target.value)}
-                placeholder="e.g. 5"
-                className={fieldClass}
-              />
-            </label>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-stone-700">Weight options</p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Customers choose one of these weights, then a quantity. Each option costs price per Kg × weight.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {WEIGHT_PRESETS_GRAMS.map((grams) => {
+                const on = weights.some((row) => row.weight_grams === grams && row.is_active);
+                return (
+                  <button
+                    key={grams}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => togglePresetWeight(grams)}
+                    className={`min-h-10 rounded-full border px-4 text-sm font-semibold ${
+                      on
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                        : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    {formatWeight(grams)}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block text-xs text-stone-500">
+                Custom weight (g)
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={customGrams}
+                  onChange={(event) => setCustomGrams(event.target.value)}
+                  placeholder="e.g. 750"
+                  className={`${fieldClass} mt-1 min-h-10 w-36`}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={addCustomWeight}
+                className="min-h-10 rounded-lg border border-emerald-600 px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+              >
+                Add weight
+              </button>
+            </div>
+            {weights.length > 0 ? (
+              <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
+                {[...weights]
+                  .sort((a, b) => a.weight_grams - b.weight_grams)
+                  .map((row) => {
+                    const perKg = Number(price);
+                    return (
+                      <li key={row.weight_grams} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                        <span className="w-20 font-semibold text-stone-900">{formatWeight(row.weight_grams)}</span>
+                        <span className="w-24 text-stone-600">
+                          {Number.isFinite(perKg) && perKg > 0
+                            ? `₹${weightOptionPrice(perKg, row.weight_grams)}`
+                            : '—'}
+                        </span>
+                        <label className="flex items-center gap-2 text-stone-700">
+                          <input
+                            type="checkbox"
+                            checked={row.is_active}
+                            onChange={(event) =>
+                              setWeights((current) =>
+                                current.map((item) =>
+                                  item.weight_grams === row.weight_grams
+                                    ? { ...item, is_active: event.target.checked }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          Active
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setWeights((current) => current.filter((item) => item.weight_grams !== row.weight_grams))
+                          }
+                          className="ml-auto text-sm font-medium text-red-700 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : (
+              <p className="text-xs text-amber-700">No weight options yet. Customers cannot order this product.</p>
+            )}
+          </div>
+        ) : null}
+
+        {sellingType === 'liter' ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-stone-700">Volume options</p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Customers choose one of these volumes, then a quantity. Each option costs price per Liter × volume.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {VOLUME_PRESETS_ML.map((ml) => {
+                const on = volumes.some((row) => row.volume_ml === ml && row.is_active);
+                return (
+                  <button
+                    key={ml}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => togglePresetVolume(ml)}
+                    className={`min-h-10 rounded-full border px-4 text-sm font-semibold ${
+                      on
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                        : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    {formatVolume(ml)}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block text-xs text-stone-500">
+                Custom volume (ml)
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={customMl}
+                  onChange={(event) => setCustomMl(event.target.value)}
+                  placeholder="e.g. 750"
+                  className={`${fieldClass} mt-1 min-h-10 w-36`}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={addCustomVolume}
+                className="min-h-10 rounded-lg border border-emerald-600 px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+              >
+                Add volume
+              </button>
+            </div>
+            {volumes.length > 0 ? (
+              <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
+                {[...volumes]
+                  .sort((a, b) => a.volume_ml - b.volume_ml)
+                  .map((row) => {
+                    const perL = Number(price);
+                    return (
+                      <li key={row.volume_ml} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                        <span className="w-20 font-semibold text-stone-900">{formatVolume(row.volume_ml)}</span>
+                        <span className="w-24 text-stone-600">
+                          {Number.isFinite(perL) && perL > 0 ? `₹${volumeOptionPrice(perL, row.volume_ml)}` : '—'}
+                        </span>
+                        <label className="flex items-center gap-2 text-stone-700">
+                          <input
+                            type="checkbox"
+                            checked={row.is_active}
+                            onChange={(event) =>
+                              setVolumes((current) =>
+                                current.map((item) =>
+                                  item.volume_ml === row.volume_ml
+                                    ? { ...item, is_active: event.target.checked }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          Active
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setVolumes((current) => current.filter((item) => item.volume_ml !== row.volume_ml))
+                          }
+                          className="ml-auto text-sm font-medium text-red-700 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : (
+              <p className="text-xs text-amber-700">No volume options yet. Customers cannot order this product.</p>
+            )}
           </div>
         ) : null}
 

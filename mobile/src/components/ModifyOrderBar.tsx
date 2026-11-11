@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { colors, radius, spacing } from '@/config/theme';
 import { formatOrderNumber } from '@/utils/format';
 
@@ -24,18 +25,23 @@ export function ModifyOrderBar({
   const leave = onExit ?? clearCart;
 
   function confirmDiscard() {
-    Alert.alert('Discard changes?', 'Your order goes back to how it was saved. You can keep modifying it.', [
-      { text: 'Keep changes', style: 'cancel' },
-      {
-        text: 'Discard changes',
-        style: 'destructive',
-        onPress: () => {
-          if (!revertEditChanges()) {
-            goModifyOrder(order, beginEditOrder, { skipConfirm: true });
-          }
+    showAppDialog({
+      title: 'Discard changes?',
+      message: 'Your order goes back to how it was saved. You can keep modifying it.',
+      icon: 'arrow-undo',
+      tone: 'danger',
+      actions: [
+        {
+          label: 'Discard changes',
+          variant: 'danger',
+          onPress: () => {
+            if (!revertEditChanges()) {
+              goModifyOrder(order, beginEditOrder, { skipConfirm: true });
+            }
+          },
         },
-      },
-    ]);
+      ],
+    });
   }
 
   function confirmExit() {
@@ -43,10 +49,13 @@ export function ModifyOrderBar({
       leave();
       return;
     }
-    Alert.alert('Leave without saving?', 'Your order stays as it was.', [
-      { text: 'Keep modifying', style: 'cancel' },
-      { text: 'Leave', style: 'destructive', onPress: leave },
-    ]);
+    showAppDialog({
+      title: 'Leave without saving?',
+      message: 'Your order stays as it was.',
+      icon: 'exit',
+      tone: 'warning',
+      actions: [{ label: 'Leave', variant: 'danger', onPress: leave }],
+    });
   }
 
   return (

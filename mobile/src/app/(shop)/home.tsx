@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { Image } from 'expo-image';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,13 +30,14 @@ import {
 } from '@/catalog/home-filter';
 import { HomeHeader } from '@/components/HomeHeader';
 import { ShopBannerCarousel } from '@/components/ShopBannerCarousel';
+import { ProductGridSkeleton } from '@/components/Skeleton';
 import { ShopHomeNotice, shopClosedMessage } from '@/components/ShopHomeNotice';
 import { HomeProductGridItem } from '@/components/HomeProductGridItem';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
-import { colors, radius, spacing } from '@/config/theme';
+import { colors, radius, shadow, spacing } from '@/config/theme';
 import { notifyHomeCatalogReady } from '@/notifications/notification-permission-offer';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { getShopBanners, refreshBusiness, type ShopBanner } from '@/services/business';
@@ -49,11 +50,7 @@ import {
   refreshAvailableProducts,
 } from '@/services/products';
 import type { Product } from '@/types/product';
-import { sortProductsForDisplay } from '@/utils/product-list-sort';
-
-function matchesSearch(product: Product, term: string) {
-  return product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term);
-}
+import { productMatchesSearch, sortProductsForDisplay, sortProductsForSearch } from '@/utils/product-list-sort';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -70,6 +67,7 @@ export default function HomeScreen() {
   const fromAvailablePush = Array.isArray(fromPushParam) ? fromPushParam[0] : fromPushParam;
   const pushOpenKey = Array.isArray(pushOpenKeyParam) ? pushOpenKeyParam[0] : pushOpenKeyParam;
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { increase, decrease, items, itemCount, resumeEdit, takeResumeEdit } = useCart();
   const addToCart = useAddToCart();
   const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } =
@@ -121,9 +119,9 @@ export default function HomeScreen() {
       return;
     }
     const inCategory = products.some(
-      (product) => product.category_id === categoryId && matchesSearch(product, term),
+      (product) => product.category_id === categoryId && productMatchesSearch(product, term),
     );
-    if (!inCategory && products.some((product) => matchesSearch(product, term))) {
+    if (!inCategory && products.some((product) => productMatchesSearch(product, term))) {
       assignHomeCategoryId('');
       startTransition(() => setCategoryId(''));
       chipsRef.current?.scrollTo({ x: 0, animated: true });
@@ -166,6 +164,25 @@ export default function HomeScreen() {
     });
     return () => subscription.remove();
   }, [closeSearch, searchOpen]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', (event) => {
+      if (!searchOpen) {
+        return;
+      }
+      event.preventDefault();
+      closeSearch();
+    });
+    return unsubscribe;
+  }, [closeSearch, navigation, searchOpen]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        closeSearch();
+      };
+    }, [closeSearch]),
+  );
 
   const loadCatalog = useCallback(async () => {
     if (!painted.current) {
@@ -331,15 +348,16 @@ export default function HomeScreen() {
 
   const visibleProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return sortedProducts.filter((product) => {
+    const filtered = sortedProducts.filter((product) => {
       if (categoriesEnabled && categoryId && product.category_id !== categoryId) {
         return false;
       }
       if (!term) {
         return true;
       }
-      return matchesSearch(product, term);
+      return productMatchesSearch(product, term);
     });
+    return term ? sortProductsForSearch(filtered, term) : filtered;
   }, [categoriesEnabled, categoryId, sortedProducts, query]);
 
   const selectCategory = useCallback(
@@ -359,7 +377,11 @@ export default function HomeScreen() {
   const quantityById = useMemo(() => {
     const map: Record<string, number> = {};
     for (const item of items) {
-      if (item.product.selling_type === 'kg' || item.product.selling_type === 'fixed_pack') {
+      if (
+        item.product.selling_type === 'kg' ||
+        item.product.selling_type === 'liter' ||
+        item.product.selling_type === 'fixed_pack'
+      ) {
         continue;
       }
       map[item.product.id] = (map[item.product.id] ?? 0) + item.quantity;
@@ -402,14 +424,42 @@ export default function HomeScreen() {
         </View>
       );
     }
+    const filtered = Boolean(query.trim() || categoryId);
     return (
-      <Text style={styles.empty}>
-        {offline && products.length === 0
-          ? 'Connect to the internet to load products.'
-          : query.trim() || categoryId
-            ? 'No products match this search.'
-            : 'No products to show yet.'}
-      </Text>
+      <View style={styles.emptyWrap}>
+        <Ionicons
+          name={offline && products.length === 0 ? 'cloud-offline-outline' : 'search-outline'}
+          size={40}
+          color={colors.textMuted}
+        />
+        <Text style={styles.emptyTitle}>
+          {offline && products.length === 0
+            ? 'You are offline'
+            : filtered
+              ? 'No products found'
+              : 'Nothing here yet'}
+        </Text>
+        <Text style={styles.empty}>
+          {offline && products.length === 0
+            ? 'Connect to the internet to load products.'
+            : filtered
+              ? 'Try a different word or clear the filter.'
+              : 'New products will show up here soon.'}
+        </Text>
+        {filtered ? (
+          <Pressable
+            onPress={() => {
+              setQuery('');
+              assignHomeCategoryId('');
+              startTransition(() => setCategoryId(''));
+            }}
+            style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.emptyButtonLabel}>Clear search</Text>
+          </Pressable>
+        ) : null}
+      </View>
     );
   }, [categoryId, offline, openingFromAvailablePush, products.length, query]);
 
@@ -454,8 +504,15 @@ export default function HomeScreen() {
 
   if ((loading && !focusProductId) || pushCatalogLoading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.screen}>
+        <HomeHeader />
+        <View style={[styles.searchBar, styles.searchBarTop]}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+            <Text style={[styles.search, styles.searchPlaceholder]}>Search products</Text>
+          </View>
+        </View>
+        <ProductGridSkeleton />
       </View>
     );
   }
@@ -639,10 +696,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: colors.surfaceInset,
-    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(15, 118, 110, 0.12)',
+    borderColor: colors.border,
+    ...shadow.card,
     paddingHorizontal: spacing.md,
     minHeight: 48,
   },
@@ -674,8 +732,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(15, 118, 110, 0.14)',
-    backgroundColor: colors.primarySoft,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -700,9 +758,39 @@ const styles = StyleSheet.create({
     color: colors.primaryText,
   },
   empty: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.textMuted,
+    textAlign: 'center',
+  },
+  searchPlaceholder: {
+    paddingVertical: 14,
+    color: colors.textMuted,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  emptyButton: {
+    marginTop: spacing.xs,
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyButtonLabel: {
+    color: colors.primaryText,
+    fontSize: 15,
+    fontWeight: '700',
   },
   emptyLoading: {
     paddingVertical: spacing.lg,

@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from '@/services/supabase/server';
 import type { Product } from '@/types/product';
 
 const PRODUCT_COLUMNS =
-  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, minimum_weight_grams, maximum_weight_grams, image_url, available, active, category_id, created_at, updated_at';
+  'id, business_id, name, description, ingredients, price, selling_type, selling_unit, price_per_kg, price_per_liter, minimum_weight_grams, maximum_weight_grams, image_url, available, active, category_id, created_at, updated_at';
 
 const PRODUCT_COLUMNS_FALLBACK =
   'id, business_id, name, description, price, image_url, available, created_at, updated_at';
@@ -82,9 +82,15 @@ export async function getAllProducts(): Promise<Product[]> {
     const named = await attachCategoryNames(supabase, businessId, (data as Product[]).map((row) => ({
       ...row,
       active: row.active !== false,
-      selling_type: row.selling_type === 'kg' || row.selling_type === 'fixed_pack' ? row.selling_type : 'quantity',
+      selling_type:
+        row.selling_type === 'kg' || row.selling_type === 'liter' || row.selling_type === 'fixed_pack'
+          ? row.selling_type
+          : 'quantity',
     })));
-    return attachTransacted(supabase, await attachPacks(supabase, named));
+    return attachTransacted(
+      supabase,
+      await attachVolumeOptions(supabase, await attachWeightOptions(supabase, await attachPacks(supabase, named))),
+    );
   }
 
   const fallback = await supabase
@@ -132,6 +138,68 @@ async function attachPacks(
   return products.map((product) => ({
     ...product,
     packs: byProduct.get(product.id) ?? [],
+  }));
+}
+
+async function attachWeightOptions(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  products: Product[],
+): Promise<Product[]> {
+  const ids = products.filter((product) => product.selling_type === 'kg').map((product) => product.id);
+  if (ids.length === 0) {
+    return products;
+  }
+  const { data } = await supabase
+    .from('product_weight_options')
+    .select('id, product_id, weight_grams, is_active, display_order')
+    .in('product_id', ids)
+    .order('display_order', { ascending: true });
+  const byProduct = new Map<string, NonNullable<Product['weightOptions']>>();
+  for (const row of data ?? []) {
+    const list = byProduct.get(row.product_id) ?? [];
+    list.push({
+      id: row.id,
+      product_id: row.product_id,
+      weight_grams: Number(row.weight_grams),
+      is_active: Boolean(row.is_active),
+      display_order: Number(row.display_order) || 0,
+    });
+    byProduct.set(row.product_id, list);
+  }
+  return products.map((product) => ({
+    ...product,
+    weightOptions: byProduct.get(product.id) ?? [],
+  }));
+}
+
+async function attachVolumeOptions(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  products: Product[],
+): Promise<Product[]> {
+  const ids = products.filter((product) => product.selling_type === 'liter').map((product) => product.id);
+  if (ids.length === 0) {
+    return products;
+  }
+  const { data } = await supabase
+    .from('product_volume_options')
+    .select('id, product_id, volume_ml, is_active, display_order')
+    .in('product_id', ids)
+    .order('display_order', { ascending: true });
+  const byProduct = new Map<string, NonNullable<Product['volumeOptions']>>();
+  for (const row of data ?? []) {
+    const list = byProduct.get(row.product_id) ?? [];
+    list.push({
+      id: row.id,
+      product_id: row.product_id,
+      volume_ml: Number(row.volume_ml),
+      is_active: Boolean(row.is_active),
+      display_order: Number(row.display_order) || 0,
+    });
+    byProduct.set(row.product_id, list);
+  }
+  return products.map((product) => ({
+    ...product,
+    volumeOptions: byProduct.get(product.id) ?? [],
   }));
 }
 

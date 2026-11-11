@@ -21,6 +21,7 @@ export type ReportItemLine = {
   selling_unit?: string | null;
   pack_weight_grams?: number | null;
   weight_grams?: number | null;
+  volume_ml?: number | null;
 };
 
 export type ReportFilters = {

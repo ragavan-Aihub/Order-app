@@ -1,3 +1,4 @@
+import { env } from '@/config/env';
 import { getSupabaseClient } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
 
@@ -10,7 +11,9 @@ export async function notifyOrderStatusPush(orderId: string, status: OrderStatus
   }
 
   const supabase = getSupabaseClient();
-  if (!supabase) {
+  const baseUrl = env.supabaseUrl.replace(/\/$/, '');
+  const anonKey = env.supabaseAnonKey.trim();
+  if (!supabase || !baseUrl || !anonKey) {
     return;
   }
 
@@ -21,16 +24,29 @@ export async function notifyOrderStatusPush(orderId: string, status: OrderStatus
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('send-order-status-push', {
-      body: { order_id: orderId, status },
-      headers: { Authorization: `Bearer ${accessToken}` },
+    const response = await fetch(`${baseUrl}/functions/v1/send-order-status-push`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        apikey: anonKey,
+      },
+      body: JSON.stringify({ order_id: orderId, status }),
     });
-    if (error) {
-      console.warn('[push] send-order-status-push', error.message);
+    const text = await response.text();
+    let payload: unknown = text.slice(0, 200);
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = text.slice(0, 200);
+    }
+    if (!response.ok) {
+      console.warn('[push] send-order-status-push', response.status, payload);
       return;
     }
-    if (data && typeof data === 'object' && 'error' in data) {
-      console.warn('[push] send-order-status-push', data);
+    if (__DEV__ && payload && typeof payload === 'object' && 'error' in payload) {
+      console.warn('[push] send-order-status-push', payload);
     }
   } catch (error) {
     console.warn('[push] send-order-status-push failed', error);

@@ -3,7 +3,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -28,6 +27,8 @@ import {
 } from '@/components/AddressPickerSheet';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { ProductImage } from '@/components/ProductImage';
+import { showAppDialog } from '@/components/AppDialogHost';
+import { MinOrderDialog } from '@/components/MinOrderDialog';
 import { PlaceOrderConfirmSheet } from '@/components/PlaceOrderConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -35,11 +36,17 @@ import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { shopClosedMessage } from '@/components/ShopHomeNotice';
 import { refreshBusiness } from '@/services/business';
+import { belowMinOrder, minOrderAmountOf } from '@/utils/min-order';
+import { hapticError } from '@/utils/haptics';
 import { checkOrderEditable, getMyOrderById } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
 import { formatOrderNumber, formatPrice } from '@/utils/format';
-import { cartLineKey, cartLineTotal, formatOrderItemUnit, sellingTypeOf } from '@/utils/selling-units';
+import { cartLineKey, cartLineTotal, formatOrderItemUnit } from '@/utils/selling-units';
+import {
+  clearExpectingCartItems,
+  shouldHoldEmptyCart,
+} from '@/notifications/available-product-order';
 import { useTopInset } from '@/utils/safe-area';
 
 export default function CartScreen() {
@@ -69,6 +76,7 @@ export default function CartScreen() {
   const bottomPad = spacing.xs;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [minOrderOpen, setMinOrderOpen] = useState(false);
   const [addressBookTick, setAddressBookTick] = useState(0);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const bumpAddressBook = useCallback(() => setAddressBookTick((n) => n + 1), []);
@@ -76,6 +84,7 @@ export default function CartScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closedMessage, setClosedMessage] = useState<string | null>(null);
+  const [minOrderAmount, setMinOrderAmount] = useState(0);
   const [footerHeight, setFooterHeight] = useState(96);
   const discarding = useRef(false);
   const leaving = useRef(false);
@@ -84,6 +93,7 @@ export default function CartScreen() {
   const viewportHeight = useRef(0);
   const addMoreY = useRef<number | null>(null);
   const pendingAddFocus = useRef(false);
+  const promptedOpenOrderModify = useRef<string | null>(null);
 
   const scrollToAddMore = useCallback(() => {
     const y = addMoreY.current;
@@ -139,13 +149,36 @@ export default function CartScreen() {
       loadAddress().catch(() => undefined);
       void getSignedInUser().then((user) => setSignedIn(Boolean(user)));
       void refreshBusiness()
-        .then((shop) => setClosedMessage(shopClosedMessage(shop)))
-        .catch(() => setClosedMessage(null));
-      if (items.length === 0 && !leaving.current) {
+        .then((shop) => {
+          setClosedMessage(shopClosedMessage(shop));
+          setMinOrderAmount(minOrderAmountOf(shop?.min_order_amount));
+        })
+        .catch(() => {
+          setClosedMessage(null);
+          setMinOrderAmount(0);
+        });
+      if (items.length === 0 && !leaving.current && !shouldHoldEmptyCart()) {
         router.replace('/home');
       }
     }, [items.length, loadAddress, router]),
   );
+
+  useEffect(() => {
+    if (items.length > 0) {
+      clearExpectingCartItems();
+      return;
+    }
+    if (!shouldHoldEmptyCart()) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      clearExpectingCartItems();
+      if (!leaving.current) {
+        router.replace('/home');
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [items.length, router]);
 
   useFocusEffect(
     useCallback(
@@ -159,11 +192,17 @@ export default function CartScreen() {
   const blockedByOpenOrder = Boolean(openOrder && !editingOrderId && items.length > 0);
   useFocusEffect(
     useCallback(() => {
-      if (blockedByOpenOrder && openOrderReady && !leaving.current) {
-        leaving.current = true;
-        router.replace({ pathname: '/new-order', params: { next: 'cart' } });
+      if (!blockedByOpenOrder || !openOrderReady || !openOrder || leaving.current) {
+        promptedOpenOrderModify.current = null;
+        return;
       }
-    }, [blockedByOpenOrder, openOrderReady, router]),
+      if (promptedOpenOrderModify.current === openOrder.id) {
+        return;
+      }
+      promptedOpenOrderModify.current = openOrder.id;
+      markExpectingCartItems();
+      goModifyOrder(openOrder, beginEditOrder, { additions: items });
+    }, [beginEditOrder, blockedByOpenOrder, items, openOrder, openOrderReady]),
   );
 
   useFocusEffect(
@@ -214,13 +253,23 @@ export default function CartScreen() {
 
   function confirmRemove(item: CartItem) {
     if (!editingOpen) {
-      remove(item.product.id);
+      remove(item.product.id, cartLineKey(item));
       return;
     }
-    Alert.alert(`Remove ${item.product.name}?`, 'It will be taken off this order when you tap Update order.', [
-      { text: 'Keep', style: 'cancel', onPress: () => swipeables.current.get(cartLineKey(item))?.close() },
-      { text: 'Remove', style: 'destructive', onPress: () => remove(item.product.id, cartLineKey(item)) },
-    ]);
+    showAppDialog({
+      title: `Remove ${item.product.name}?`,
+      message: 'It will be taken off this order when you tap Update order.',
+      icon: 'trash',
+      tone: 'danger',
+      onDismiss: () => swipeables.current.get(cartLineKey(item))?.close(),
+      actions: [
+        {
+          label: 'Remove',
+          variant: 'danger',
+          onPress: () => remove(item.product.id, cartLineKey(item)),
+        },
+      ],
+    });
   }
 
   function onDecrease(item: CartItem) {
@@ -234,6 +283,7 @@ export default function CartScreen() {
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
   const shopClosed = Boolean(closedMessage) && !editingOpen;
+  const underMinOrder = belowMinOrder(totalAmount, minOrderAmount);
   const placeOrderLabel = submitting
     ? editingOpen
       ? 'Updating…'
@@ -262,6 +312,11 @@ export default function CartScreen() {
     }
     if (shopClosed && closedMessage) {
       setError(closedMessage);
+      return;
+    }
+    if (underMinOrder) {
+      hapticError();
+      setMinOrderOpen(true);
       return;
     }
     const user = await getSignedInUser();
@@ -332,6 +387,11 @@ export default function CartScreen() {
           );
           return;
         }
+        if (result.reason === 'min_order') {
+          hapticError();
+          setMinOrderOpen(true);
+          return;
+        }
         if (result.reason === 'auth') {
           router.push({ pathname: '/login', params: { next: 'cart' } });
           return;
@@ -351,18 +411,19 @@ export default function CartScreen() {
           if (!result.openOrder) {
             return;
           }
-          Alert.alert('Open order', result.message, [
-            { text: 'Not now', style: 'cancel' },
-            {
-              text: 'Modify order',
-              onPress: () => {
-                setTimeout(
-                  () => goModifyOrder(result.openOrder!, beginEditOrder, { skipConfirm: true }),
-                  200,
-                );
+          showAppDialog({
+            title: 'Open order',
+            message: result.message,
+            icon: 'bag-handle',
+            actions: [
+              {
+                label: 'Modify order',
+                onPress: () => {
+                  goModifyOrder(result.openOrder!, beginEditOrder, { skipConfirm: true });
+                },
               },
-            },
-          ]);
+            ],
+          });
           return;
         }
         if (updateId && /ORDER_STALE|changed while you were editing/i.test(result.message)) {
@@ -498,6 +559,7 @@ export default function CartScreen() {
                     selling_unit: item.product.selling_unit,
                     pack_weight_grams: item.packWeightGrams,
                     weight_grams: item.weightGrams,
+                    volume_ml: item.volumeMl,
                   })}</Text>
                   {change?.kind === 'new' ? (
                     <View style={[styles.tag, styles.tagNew]}>
@@ -511,9 +573,6 @@ export default function CartScreen() {
                 </Pressable>
                 <View style={styles.detailsRight}>
                   <Text style={styles.subtotal}>{formatPrice(subtotal)}</Text>
-                  {sellingTypeOf(item.product) === 'kg' ? (
-                    <Text style={styles.unit}>Tap product to change weight</Text>
-                  ) : (
                   <QuantityStepper
                     compact
                     dense
@@ -521,7 +580,6 @@ export default function CartScreen() {
                     onDecrease={() => onDecrease(item)}
                     onIncrease={() => increase(item.product.id, cartLineKey(item))}
                   />
-                  )}
                 </View>
               </View>
               </Swipeable>
@@ -614,6 +672,15 @@ export default function CartScreen() {
           mode={editingOpen ? 'update' : 'place'}
         />
       ) : null}
+      <MinOrderDialog
+        visible={minOrderOpen}
+        minAmount={minOrderAmount}
+        onClose={() => setMinOrderOpen(false)}
+        onAddItems={() => {
+          setMinOrderOpen(false);
+          router.push('/home');
+        }}
+      />
     </GestureHandlerRootView>
   );
 }

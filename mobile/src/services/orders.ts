@@ -594,9 +594,10 @@ export async function placeOrder(
           product_id: item.product.id,
           product_name: item.product.name,
           product_price: item.product.price,
-          quantity: item.product.selling_type === 'kg' ? 1 : item.quantity,
-          subtotal: item.product.price * item.quantity,
+          quantity: item.quantity,
+          subtotal: cartLineTotal(item),
           weight_grams: item.weightGrams ?? null,
+          volume_ml: item.volumeMl ?? null,
           pack_option_id: item.packOptionId ?? null,
         })),
       ),
@@ -871,7 +872,7 @@ export async function getMyOrdersWithItems(): Promise<OrderWithItems[]> {
     const { data: items } = await withTimeout(
       supabase
         .from('order_items')
-        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, created_at')
+        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, volume_ml, created_at')
         .in(
           'order_id',
           orders.map((order) => order.id),
@@ -916,7 +917,7 @@ export async function listMyOrderItems(orderId: string): Promise<OrderItem[] | n
     const { data, error } = await withTimeout(
       supabase
         .from('order_items')
-        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, created_at')
+        .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, volume_ml, created_at')
         .eq('order_id', orderId)
         .order('created_at', { ascending: true }),
       ACTION_MS,

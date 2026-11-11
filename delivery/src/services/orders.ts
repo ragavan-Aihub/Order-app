@@ -87,7 +87,7 @@ export async function getDeliveryOrder(orderId: string, businessId: string): Pro
     .select(
       `
       id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, created_at, updated_at,
-      order_items ( id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams )
+      order_items ( id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, volume_ml )
     `,
     )
     .eq('id', orderId)
@@ -173,7 +173,7 @@ export async function updateDeliveryOrderStatus(
     return { error: 'Could not update this order.' };
   }
 
-  void notifyOrderStatusPush(orderId, status);
+  await notifyOrderStatusPush(orderId, status);
   const label = formatOrderNumber(current.order_number ?? 0);
   const summary =
     status === 'cancelled'

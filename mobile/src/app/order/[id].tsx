@@ -3,7 +3,6 @@ import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { ProductImage } from '@/components/ProductImage';
@@ -140,14 +140,15 @@ export default function OrderDetailScreen() {
   const orderTitle = `Order #${formatOrderNumber(order.order_number)}`;
 
   function confirmCancel() {
-    Alert.alert(
-      'Cancel this order?',
-      `Order #${formatOrderNumber(current.order_number)} will be cancelled. This cannot be undone.`,
-      [
-        { text: 'Keep order', style: 'cancel' },
+    showAppDialog({
+      title: 'Cancel this order?',
+      message: `Order #${formatOrderNumber(current.order_number)} will be cancelled. This cannot be undone.`,
+      icon: 'close-circle',
+      tone: 'danger',
+      actions: [
         {
-          text: 'Cancel order',
-          style: 'destructive',
+          label: 'Cancel order',
+          variant: 'danger',
           onPress: () => {
             cancelMyOrder(current.id)
               .then(() => {
@@ -155,12 +156,17 @@ export default function OrderDetailScreen() {
                 return load(true);
               })
               .catch((error) => {
-                Alert.alert('Could not cancel', error instanceof Error ? error.message : 'Try again in a moment.');
+                showAppDialog({
+                  title: 'Could not cancel',
+                  message: error instanceof Error ? error.message : 'Try again in a moment.',
+                  icon: 'cloud-offline',
+                  tone: 'warning',
+                });
               });
           },
         },
       ],
-    );
+    });
   }
 
   const shopModified = adminOrderDiff !== null;

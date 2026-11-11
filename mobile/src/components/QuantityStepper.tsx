@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '@/config/theme';
+import { hapticTap } from '@/utils/haptics';
 
 type QuantityStepperProps = {
   value: number;
@@ -21,11 +22,23 @@ export function QuantityStepper({
   dense = false,
 }: QuantityStepperProps) {
   const useCompact = compact || dense;
+
+  function press(next: () => void) {
+    hapticTap();
+    next();
+  }
+
   return (
     <View style={[styles.row, useCompact && styles.rowCompact, stretch && styles.rowStretch]}>
       <Pressable
-        onPress={onDecrease}
-        style={[styles.button, useCompact && styles.buttonCompact, dense && styles.buttonDense]}
+        onPress={() => press(onDecrease)}
+        android_ripple={{ color: 'rgba(15, 118, 110, 0.28)', foreground: true }}
+        style={({ pressed }) => [
+          styles.button,
+          useCompact && styles.buttonCompact,
+          dense && styles.buttonDense,
+          pressed && styles.buttonPressed,
+        ]}
         accessibilityRole="button"
         accessibilityLabel="Decrease quantity"
       >
@@ -39,8 +52,14 @@ export function QuantityStepper({
         {value}
       </Text>
       <Pressable
-        onPress={onIncrease}
-        style={[styles.button, useCompact && styles.buttonCompact, dense && styles.buttonDense]}
+        onPress={() => press(onIncrease)}
+        android_ripple={{ color: 'rgba(15, 118, 110, 0.28)', foreground: true }}
+        style={({ pressed }) => [
+          styles.button,
+          useCompact && styles.buttonCompact,
+          dense && styles.buttonDense,
+          pressed && styles.buttonPressed,
+        ]}
         accessibilityRole="button"
         accessibilityLabel="Increase quantity"
       >
@@ -61,7 +80,7 @@ const styles = StyleSheet.create({
   rowCompact: {
     gap: 0,
     backgroundColor: colors.primarySoft,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: 'rgba(15, 118, 110, 0.28)',
     overflow: 'hidden',
@@ -75,6 +94,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   buttonCompact: {
     width: 30,
@@ -84,8 +104,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   buttonDense: {
-    width: 30,
-    height: 30,
+    width: 36,
+    height: 40,
+  },
+  buttonPressed: {
+    backgroundColor: 'rgba(15, 118, 110, 0.22)',
+    transform: [{ scale: 0.94 }],
   },
   buttonLabel: {
     fontSize: 22,

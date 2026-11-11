@@ -101,6 +101,7 @@ export type OrderItem = {
   selling_unit?: string | null;
   pack_weight_grams?: number | null;
   weight_grams?: number | null;
+  volume_ml?: number | null;
   created_at: string;
   /** Resolved from live/catalog product row when loading order detail. */
   image_url?: string | null;

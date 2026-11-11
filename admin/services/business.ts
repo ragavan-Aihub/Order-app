@@ -13,7 +13,19 @@ export async function getAdminBusiness(): Promise<Business | null> {
     return null;
   }
 
+  const columns =
+    'id, business_name, logo_url, phone, email, address, description, banner_url, shop_closed, shop_closed_message, min_order_amount, announcement_active, announcement_title, announcement_body, announcement_image_url, created_at, updated_at';
   const { data, error } = await supabase
+    .from('businesses')
+    .select(columns)
+    .eq('id', session.profile.business_id)
+    .maybeSingle();
+
+  if (!error && data) {
+    return data as Business;
+  }
+
+  const fallback = await supabase
     .from('businesses')
     .select(
       'id, business_name, logo_url, phone, email, address, description, banner_url, shop_closed, shop_closed_message, announcement_active, announcement_title, announcement_body, announcement_image_url, created_at, updated_at',
@@ -21,11 +33,11 @@ export async function getAdminBusiness(): Promise<Business | null> {
     .eq('id', session.profile.business_id)
     .maybeSingle();
 
-  if (error || !data) {
+  if (fallback.error || !fallback.data) {
     return null;
   }
 
-  return data as Business;
+  return { ...(fallback.data as Business), min_order_amount: 0 };
 }
 
 export async function getAdminShopBanners(

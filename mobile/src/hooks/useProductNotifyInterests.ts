@@ -1,7 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
-
+import { showAppDialog } from '@/components/AppDialogHost';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { ensurePushForProductNotify } from '@/notifications/ensure-push-permission';
@@ -51,7 +50,11 @@ export function useProductNotifyInterests() {
         }
         const result = await upsertProductNotifyInterest(productId);
         if (!result.ok) {
-          Alert.alert(productNotifyCopy.errorGeneric);
+          showAppDialog({
+            title: productNotifyCopy.errorGeneric,
+            icon: 'cloud-offline',
+            tone: 'warning',
+          });
           return;
         }
         setNotifiedIds((prev) => new Set(prev).add(productId));

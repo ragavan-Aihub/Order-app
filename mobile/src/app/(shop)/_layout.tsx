@@ -183,9 +183,9 @@ const styles = StyleSheet.create({
   },
   tabButtonPill: {
     position: 'absolute',
-    top: 0,
-    width: 52,
-    height: 28,
+    top: -2,
+    width: 56,
+    height: 30,
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
   },
@@ -199,6 +199,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   tabLabelFocused: {
-    fontWeight: '700',
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
 });

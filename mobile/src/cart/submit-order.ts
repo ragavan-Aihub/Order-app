@@ -1,6 +1,9 @@
 import type { CartItem } from '@/cart/CartContext';
 import { formatAddressForOrder, type SavedAddress } from '@/cart/address-book';
+import { refreshBusiness } from '@/services/business';
 import { isNetworkFailure } from '@/services/network';
+import { cartLineTotal } from '@/utils/selling-units';
+import { belowMinOrder, minOrderAmountOf, minOrderMessage } from '@/utils/min-order';
 import {
   findOpenOrderForAddress,
   getMyOrderById,
@@ -14,7 +17,16 @@ export type SubmitOrderResult =
   | { ok: true; order: Order }
   | {
       ok: false;
-      reason: 'empty' | 'address' | 'auth' | 'unavailable' | 'network' | 'error' | 'open_order' | 'locked';
+      reason:
+        | 'empty'
+        | 'address'
+        | 'auth'
+        | 'unavailable'
+        | 'network'
+        | 'error'
+        | 'min_order'
+        | 'open_order'
+        | 'locked';
       message: string;
       openOrder?: Order;
     };
@@ -39,6 +51,13 @@ export async function submitShopOrder(
       reason: 'unavailable',
       message: `${blocked.product.name} is coming soon or no longer sold. Remove it from the cart.`,
     };
+  }
+
+  const shop = await refreshBusiness().catch(() => null);
+  const minOrder = minOrderAmountOf(shop?.min_order_amount);
+  const cartTotal = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
+  if (belowMinOrder(cartTotal, minOrder)) {
+    return { ok: false, reason: 'min_order', message: minOrderMessage(minOrder) };
   }
 
   const details = {

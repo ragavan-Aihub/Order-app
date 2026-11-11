@@ -243,7 +243,7 @@ export default function AccountScreen() {
           ) : (
             <PrimaryButton
               label="Sign in"
-              onPress={() => router.push({ pathname: '/login', params: { next: 'account' } })}
+              onPress={() => router.push({ pathname: '/login', params: { next: 'home' } })}
             />
           )}
 

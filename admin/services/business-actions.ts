@@ -155,6 +155,45 @@ export async function updateShopClosed(input: {
   return { error: null };
 }
 
+export async function updateMinOrderAmount(input: {
+  businessId: string;
+  minOrderAmount: number;
+}): Promise<{ error: string | null }> {
+  const ctx = await requireAdminAuditContext();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  if (input.businessId !== ctx.businessId) {
+    return { error: 'This account cannot change this business.' };
+  }
+
+  const amount = Number(input.minOrderAmount);
+  if (!Number.isFinite(amount) || amount < 0) {
+    return { error: 'Enter a valid minimum order amount, or 0 for none.' };
+  }
+  const minOrderAmount = Math.round(amount * 100) / 100;
+
+  const { error } = await ctx.supabase
+    .from('businesses')
+    .update({ min_order_amount: minOrderAmount })
+    .eq('id', ctx.businessId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAudit(ctx, {
+    action: 'business.min_order_update',
+    entityType: 'business',
+    entityId: ctx.businessId,
+    summary:
+      minOrderAmount > 0 ? `Minimum order set to ₹${minOrderAmount}` : 'Minimum order turned off',
+  });
+
+  revalidatePath('/settings/preferences');
+  return { error: null };
+}
+
 export async function saveShopBanners(input: {
   businessId: string;
   posters: { imageUrl: string; focusY: number; notify?: boolean }[];

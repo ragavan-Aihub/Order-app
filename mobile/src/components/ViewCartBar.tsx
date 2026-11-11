@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+
 import { useCart } from '@/cart/CartContext';
 import { colors, radius, spacing } from '@/config/theme';
 import { formatPrice } from '@/utils/format';
+import { hapticTap } from '@/utils/haptics';
 
 /** Matches shop tab bar content height (icons only; labels hidden on Android). */
 export const SHOP_TAB_BAR_HEIGHT = 52;
 
 /** Distance from tab scene bottom to pill bottom (scene ends above tab bar). */
-export const CART_BOTTOM_INSET = 10;
+export const CART_BOTTOM_INSET = 12;
 
-/** Compact corner pill height (reference-style quick access). */
 export const FLOATING_CART_BAR_HEIGHT = 44;
 
 export function viewCartScrollPadding(_bottomInset: number, hasCart: boolean) {
@@ -30,87 +32,116 @@ export function ViewCartBar({
   inline?: boolean;
 }) {
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
   const { itemCount, totalAmount } = useCart();
-
-  /** Shop tab bar: Home | Order again | My Order — anchor cart above the third tab. */
-  const myOrderTabLeft = (screenWidth / 3) * 2;
-  const myOrderTabWidth = screenWidth / 3;
 
   if (itemCount <= 0) {
     return null;
   }
 
-  const bottomOffset = inline ? undefined : CART_BOTTOM_INSET;
   const amountLabel = formatPrice(totalAmount);
+  const itemLabel = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`;
 
   return (
-    <View
+    <Animated.View
+      entering={FadeInDown.duration(220)}
+      exiting={FadeOutDown.duration(160)}
       pointerEvents="box-none"
-      style={[
-        inline ? styles.inlineWrap : styles.wrap,
-        !inline && bottomOffset != null
-          ? {
-              bottom: bottomOffset,
-              left: myOrderTabLeft,
-              width: myOrderTabWidth,
-            }
-          : null,
-      ]}
+      style={[inline ? styles.inlineWrap : styles.wrap]}
     >
       <Pressable
-        onPress={() => router.push('/cart')}
-        style={({ pressed }) => [styles.bar, pressed && styles.barPressed]}
+        onPress={() => {
+          hapticTap();
+          router.push('/cart');
+        }}
+        style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         accessibilityRole="button"
-        accessibilityLabel={`View cart, ${amountLabel}, ${itemCount} items`}
+        accessibilityLabel={`View cart, ${amountLabel}, ${itemLabel}`}
       >
-        <Ionicons name="bag-handle" size={18} color={colors.primaryText} />
+        <View style={styles.iconWrap}>
+          <Ionicons name="bag-handle" size={18} color={colors.primaryText} />
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{itemCount > 99 ? '99+' : itemCount}</Text>
+          </View>
+        </View>
+        <Text style={styles.itemLabel}>{itemLabel}</Text>
+        <View style={styles.dot} />
         <Text style={styles.amount} numberOfLines={1}>
           {amountLabel}
         </Text>
         <Ionicons name="chevron-forward" size={16} color={colors.primaryText} />
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: CART_BOTTOM_INSET,
     alignItems: 'center',
     zIndex: 10,
     elevation: 6,
   },
   inlineWrap: {
-    paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
-    alignSelf: 'flex-end',
+    alignItems: 'center',
   },
-  bar: {
+  pill: {
     height: FLOATING_CART_BAR_HEIGHT,
-    minWidth: 72,
-    maxWidth: '100%',
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    gap: 5,
+    gap: 8,
+    paddingLeft: 14,
+    paddingRight: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
     shadowColor: '#115E59',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  barPressed: {
-    opacity: 0.9,
+  pillPressed: {
+    opacity: 0.92,
     backgroundColor: colors.primaryDark,
+  },
+  iconWrap: {
+    width: 22,
+    alignItems: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 15,
+    height: 15,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: colors.primaryDark,
+  },
+  itemLabel: {
+    color: colors.primaryText,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   amount: {
     color: colors.primaryText,
     fontSize: 14,
     fontWeight: '800',
-    textAlign: 'center',
   },
 });

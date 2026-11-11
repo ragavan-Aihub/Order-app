@@ -4,7 +4,6 @@ import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Dimensions,
   Keyboard,
@@ -36,6 +35,7 @@ import { MAX_ITEM_QTY } from '@/cart/limits';
 import { tryLockModify, unlockModify } from '@/cart/modify-flow';
 import { loadOrderItemsForEdit } from '@/cart/modify-order';
 import { submitShopOrder } from '@/cart/submit-order';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { OrderProgress } from '@/components/OrderProgress';
 import { SamOrderLine, SamProductRow } from '@/components/SamProductRow';
 import { env } from '@/config/env';
@@ -563,21 +563,22 @@ function SamChat() {
         pushTurn('sam', kept);
         speakReply(kept, 'en');
       };
-      Alert.alert(
-        'Cancel order?',
-        number ? `Cancel order #${number}? This cannot be undone.` : 'This cannot be undone.',
-        [
-          { text: 'Keep order', style: 'cancel', onPress: keep },
+      showAppDialog({
+        title: 'Cancel order?',
+        message: number ? `Cancel order #${number}? This cannot be undone.` : 'This cannot be undone.',
+        icon: 'close-circle',
+        tone: 'danger',
+        onDismiss: keep,
+        actions: [
           {
-            text: 'Cancel order',
-            style: 'destructive',
+            label: 'Cancel order',
+            variant: 'danger',
             onPress: () => {
               void cancelOpenOrder(orderId);
             },
           },
         ],
-        { cancelable: true, onDismiss: keep },
-      );
+      });
     },
     [cancelOpenOrder, pushTurn, speakReply],
   );
