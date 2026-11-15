@@ -431,7 +431,7 @@ function SamChat() {
       setBusyKind('cancel');
       Speech.stop();
       try {
-        const cancelled = await cancelMyOrder(orderId);
+        const cancelled = await cancelMyOrder(orderId, 'Changed my mind');
         clearCart();
         forgetOpenOrder(orderId);
         setTrackableOrder((current) => (current?.id === orderId ? null : current));

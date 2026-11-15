@@ -60,9 +60,6 @@ export function WelcomeSignup({
   const shopName = business?.business_name?.trim() ?? '';
   const tagline = business?.description?.trim() || DEFAULT_TAGLINE;
   const logoUrl = business?.logo_url?.trim() || '';
-  const bannerUrl = business?.banner_url?.trim() || '';
-  const showBanner = !keyboardVisible && Boolean(bannerUrl);
-  const [bannerAspect, setBannerAspect] = useState(3);
 
   useEffect(() => {
     let active = true;
@@ -183,7 +180,7 @@ export function WelcomeSignup({
           )}
         </View>
 
-        <View style={[styles.hero, !showBanner && !keyboardVisible && styles.heroCentered]}>
+        <View style={[styles.hero, !keyboardVisible && styles.heroCentered]}>
           {logoUrl ? (
             <Image
               source={{ uri: logoUrl }}
@@ -204,21 +201,6 @@ export function WelcomeSignup({
             </View>
           )}
         </View>
-
-        {showBanner ? (
-          <Image
-            source={{ uri: bannerUrl }}
-            style={[styles.banner, { aspectRatio: bannerAspect }]}
-            contentFit="contain"
-            onLoad={(event) => {
-              const width = event.source.width;
-              const height = event.source.height;
-              if (width > 0 && height > 0) {
-                setBannerAspect(width / height);
-              }
-            }}
-          />
-        ) : null}
 
         <View style={styles.form}>
           <View style={styles.phoneRow}>
@@ -256,7 +238,7 @@ export function WelcomeSignup({
           </Text>
         </View>
 
-        <View style={[styles.spacer, showBanner && styles.spacerGrow]} />
+        <View style={styles.spacer} />
 
         <View style={styles.legalWrap}>
           <Text style={styles.legal}>
@@ -365,12 +347,6 @@ const styles = StyleSheet.create({
     color: '#3F3F46',
     textAlign: 'center',
   },
-  banner: {
-    width: '100%',
-    aspectRatio: 3,
-    marginBottom: spacing.md,
-    backgroundColor: WASH_GREEN,
-  },
   form: {
     gap: spacing.md,
   },
@@ -450,9 +426,6 @@ const styles = StyleSheet.create({
   },
   spacer: {
     minHeight: spacing.lg,
-  },
-  spacerGrow: {
-    flexGrow: 1,
   },
   legalWrap: {
     borderTopWidth: StyleSheet.hairlineWidth,

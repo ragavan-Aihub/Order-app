@@ -135,6 +135,14 @@ function ShopTabs() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notification Center',
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
           title: 'Account',

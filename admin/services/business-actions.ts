@@ -119,6 +119,45 @@ export async function updateBusinessBranding(input: {
   return { error: null };
 }
 
+export async function updateBusinessAppIcons(input: {
+  businessId: string;
+  appIconUrl: string;
+  notificationIconUrl: string;
+}): Promise<{ error: string | null }> {
+  const ctx = await requireAdminAuditContext();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  if (input.businessId !== ctx.businessId) {
+    return { error: 'This account cannot change this business.' };
+  }
+  if (!isOwnShopImageUrl(input.appIconUrl, ctx.businessId) || !isOwnShopImageUrl(input.notificationIconUrl, ctx.businessId)) {
+    return { error: 'Use icons uploaded for this shop.' };
+  }
+
+  const { error } = await ctx.supabase
+    .from('businesses')
+    .update({
+      app_icon_url: input.appIconUrl,
+      notification_icon_url: input.notificationIconUrl,
+    })
+    .eq('id', ctx.businessId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAudit(ctx, {
+    action: 'business.app_icon_update',
+    entityType: 'business',
+    entityId: ctx.businessId,
+    summary: 'Customer app icon saved from shop logo',
+  });
+
+  revalidatePath('/settings/business-info');
+  return { error: null };
+}
+
 export async function updateShopClosed(input: {
   businessId: string;
   shopClosed: boolean;

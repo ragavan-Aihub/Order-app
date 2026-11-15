@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,6 +15,7 @@ import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
 import { CART_LIMIT_QTY, MAX_ITEM_QTY } from '@/cart/limits';
 import { showAppDialog } from '@/components/AppDialogHost';
+import { FavoriteHeart } from '@/components/FavoriteHeart';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -22,12 +23,13 @@ import { Skeleton } from '@/components/Skeleton';
 import { ViewCartBar } from '@/components/ViewCartBar';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { colors, radius, shadow, spacing } from '@/config/theme';
+import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { fetchProductByIdLive, invalidateProductCatalogCache } from '@/services/products';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 import { hapticError, hapticSelect } from '@/utils/haptics';
-import { maxLineQty, stockLeftLabel, stockLimitOf, stockMessage, unitSizeOf } from '@/utils/stock';
+import { maxLineQty, stockLimitOf, stockMessage, unitSizeOf } from '@/utils/stock';
 import {
   catalogPriceLabel,
   cartLineTotal,
@@ -71,6 +73,7 @@ function OptionCard({
 
 export default function ProductDetailsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { itemCount } = useCart();
   const addToCart = useAddToCart();
   const { id: idParam, fromAvailablePush: fromPushParam } = useLocalSearchParams<{
@@ -99,6 +102,7 @@ export default function ProductDetailsScreen() {
   );
 
   const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } = useProductNotifyInterests();
+  const { isFavorite, onFavoritePress } = useProductFavorites();
 
   useFocusEffect(
     useCallback(() => {
@@ -176,6 +180,9 @@ export default function ProductDetailsScreen() {
   const comingSoon = product.available === false;
   const footerLoading = loading && fromAvailablePush;
   const type = sellingTypeOf(product);
+  const isCountItem = type === 'quantity';
+  const countUnit = product.selling_unit?.trim() || null;
+  const description = product.description?.trim() || '';
   const selectedPack = (product.packs ?? []).find((pack) => pack.id === packOptionId);
   const weightOptions = (product.weightOptions ?? []).filter((option) => option.is_active);
   const volumeOptions = (product.volumeOptions ?? []).filter((option) => option.is_active);
@@ -198,6 +205,35 @@ export default function ProductDetailsScreen() {
               packOptionId: selectedPack?.id,
             })
           : product.price * quantity;
+
+  function bumpQuantity(next: number) {
+    const size = unitSizeOf(product, { weightGrams: weightGramsSel, volumeMl: volumeMlSel });
+    const tracked = stockLimitOf(product.stock_qty) != null && size > 0;
+    const cap = tracked ? maxLineQty(product.stock_qty, 0, 0, size) : MAX_ITEM_QTY;
+    if (next < 1) {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/home');
+      }
+      return;
+    }
+    if (next > quantity && next > cap) {
+      hapticError();
+      const stockCap = stockLimitOf(product.stock_qty);
+      showAppDialog({
+        title: stockCap != null && cap < MAX_ITEM_QTY ? 'Not available' : 'Order limit',
+        message:
+          stockCap != null && cap < MAX_ITEM_QTY
+            ? stockMessage(stockCap, product.selling_type)
+            : CART_LIMIT_QTY,
+        icon: 'alert-circle',
+        tone: 'warning',
+      });
+      return;
+    }
+    setQuantity(Math.min(next, cap));
+  }
 
   function onAdd() {
     if (!product) {
@@ -253,10 +289,17 @@ export default function ProductDetailsScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title: product.name }} />
+    <View style={[styles.screen, isCountItem && styles.screenCount]}>
+      <Stack.Screen
+        options={{
+          title: 'Product details',
+          headerRight: () => (
+            <FavoriteHeart size="header" on={isFavorite(product.id)} onPress={() => void onFavoritePress(product.id)} />
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.imageWrap}>
+        <View style={[styles.imageWrap, isCountItem && styles.imageWrapCount]}>
           <ProductImage
             uri={product.image_url}
             style={styles.image}
@@ -270,23 +313,44 @@ export default function ProductDetailsScreen() {
             </View>
           ) : null}
         </View>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, isCountItem && styles.sheetCount]}>
           <Text style={styles.name}>{product.name}</Text>
           {comingSoon ? null : (
             <View style={styles.priceRow}>
-              <Text style={styles.price}>{catalogPriceLabel(product)}</Text>
-              {stockLeftLabel(product.stock_qty, product.selling_type) ? (
-                <Text style={styles.stockLeft}>{stockLeftLabel(product.stock_qty, product.selling_type)}</Text>
-              ) : null}
+              {isCountItem ? (
+                <>
+                  <Text style={styles.price}>{formatPrice(product.price)}</Text>
+                  {countUnit ? <Text style={styles.priceUnit}> / {countUnit}</Text> : null}
+                </>
+              ) : (
+                <Text style={styles.price}>{catalogPriceLabel(product)}</Text>
+              )}
             </View>
           )}
-          {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
+          {description ? <Text style={styles.description}>{description}</Text> : null}
 
-          {!comingSoon && type !== 'quantity' ? (
+          {!comingSoon && isCountItem ? (
+            <QuantityStepper
+              boxed
+              value={quantity}
+              valueLabel={countUnit ? `${quantity} ${countUnit}` : String(quantity)}
+              onDecrease={() => bumpQuantity(quantity - 1)}
+              onIncrease={() => bumpQuantity(quantity + 1)}
+            />
+          ) : null}
+
+          {!comingSoon && !isCountItem ? (
             <View style={styles.optionsBlock}>
-              <Text style={styles.sectionTitle}>
-                {type === 'kg' ? 'Choose weight' : type === 'liter' ? 'Choose volume' : 'Choose pack size'}
-              </Text>
+              <View style={styles.sectionRow}>
+                <Ionicons
+                  name={type === 'kg' ? 'scale-outline' : type === 'liter' ? 'water-outline' : 'cube-outline'}
+                  size={20}
+                  color={colors.primaryDark}
+                />
+                <Text style={styles.sectionTitle}>
+                  {type === 'kg' ? 'Choose weight' : type === 'liter' ? 'Choose volume' : 'Choose pack size'}
+                </Text>
+              </View>
               {unavailableOptions ? (
                 <Text style={styles.optionsError}>No options available right now.</Text>
               ) : (
@@ -370,36 +434,23 @@ export default function ProductDetailsScreen() {
           ) : null}
         </View>
       ) : (
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
-          <QuantityStepper
-            value={quantity}
-            onDecrease={() => setQuantity((value) => Math.max(1, value - 1))}
-            onIncrease={() =>
-              setQuantity((value) => {
-                const size = unitSizeOf(product, { weightGrams: weightGramsSel, volumeMl: volumeMlSel });
-                const tracked = stockLimitOf(product.stock_qty) != null && size > 0;
-                const cap = tracked ? maxLineQty(product.stock_qty, 0, 0, size) : MAX_ITEM_QTY;
-                if (value >= cap) {
-                  hapticError();
-                  const stockCap = stockLimitOf(product.stock_qty);
-                  showAppDialog({
-                    title: stockCap != null && cap < MAX_ITEM_QTY ? 'Limited stock' : 'Order limit',
-                    message:
-                      stockCap != null && cap < MAX_ITEM_QTY
-                        ? stockMessage(stockCap, product.selling_type)
-                        : CART_LIMIT_QTY,
-                    icon: 'alert-circle',
-                    tone: 'warning',
-                  });
-                  return value;
-                }
-                return value + 1;
-              })
-            }
-          />
+        <View
+          style={[
+            styles.footer,
+            isCountItem && styles.footerCount,
+            { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md },
+          ]}
+        >
+          {isCountItem ? null : (
+            <QuantityStepper
+              value={quantity}
+              onDecrease={() => bumpQuantity(quantity - 1)}
+              onIncrease={() => bumpQuantity(quantity + 1)}
+            />
+          )}
           <View style={styles.footerAction}>
             <PrimaryButton
-              label={added ? 'Added to cart' : `Add to cart · ${formatPrice(lineTotal)}`}
+              label={added ? 'Added to cart' : `Add to Cart · ${formatPrice(lineTotal)}`}
               disabled={unavailableOptions}
               onPress={onAdd}
             />
@@ -415,6 +466,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  screenCount: {
+    backgroundColor: colors.surface,
+  },
   content: {
     paddingBottom: spacing.lg,
   },
@@ -423,6 +477,13 @@ const styles = StyleSheet.create({
     aspectRatio: 1.15,
     maxHeight: 340,
     backgroundColor: colors.placeholder,
+  },
+  imageWrapCount: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    maxHeight: 360,
+    borderRadius: radius.md,
+    overflow: 'hidden',
   },
   image: {
     width: '100%',
@@ -450,6 +511,13 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: spacing.lg,
     gap: spacing.sm,
+  },
+  sheetCount: {
+    backgroundColor: colors.surface,
+    marginTop: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    gap: spacing.md,
   },
   body: {
     padding: spacing.md,
@@ -492,10 +560,15 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: spacing.xs,
   },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.text,
+    color: colors.primaryDark,
   },
   optionsError: {
     fontSize: 14,
@@ -510,14 +583,14 @@ const styles = StyleSheet.create({
     minWidth: 96,
     flexGrow: 1,
     flexBasis: '30%',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   optionCardOn: {
     borderColor: colors.primary,
@@ -559,6 +632,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.primaryDark,
   },
+  priceUnit: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -578,6 +656,14 @@ const styles = StyleSheet.create({
   footerCentered: {
     justifyContent: 'center',
     minHeight: 72,
+  },
+  footerCount: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+    paddingTop: spacing.sm,
   },
   footerAction: {
     flex: 1,

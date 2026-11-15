@@ -18,6 +18,9 @@ type HomeProductGridItemProps = {
   onDecrease: (productId: string) => void;
   onIncrease: (productId: string) => void;
   onNotifyPress?: (productId: string, productName: string) => void;
+  favorited?: boolean;
+  onFavoritePress?: (productId: string) => void;
+  rail?: boolean;
   onLayout?: (layoutY: number) => void;
 };
 
@@ -32,6 +35,9 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
   onDecrease,
   onIncrease,
   onNotifyPress,
+  favorited = false,
+  onFavoritePress,
+  rail = false,
   onLayout,
 }: HomeProductGridItemProps) {
   const router = useRouter();
@@ -57,7 +63,7 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
     onNotifyPress?.(product.id, product.name);
   }, [onNotifyPress, product.id, product.name]);
 
-  const itemStyle: ViewStyle[] = [styles.gridItem];
+  const itemStyle: ViewStyle[] = [rail ? styles.railItem : styles.gridItem];
   if (highlighted) {
     itemStyle.push(highlightFromPush ? styles.gridItemHighlightFromPush : styles.gridItemHighlight);
   }
@@ -76,6 +82,7 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
       <ProductCard
         product={product}
         quantity={needsDetails ? 0 : quantity}
+        compact={rail}
         onPress={() => router.push({ pathname: '/product/[id]', params: { id: product.id } })}
         onAddToCart={handleAdd}
         onIncrease={handleIncrease}
@@ -83,6 +90,8 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
         notifyNotified={notifyNotified}
         notifyBusy={notifyBusy}
         onNotifyPress={product.available === false && onNotifyPress ? handleNotify : undefined}
+        favorited={favorited}
+        onFavoritePress={onFavoritePress ? () => onFavoritePress(product.id) : undefined}
       />
     </View>
   );
@@ -94,6 +103,12 @@ const styles = StyleSheet.create({
     maxWidth: '50%',
     flexGrow: 0,
     padding: 4,
+    alignItems: 'stretch',
+  },
+  railItem: {
+    width: '100%',
+    flexGrow: 0,
+    padding: 0,
     alignItems: 'stretch',
   },
   gridItemHighlight: {

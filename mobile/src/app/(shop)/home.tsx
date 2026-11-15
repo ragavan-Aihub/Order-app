@@ -28,13 +28,16 @@ import {
   setHomeCategoryId,
   subscribeHomeCategory,
 } from '@/catalog/home-filter';
+import { HomeGreetingRow } from '@/components/HomeGreetingRow';
 import { HomeHeader } from '@/components/HomeHeader';
 import { ShopBannerCarousel } from '@/components/ShopBannerCarousel';
-import { ProductGridSkeleton } from '@/components/Skeleton';
+import { HomeCatalogSkeleton } from '@/components/Skeleton';
 import { ShopHomeNotice, shopClosedMessage } from '@/components/ShopHomeNotice';
+import { HomeFavouritesRow } from '@/components/HomeFavouritesRow';
 import { HomeProductGridItem } from '@/components/HomeProductGridItem';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, shadow, spacing } from '@/config/theme';
@@ -72,6 +75,7 @@ export default function HomeScreen() {
   const addToCart = useAddToCart();
   const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } =
     useProductNotifyInterests();
+  const { favoriteIds, isFavorite, onFavoritePress } = useProductFavorites();
 
   useEffect(() => {
     if (resumeEdit) {
@@ -155,17 +159,6 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (!searchOpen) {
-      return;
-    }
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      closeSearch();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [closeSearch, searchOpen]);
-
-  useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', (event) => {
       if (!searchOpen) {
         return;
@@ -178,10 +171,15 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      return () => {
+      if (!searchOpen) {
+        return;
+      }
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
         closeSearch();
-      };
-    }, [closeSearch]),
+        return true;
+      });
+      return () => subscription.remove();
+    }, [closeSearch, searchOpen]),
   );
 
   const loadCatalog = useCallback(async () => {
@@ -411,10 +409,60 @@ export default function HomeScreen() {
     [highlightProductId, visibleProducts],
   );
 
-  const listHeader = useMemo(
-    () => (shopClosedMessage(shopNotice) ? <ShopHomeNotice shop={shopNotice} /> : null),
-    [shopNotice],
-  );
+  const favouriteProducts = useMemo(() => {
+    if (searchOpen || favoriteIds.length === 0) {
+      return [];
+    }
+    const byId = new Map(products.map((product) => [product.id, product]));
+    return favoriteIds.flatMap((id) => {
+      const product = byId.get(id);
+      return product ? [product] : [];
+    });
+  }, [favoriteIds, products, searchOpen]);
+
+  const listHeader = useMemo(() => {
+    const notice = shopClosedMessage(shopNotice) ? <ShopHomeNotice shop={shopNotice} /> : null;
+    const poster = searchOpen || banners.length === 0 ? null : <ShopBannerCarousel banners={banners} />;
+    const favourites =
+      !searchOpen && favouriteProducts.length > 0 ? (
+        <HomeFavouritesRow
+          products={favouriteProducts}
+          quantityById={quantityById}
+          isFavorite={isFavorite}
+          onFavoritePress={(productId) => void onFavoritePress(productId)}
+          onAddToCart={addToCart}
+          onIncrease={increase}
+          onDecrease={decrease}
+          isNotified={isNotified}
+          busyId={busyId}
+          onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
+        />
+      ) : null;
+    if (!notice && !poster && !favourites) {
+      return null;
+    }
+    return (
+      <View>
+        {notice}
+        {poster}
+        {favourites}
+      </View>
+    );
+  }, [
+    addToCart,
+    banners,
+    busyId,
+    decrease,
+    favouriteProducts,
+    increase,
+    isFavorite,
+    isNotified,
+    onFavoritePress,
+    onNotifyPress,
+    quantityById,
+    searchOpen,
+    shopNotice,
+  ]);
 
   const listEmpty = useMemo(() => {
     if (openingFromAvailablePush) {
@@ -429,7 +477,7 @@ export default function HomeScreen() {
       <View style={styles.emptyWrap}>
         <Ionicons
           name={offline && products.length === 0 ? 'cloud-offline-outline' : 'search-outline'}
-          size={40}
+          size={52}
           color={colors.textMuted}
         />
         <Text style={styles.emptyTitle}>
@@ -476,6 +524,8 @@ export default function HomeScreen() {
         onIncrease={increase}
         onDecrease={decrease}
         onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
+        favorited={isFavorite(item.id)}
+        onFavoritePress={(productId) => void onFavoritePress(productId)}
         onLayout={
           highlightProductId === item.id ? () => tryScrollToHighlightedProduct(item.id) : undefined
         }
@@ -488,7 +538,9 @@ export default function HomeScreen() {
       highlightFromPush,
       highlightProductId,
       increase,
+      isFavorite,
       isNotified,
+      onFavoritePress,
       onNotifyPress,
       quantityById,
       tryScrollToHighlightedProduct,
@@ -505,110 +557,114 @@ export default function HomeScreen() {
   if ((loading && !focusProductId) || pushCatalogLoading) {
     return (
       <View style={styles.screen}>
-        <HomeHeader />
-        <View style={[styles.searchBar, styles.searchBarTop]}>
-          <View style={styles.searchWrap}>
-            <Ionicons name="search-outline" size={20} color={colors.textMuted} />
-            <Text style={[styles.search, styles.searchPlaceholder]}>Search products</Text>
+        <View style={styles.chrome}>
+          <HomeHeader />
+          <View style={[styles.searchBar, styles.searchBarTop]}>
+            <View style={styles.searchWrap}>
+              <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+              <Text style={[styles.search, styles.searchPlaceholder]}>Search products</Text>
+            </View>
           </View>
         </View>
-        <ProductGridSkeleton />
+        <HomeCatalogSkeleton />
       </View>
     );
   }
 
   return (
     <View style={[styles.screen, searchOpen && { paddingTop: insets.top }]}>
-      {searchOpen ? null : <HomeHeader />}
-      <ModifyOrderBar variant="shop" style={styles.modifyBar} />
-      {offline ? (
-        <View style={styles.offlineWrap}>
-          <OfflineBanner />
-        </View>
-      ) : null}
-      <View style={[styles.searchBar, styles.searchBarTop]}>
-        {searchOpen ? (
-          <Pressable
-            onPress={closeSearch}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-          >
-            <Ionicons name="arrow-back" size={20} color={colors.primary} />
-          </Pressable>
+      <View style={styles.chrome}>
+        {searchOpen ? null : <HomeHeader />}
+        <ModifyOrderBar variant="shop" style={styles.modifyBar} />
+        {offline ? (
+          <View style={styles.offlineWrap}>
+            <OfflineBanner />
+          </View>
         ) : null}
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={20} color={colors.textMuted} />
-          <TextInput
-            ref={searchInputRef}
-            value={query}
-            onChangeText={onSearchChange}
-            onFocus={() => {
-              setSearchFocused(true);
-              setSearchOpen(true);
-            }}
-            onBlur={() => setSearchFocused(false)}
-            onSubmitEditing={() => Keyboard.dismiss()}
-            placeholder="Search products"
-            placeholderTextColor={colors.textMuted}
-            style={styles.search}
-            autoCorrect={false}
-            autoCapitalize="none"
-            returnKeyType="search"
-            selectTextOnFocus
-            clearButtonMode="never"
-          />
-          {query.length > 0 ? (
+        <View style={[styles.searchBar, styles.searchBarTop]}>
+          {searchOpen ? (
             <Pressable
-              onPress={() => setQuery('')}
-              style={styles.clearButton}
+              onPress={closeSearch}
+              style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
               accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              hitSlop={8}
+              accessibilityLabel="Back"
             >
-              <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+              <Ionicons name="arrow-back" size={20} color={colors.primary} />
             </Pressable>
           ) : null}
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+            <TextInput
+              ref={searchInputRef}
+              value={query}
+              onChangeText={onSearchChange}
+              onFocus={() => {
+                setSearchFocused(true);
+                setSearchOpen(true);
+              }}
+              onBlur={() => setSearchFocused(false)}
+              onSubmitEditing={() => Keyboard.dismiss()}
+              placeholder="Search products"
+              placeholderTextColor={colors.textMuted}
+              style={styles.search}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              selectTextOnFocus
+              clearButtonMode="never"
+            />
+            {query.length > 0 ? (
+              <Pressable
+                onPress={() => setQuery('')}
+                style={styles.clearButton}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
-      </View>
-      {categoriesEnabled && categories.length > 0 ? (
-        <View style={styles.chipsBar}>
-          <ScrollView
-            ref={chipsRef}
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            style={styles.chipsScroller}
-            contentContainerStyle={styles.chips}
-          >
-            <Pressable
-              onPress={() => selectCategory('')}
-              style={[styles.chip, !categoryId && styles.chipOn]}
-              accessibilityRole="button"
+        {searchOpen ? null : <HomeGreetingRow />}
+        {categoriesEnabled && categories.length > 0 ? (
+          <View style={styles.chipsBar}>
+            <ScrollView
+              ref={chipsRef}
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={styles.chipsScroller}
+              contentContainerStyle={styles.chips}
             >
-              <Text style={[styles.chipLabel, !categoryId && styles.chipLabelOn]}>All</Text>
-            </Pressable>
-            {categories.map((item) => {
-              const on = categoryId === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => selectCategory(item.id)}
-                  style={[styles.chip, on && styles.chipOn]}
-                  accessibilityRole="button"
-                >
-                  {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={styles.chipPhoto} contentFit="cover" />
-                  ) : null}
-                  <Text style={[styles.chipLabel, on && styles.chipLabelOn]}>{item.name}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
-      {searchOpen ? null : <ShopBannerCarousel banners={banners} />}
+              <Pressable
+                onPress={() => selectCategory('')}
+                style={[styles.chip, !categoryId && styles.chipOn]}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.chipLabel, !categoryId && styles.chipLabelOn]}>All</Text>
+              </Pressable>
+              {categories.map((item) => {
+                const on = categoryId === item.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => selectCategory(item.id)}
+                    style={[styles.chip, on && styles.chipOn]}
+                    accessibilityRole="button"
+                  >
+                    {item.image_url ? (
+                      <Image source={{ uri: item.image_url }} style={styles.chipPhoto} contentFit="cover" />
+                    ) : null}
+                    <Text style={[styles.chipLabel, on && styles.chipLabelOn]}>{item.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+      </View>
       <FlatList
         ref={listRef}
         data={visibleProducts}
@@ -646,6 +702,13 @@ const styles = StyleSheet.create({
   modifyBar: {
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
+  },
+  chrome: {
+    backgroundColor: colors.background,
+    zIndex: 2,
+    ...shadow.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   screen: {
     flex: 1,
@@ -698,9 +761,9 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+    borderWidth: 1.5,
+    borderColor: colors.primaryOutline,
+    ...shadow.sm,
     paddingHorizontal: spacing.md,
     minHeight: 48,
   },
@@ -774,9 +837,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.text,
+    marginTop: spacing.xs,
   },
   emptyButton: {
     marginTop: spacing.xs,

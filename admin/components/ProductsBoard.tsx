@@ -110,7 +110,7 @@ export function ProductsBoard({
                   ) : null}
                   <p className="truncate text-sm text-stone-500">{product.description}</p>
                   <p className="mt-1">{catalogPriceLabel(product)}</p>
-                  {stockLeftLabel(product.stock_qty, product.selling_type) ? (
+                  {product.available !== false && stockLeftLabel(product.stock_qty, product.selling_type) ? (
                     <p className="text-xs font-medium text-amber-800">
                       {stockLeftLabel(product.stock_qty, product.selling_type)}
                     </p>
@@ -169,7 +169,7 @@ export function ProductsBoard({
                           </p>
                         ) : null}
                         <p className="text-sm text-stone-500">{product.description}</p>
-                        {stockLeftLabel(product.stock_qty, product.selling_type) ? (
+                        {product.available !== false && stockLeftLabel(product.stock_qty, product.selling_type) ? (
                           <p className="text-xs font-medium text-amber-800">
                             {stockLeftLabel(product.stock_qty, product.selling_type)}
                           </p>

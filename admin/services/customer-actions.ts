@@ -562,9 +562,7 @@ export async function createAdminOrder(input: {
     deliveryAddress = `${deliveryAddress}\n\nOrder notes: ${notes}`;
   }
 
-  const usableItems = input.items.filter(
-    (item) => item.quantity >= 1 || (item.weightGrams ?? 0) > 0 || (item.volumeMl ?? 0) > 0,
-  );
+  const usableItems = input.items.filter((item) => item.quantity >= 0.01);
   if (usableItems.length === 0) {
     return { error: 'Add at least one product.' };
   }
@@ -624,19 +622,20 @@ export async function createAdminOrder(input: {
       if (!validOption) {
         return { error: `Choose a weight option for ${product.name}.` };
       }
-      if (item.quantity < 1 || item.quantity > 10) {
-        return { error: `Check the quantity for ${product.name}.` };
+      const qty = Math.round(item.quantity * 100) / 100;
+      if (!Number.isFinite(qty) || qty < 0.01 || qty > 100 || Math.abs(qty - item.quantity) > 1e-9) {
+        return { error: `Check the quantity for ${product.name} (up to 2 decimal places).` };
       }
       const perKg = Number(product.price_per_kg ?? product.price);
       lines.push({
         product_id: product.id,
         product_name: product.name,
         product_price: perKg,
-        quantity: item.quantity,
+        quantity: qty,
         weight_grams: grams,
         volume_ml: null,
         pack_option_id: null,
-        subtotal: Math.round(perKg * (grams / 1000) * item.quantity * 100) / 100,
+        subtotal: Math.round(perKg * (grams / 1000) * qty * 100) / 100,
       });
       continue;
     }
@@ -648,19 +647,20 @@ export async function createAdminOrder(input: {
       if (!validOption) {
         return { error: `Choose a volume option for ${product.name}.` };
       }
-      if (item.quantity < 1 || item.quantity > 10) {
-        return { error: `Check the quantity for ${product.name}.` };
+      const qty = Math.round(item.quantity * 100) / 100;
+      if (!Number.isFinite(qty) || qty < 0.01 || qty > 100 || Math.abs(qty - item.quantity) > 1e-9) {
+        return { error: `Check the quantity for ${product.name} (up to 2 decimal places).` };
       }
       const perL = Number(product.price_per_liter ?? product.price);
       lines.push({
         product_id: product.id,
         product_name: product.name,
         product_price: perL,
-        quantity: item.quantity,
+        quantity: qty,
         weight_grams: null,
         volume_ml: ml,
         pack_option_id: null,
-        subtotal: Math.round(perL * (ml / 1000) * item.quantity * 100) / 100,
+        subtotal: Math.round(perL * (ml / 1000) * qty * 100) / 100,
       });
       continue;
     }
@@ -668,6 +668,9 @@ export async function createAdminOrder(input: {
       const pack = (packRows ?? []).find((row) => row.id === item.packOptionId && row.is_active);
       if (!pack) {
         return { error: `Choose a pack size for ${product.name}.` };
+      }
+      if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) {
+        return { error: `Check the quantity for ${product.name}.` };
       }
       const unit = Number(pack.selling_price);
       lines.push({
@@ -681,6 +684,9 @@ export async function createAdminOrder(input: {
         subtotal: Math.round(unit * item.quantity * 100) / 100,
       });
       continue;
+    }
+    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) {
+      return { error: `Check the quantity for ${product.name}.` };
     }
     lines.push({
       product_id: product.id,

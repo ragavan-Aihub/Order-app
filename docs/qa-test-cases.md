@@ -1,21 +1,31 @@
-# QA test cases — share with a friend
+# QA test cases — by module
 
 Workbook: **[qa-test-cases.xlsx](qa-test-cases.xlsx)**
 
-Send that file. It has two sheets:
+Send that file. It has:
 
-1. **How to use** — short instructions in plain language (no technical setup).
-2. **Test cases** — 72 steps in order, starting with **admin website sign-in**, then products, posters, and shop status, then the customer phone app (**Google** and **email link**, not SMS), then one full order, then the delivery app (including the bill PDF).
+1. **How to use** — how to run and score a case.
+2. **Index** — every module sheet with case counts (including P0).
+3. **One sheet per module** — add future Sign-up (or Notifications, Orders, …) rows on that sheet only. Use a **new** Test case id.
+4. **All cases** — the same rows in one list if you want to filter.
+
+Source of the rows: [scripts/qa-test-case-rows.mjs](../scripts/qa-test-case-rows.mjs). Regenerating writes [qa-test-cases.csv](qa-test-cases.csv) and the Excel file:
+
+```bash
+npm run docs:qa-xlsx
+```
 
 ### Columns
 
 | Column | Meaning |
 |--------|---------|
-| **Step** | Do these in order (1, 2, 3…) |
-| **Test case id** | Short code if you need to refer to a row |
-| **App category** | Admin panel, Order app, or Delivery app |
-| **Module** | Area of the product |
+| **Seq** | On **All cases**, 1, 2, 3… through the whole book. On a module sheet, 1, 2, 3… for that module. |
+| **Test case id** | Assigned in that same order: first admin row `TC-A-001`, first customer row `TC-O-001`, first delivery row `TC-D-001`. |
+| **App category** | Admin panel, Order app, Delivery app, or cross-app |
+| **Module** | Sheet name (Sign-up, Notifications, Orders, …) |
+| **Type** | Happy, Negative, or Edge |
 | **Priority** | **P0** must pass before launch · **P1** should pass · **P2** workaround exists · **P3** after Play Store or low risk |
+| **Preconditions** | Who is signed in, shop open/closed, alerts on/off, order status |
 | **Use case** | One sentence: what this check is for |
 | **What to do** | Steps a non-technical person can follow |
 | **What you should see** | How you know it passed |
@@ -23,12 +33,8 @@ Send that file. It has two sheets:
 
 ### First session
 
-Filter **Priority** = P0, and always run **Google sign-in (Step 33)**, **email link (Step 34)**, and **Step 61** (one order from the customer through payment). Use a **preview APK**, not a development build that asks for a Metro URL.
+On **All cases**, filter **Priority** = P0. Always run customer **Google** and **email link** on **Sign-up**, **Notifications** P0 rows, and **End-to-end**. Use a **preview APK**, not a development build that asks for a Metro URL.
 
-Regenerate the Excel file after editing the CSV:
+### Module sheets
 
-```bash
-npm run docs:qa-xlsx
-```
-
-Source: [qa-test-cases.csv](qa-test-cases.csv). Coverage follows [business-guide.md](business-guide.md).
+Sign-up, Dashboard, Products, Categories, Customers, Home, Catalog, Cart, Orders, Payments, Notifications, Announcements, Shop status, Profile, Preferences, Reports, Audit, Communities, Account, Connectivity, Deliveries, Bill, Store review, End-to-end.

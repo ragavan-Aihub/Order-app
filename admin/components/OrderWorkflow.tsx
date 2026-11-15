@@ -89,6 +89,7 @@ export function OrderWorkflow({
   variant = 'panel',
   statusEvents,
   placedAt,
+  invoicePrepared = false,
 }: {
   orderId: string;
   orderNumber: string;
@@ -100,6 +101,7 @@ export function OrderWorkflow({
   variant?: Variant;
   statusEvents?: OrderStatusEvent[];
   placedAt?: string | null;
+  invoicePrepared?: boolean;
 }) {
   const router = useRouter();
   const { complete, refreshing } = useActionComplete();
@@ -241,11 +243,13 @@ export function OrderWorkflow({
   const ActionIcon = action?.target === 'delivered' ? Check : ArrowRight;
   const working = busy || refreshing;
   const iconSize = variant === 'row' ? 15 : 18;
+  const needsInvoice = action?.target === 'out_for_delivery' && !invoicePrepared;
   const primary = action ? (
     <button
       type="button"
       onClick={openAdvance}
-      disabled={working}
+      disabled={working || needsInvoice}
+      title={needsInvoice ? 'Save the invoice before marking out for delivery.' : undefined}
       aria-busy={working}
       className={`inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 ${
         variant === 'row'
@@ -273,6 +277,11 @@ export function OrderWorkflow({
 
   const feedback = (
     <>
+      {needsInvoice && variant !== 'row' ? (
+        <p className="text-sm text-amber-900">
+          Save the invoice first (Prepare invoice). You can save even if quantities match the order.
+        </p>
+      ) : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </>
   );

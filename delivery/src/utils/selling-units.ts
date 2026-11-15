@@ -11,9 +11,21 @@ export function formatWeight(grams: number): string {
   return grams >= 1000 ? gramsToKgLabel(grams) : `${grams}g`;
 }
 
+function formatLineMultiplier(quantity: number): string {
+  if (Number.isInteger(quantity)) {
+    return String(quantity);
+  }
+  return (Math.round(quantity * 100) / 100)
+    .toFixed(2)
+    .replace(/0$/, '')
+    .replace(/\.0$/, '');
+}
+
 /** "500g" for one unit, "2 × 500g" for several. */
 export function formatKgLine(weightGrams: number, quantity: number): string {
-  return quantity > 1 ? `${quantity} × ${formatWeight(weightGrams)}` : formatWeight(weightGrams);
+  return Math.abs(quantity - 1) > 1e-9
+    ? `${formatLineMultiplier(quantity)} × ${formatWeight(weightGrams)}`
+    : formatWeight(weightGrams);
 }
 
 export function formatVolume(ml: number): string {
@@ -29,7 +41,9 @@ export function formatVolume(ml: number): string {
 }
 
 export function formatLiterLine(volumeMl: number, quantity: number): string {
-  return quantity > 1 ? `${quantity} × ${formatVolume(volumeMl)}` : formatVolume(volumeMl);
+  return Math.abs(quantity - 1) > 1e-9
+    ? `${formatLineMultiplier(quantity)} × ${formatVolume(volumeMl)}`
+    : formatVolume(volumeMl);
 }
 
 export function formatPackWeight(grams: number): string {

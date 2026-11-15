@@ -395,7 +395,7 @@ export default function CartScreen() {
         if (result.reason === 'stock') {
           hapticError();
           showAppDialog({
-            title: 'Limited stock',
+            title: 'Not available',
             message: result.message,
             icon: 'alert-circle',
             tone: 'warning',

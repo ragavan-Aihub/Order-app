@@ -60,14 +60,14 @@ export function lineStockUnits(
   weightGrams?: number | null,
   volumeMl?: number | null,
 ): number {
-  const qty = Math.max(0, Math.floor(quantity));
+  const qty = Math.max(0, Number(quantity) || 0);
   if (sellingType === 'kg') {
-    return qty * Math.max(0, weightGrams ?? 0);
+    return Math.round(qty * Math.max(0, weightGrams ?? 0));
   }
   if (sellingType === 'liter') {
-    return qty * Math.max(0, volumeMl ?? 0);
+    return Math.round(qty * Math.max(0, volumeMl ?? 0));
   }
-  return qty;
+  return Math.floor(qty);
 }
 
 export function stockLeftLabel(

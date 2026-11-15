@@ -33,6 +33,38 @@ export function roundMoney(amount: number): number {
   return Math.round((Number(amount) || 0) * 100) / 100;
 }
 
+export const ADMIN_WEIGHT_QTY_MAX = 100;
+export const ADMIN_PIECE_QTY_MAX = 10;
+
+export function isWeightSellingType(type: string | null | undefined): boolean {
+  return type === 'kg' || type === 'liter';
+}
+
+export function roundQty2(amount: number): number {
+  return Math.round((Number(amount) || 0) * 100) / 100;
+}
+
+export function formatLineMultiplier(quantity: number): string {
+  if (Number.isInteger(quantity)) {
+    return String(quantity);
+  }
+  return roundQty2(quantity)
+    .toFixed(2)
+    .replace(/0$/, '')
+    .replace(/\.0$/, '');
+}
+
+export function isValidAdminQty(quantity: number, sellingType: string | null | undefined): boolean {
+  if (!Number.isFinite(quantity)) {
+    return false;
+  }
+  if (isWeightSellingType(sellingType)) {
+    const rounded = roundQty2(quantity);
+    return rounded >= 0.01 && rounded <= ADMIN_WEIGHT_QTY_MAX && Math.abs(rounded - quantity) < 1e-9;
+  }
+  return Number.isInteger(quantity) && quantity >= 1 && quantity <= ADMIN_PIECE_QTY_MAX;
+}
+
 export function kgToGrams(kg: number): number {
   return Math.round(kg * 1000);
 }
@@ -66,7 +98,9 @@ export function weightOptionPrice(pricePerKg: number, weightGrams: number, quant
 
 /** "500g" for one unit, "2 × 500g" for several. Legacy typed-weight lines (qty 1) show their total. */
 export function formatKgLine(weightGrams: number, quantity: number): string {
-  return quantity > 1 ? `${quantity} × ${formatWeight(weightGrams)}` : formatWeight(weightGrams);
+  return Math.abs(quantity - 1) > 1e-9
+    ? `${formatLineMultiplier(quantity)} × ${formatWeight(weightGrams)}`
+    : formatWeight(weightGrams);
 }
 
 export function formatVolume(ml: number): string {
@@ -86,7 +120,9 @@ export function volumeOptionPrice(pricePerLiter: number, volumeMl: number, quant
 }
 
 export function formatLiterLine(volumeMl: number, quantity: number): string {
-  return quantity > 1 ? `${quantity} × ${formatVolume(volumeMl)}` : formatVolume(volumeMl);
+  return Math.abs(quantity - 1) > 1e-9
+    ? `${formatLineMultiplier(quantity)} × ${formatVolume(volumeMl)}`
+    : formatVolume(volumeMl);
 }
 
 export function catalogPriceLabel(product: {
@@ -119,6 +155,24 @@ export function catalogPriceLabel(product: {
   return inr(product.price);
 }
 
+export function formatOrderItemPackLabel(item: {
+  selling_type?: string | null;
+  pack_weight_grams?: number | null;
+  weight_grams?: number | null;
+  volume_ml?: number | null;
+}): string | null {
+  if (item.pack_weight_grams) {
+    return formatPackWeight(item.pack_weight_grams);
+  }
+  if (item.weight_grams) {
+    return formatWeight(item.weight_grams);
+  }
+  if (item.volume_ml) {
+    return formatVolume(item.volume_ml);
+  }
+  return null;
+}
+
 export function formatOrderItemUnit(item: {
   product_name: string;
   quantity: number;
@@ -138,6 +192,10 @@ export function formatOrderItemUnit(item: {
   if (type === 'fixed_pack' && item.pack_weight_grams) {
     return `${item.product_name} – ${item.quantity} × ${formatPackWeight(item.pack_weight_grams)}`;
   }
+  const pack = formatOrderItemPackLabel(item);
+  if (pack) {
+    return `${item.product_name} – ${item.quantity} × ${pack}`;
+  }
   return `${item.product_name} × ${item.quantity}`;
 }
 
@@ -149,15 +207,19 @@ export function formatOrderItemQty(item: {
   weight_grams?: number | null;
   volume_ml?: number | null;
 }): string {
+  const qty = formatLineMultiplier(item.quantity);
   const type = item.selling_type ?? '';
-  if (type === 'kg' && item.weight_grams) {
+  if ((type === 'kg' || item.weight_grams) && item.weight_grams) {
     return formatKgLine(item.weight_grams, item.quantity);
   }
-  if (type === 'liter' && item.volume_ml) {
+  if ((type === 'liter' || item.volume_ml) && item.volume_ml) {
     return formatLiterLine(item.volume_ml, item.quantity);
   }
-  if (type === 'fixed_pack' && item.pack_weight_grams) {
-    return `${item.quantity} × ${formatPackWeight(item.pack_weight_grams)}`;
+  if (item.pack_weight_grams) {
+    return `${qty} × ${formatPackWeight(item.pack_weight_grams)}`;
   }
-  return String(item.quantity);
+  if (item.selling_unit) {
+    return `${qty} ${item.selling_unit}`;
+  }
+  return qty;
 }

@@ -35,9 +35,9 @@ Publish HTTPS page naming **Farm2Flavours** (legal business) as operator. Develo
 Must cover **customer app** data only (do not mention internal staff tools or other apps):
 
 - Google account and/or email (sign-in); name; delivery addresses; receiver phone on an address; orders; pay-on-delivery choice (cash/UPI)
-- Push notifications (order updates, optional “notify me”, and a shop poster only when the shop turns that poster’s phone alert on)
+- Push notifications and in-app Notifications list (order updates, optional “notify me”, Home posters the shop alerts, important shop messages or offers; list keeps the latest 20)
 - **No** microphone or voice recording (not collected)
-- Service providers: Supabase (hosting/data/auth), Google Sign-In, Google FCM (push via Expo)
+- Service providers: Supabase (hosting/data/auth), Google Sign-In, Expo push (Android via Google FCM)
 - Contact, retention, deletion requests, not directed at children
 
 **Data safety** answers in Play Console must match this policy.

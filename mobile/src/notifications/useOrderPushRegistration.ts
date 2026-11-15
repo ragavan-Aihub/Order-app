@@ -10,6 +10,7 @@ import {
 } from '@/notifications/pending-push-deeplink';
 import { queueAvailableProductOrder } from '@/notifications/available-product-order';
 import { isPushAvailable } from '@/notifications/push-runtime';
+import { fetchInboxIdByBroadcast } from '@/services/inbox';
 import { invalidateProductCatalogCache } from '@/services/products';
 import { getSupabaseClient } from '@/services/supabase';
 
@@ -30,6 +31,22 @@ export function useOrderPushRegistration() {
       },
       onOpenHome: () => {
         router.replace('/home');
+      },
+      onOpenNotifications: () => {
+        router.replace('/notifications');
+      },
+      onOpenInbox: (inboxId, broadcastId) => {
+        void (async () => {
+          let id = inboxId;
+          if (!id && broadcastId) {
+            id = await fetchInboxIdByBroadcast(broadcastId);
+          }
+          if (id) {
+            router.replace({ pathname: '/notification/[id]', params: { id } });
+            return;
+          }
+          router.replace('/notifications');
+        })();
       },
     }),
     [router],

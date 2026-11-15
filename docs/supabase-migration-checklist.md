@@ -53,5 +53,23 @@ Mark each file **done** in the Supabase SQL editor (or note date applied). Run i
 | [ ] | `20261027220000_business_upi_qr.sql` |
 | [ ] | `20261028210000_admin_audit_log.sql` |
 | [ ] | `20261030233000_customer_app_version.sql` |
+| [ ] | `20261105010000_shop_notice.sql` |
+| [ ] | `20261105020000_shop_banners.sql` |
+| [ ] | `20261105030000_shop_banner_focus.sql` |
+| [ ] | `20261105040000_shop_notice_hardening.sql` |
+| [ ] | `20261106010000_google_customer_profile.sql` |
+| [ ] | `20261109010000_product_selling_units.sql` |
+| [ ] | `20261109020000_selling_price_always.sql` |
+| [ ] | `20261111010000_kg_weight_options.sql` |
+| [ ] | `20261112010000_liter_volume_options.sql` |
+| [ ] | `20261112020000_min_order_amount.sql` |
+| [ ] | `20261112030000_product_stock_qty.sql` |
+| [ ] | `20261112040000_stock_by_selling_unit.sql` |
+| [ ] | `20261115140000_customer_inbox.sql` |
+| [ ] | `20261115150000_inbox_service_role_grants.sql` |
+| [ ] | `20261115160000_inbox_keep_latest_10.sql` |
+| [ ] | `20261115170000_inbox_keep_latest_20.sql` |
+| [ ] | `20261115180000_customer_cancel_until_ofd.sql` |
+| [ ] | `20261115190000_customer_cancel_reason.sql` |
 
 If a migration fails because objects already exist, use the file’s `if not exists` / idempotent patterns; do not skip later files that depend on schema.

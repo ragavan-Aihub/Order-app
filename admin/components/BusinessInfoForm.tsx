@@ -3,10 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 
+import { AppIconSection } from '@/components/AppIconSection';
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
 import { isSupabaseConfigured } from '@/config/env';
 import { updateBusinessBranding, updateBusinessInfo } from '@/services/business-actions';
-import { uploadBusinessBanner, uploadBusinessLogo } from '@/services/storage';
+import { uploadBusinessLogo } from '@/services/storage';
 import { createBrowserSupabaseClient } from '@/services/supabase/browser';
 import type { Business } from '@/types/business';
 
@@ -20,13 +21,9 @@ export function BusinessInfoForm({ business }: { business: Business }) {
   const [description, setDescription] = useState(business.description ?? '');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState(business.logo_url ?? '');
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
-  const [bannerPreview, setBannerPreview] = useState(business.banner_url ?? '');
-  const [bannerCleared, setBannerCleared] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,7 +58,7 @@ export function BusinessInfoForm({ business }: { business: Business }) {
       return;
     }
 
-    if (logoFile || bannerFile || bannerCleared) {
+    if (logoFile) {
       const supabase = createBrowserSupabaseClient();
       if (!supabase) {
         setError('Supabase is not configured.');
@@ -69,18 +66,11 @@ export function BusinessInfoForm({ business }: { business: Business }) {
         return;
       }
       try {
-        const logoUrl = logoFile
-          ? await uploadBusinessLogo(supabase, business.id, logoFile)
-          : business.logo_url;
-        const bannerUrl = bannerCleared
-          ? null
-          : bannerFile
-            ? await uploadBusinessBanner(supabase, business.id, bannerFile)
-            : business.banner_url;
+        const logoUrl = await uploadBusinessLogo(supabase, business.id, logoFile);
         const brandingResult = await updateBusinessBranding({
           businessId: business.id,
           logoUrl,
-          bannerUrl,
+          bannerUrl: business.banner_url,
         });
         if (brandingResult.error) {
           setError(brandingResult.error);
@@ -88,10 +78,8 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           return;
         }
         setLogoFile(null);
-        setBannerFile(null);
-        setBannerCleared(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not upload the shop images.');
+        setError(err instanceof Error ? err.message : 'Could not upload the shop logo.');
         setSubmitting(false);
         return;
       }
@@ -107,7 +95,8 @@ export function BusinessInfoForm({ business }: { business: Business }) {
     <form onSubmit={onSubmit} className="max-w-xl space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
       <h2 className="text-xl font-semibold">Shop profile</h2>
       <p className="text-sm text-stone-600">
-        The logo and welcome photo appear on the customer welcome screen. The logo also prints on the delivery bill.
+        The logo appears on the customer welcome screen and prints on the delivery bill. Crop an app icon from the logo
+        for the next customer app build.
       </p>
       <div>
         <span className="mb-1 block font-medium">Logo</span>
@@ -144,64 +133,12 @@ export function BusinessInfoForm({ business }: { business: Business }) {
           </div>
         </div>
       </div>
-      <div>
-        <span className="mb-1 block font-medium">Welcome photo</span>
-        <p className="mb-2 text-sm text-stone-600">
-          Wide photo on the customer sign-in screen. The whole picture is shown. Remove it to hide that strip. Home
-          posters are managed under Announcements.
-        </p>
-        <input
-          ref={bannerInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0] ?? null;
-            setBannerFile(file);
-            if (file) {
-              setBannerCleared(false);
-              setBannerPreview(URL.createObjectURL(file));
-            }
-          }}
-        />
-        {bannerPreview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={bannerPreview}
-            alt=""
-            className="max-h-80 w-full rounded-lg border border-stone-200 bg-stone-50 object-contain"
-          />
-        ) : (
-          <div className="flex h-36 w-full items-center justify-center rounded-lg border border-dashed border-stone-300 text-sm text-stone-500">
-            No welcome photo
-          </div>
-        )}
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => bannerInputRef.current?.click()}
-            className="min-h-11 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium"
-          >
-            {bannerPreview ? 'Replace photo' : 'Choose photo'}
-          </button>
-          {bannerPreview ? (
-            <button
-              type="button"
-              onClick={() => {
-                setBannerFile(null);
-                setBannerPreview('');
-                setBannerCleared(true);
-                if (bannerInputRef.current) {
-                  bannerInputRef.current.value = '';
-                }
-              }}
-              className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100"
-            >
-              Remove
-            </button>
-          ) : null}
-        </div>
-      </div>
+      <AppIconSection
+        businessId={business.id}
+        logoSrc={logoPreview}
+        appIconUrl={business.app_icon_url ?? null}
+        notificationIconUrl={business.notification_icon_url ?? null}
+      />
       <label className="block">
         <span className="mb-1 block font-medium">
           Business name <span className="text-red-700">*</span>

@@ -83,7 +83,12 @@ function NavLinks({
         const isActive =
           link.href === '/'
             ? pathname === '/'
-            : pathname === link.href || pathname.startsWith(`${link.href}/`);
+            : link.href === '/settings/announcements'
+              ? pathname === link.href ||
+                pathname.startsWith(`${link.href}/`) ||
+                pathname.startsWith('/settings/messages') ||
+                pathname.startsWith('/settings/notifications')
+              : pathname === link.href || pathname.startsWith(`${link.href}/`);
         const Icon = link.icon;
         return (
           <Link

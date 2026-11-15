@@ -106,7 +106,15 @@ export default function RootLayout() {
           <Stack.Screen name="auth/callback" options={{ headerShown: false, title: 'Sign in' }} />
           <Stack.Screen name="(shop)" options={{ headerShown: false }} />
           <Stack.Screen name="products" options={{ headerShown: false }} />
-          <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
+          <Stack.Screen name="product/[id]" options={{ title: 'Product details' }} />
+          <Stack.Screen
+            name="notification/[id]"
+            options={{
+              title: 'Notification Center',
+              headerStyle: { backgroundColor: colors.background },
+              headerShadowVisible: false,
+            }}
+          />
           <Stack.Screen name="sam" options={{ headerShown: false }} />
           <Stack.Screen name="new-order" options={{ headerShown: false }} />
           <Stack.Screen name="checkout" options={{ title: 'Saved addresses' }} />

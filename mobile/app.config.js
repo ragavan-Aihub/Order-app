@@ -24,9 +24,9 @@ function readDotEnv() {
   return values;
 }
 
-function imageExtension(contentType, logoUrl) {
+function imageExtension(contentType, fileUrl) {
   const type = (contentType || '').toLowerCase();
-  const url = logoUrl.toLowerCase();
+  const url = (fileUrl || '').toLowerCase();
   if (type.includes('png') || url.includes('.png')) {
     return 'png';
   }
@@ -37,38 +37,45 @@ function imageExtension(contentType, logoUrl) {
 }
 
 function curl(args, encoding) {
-  return execFileSync('curl', ['-fsS', '--max-time', '8', ...args], {
+  return execFileSync('curl', ['-fsS', '--max-time', '20', ...args], {
     encoding,
-    timeout: 10000,
+    timeout: 25000,
   });
 }
 
-function existingLaunchIcon() {
-  let best = null;
-  let bestTime = -1;
-  for (const ext of ['png', 'jpg']) {
-    try {
-      const stat = fs.statSync(path.join(__dirname, 'assets/images', `dev-launch-icon.${ext}`));
-      if (stat.size > 0 && stat.mtimeMs >= bestTime) {
-        bestTime = stat.mtimeMs;
-        best = `./assets/images/dev-launch-icon.${ext}`;
-      }
-    } catch {
-      // No saved logo for this extension.
-    }
+function existingFile(relative) {
+  try {
+    const stat = fs.statSync(path.join(__dirname, relative));
+    return stat.size > 0 ? relative : null;
+  } catch {
+    return null;
   }
-  return best;
 }
 
-/** Expo Go shows this file before the app opens. Keep the Profile logo, not the F2F mark. */
-function fetchLaunchIcon(fileEnv) {
+function existingLaunchIcon() {
+  return (
+    existingFile('./assets/images/shop-app-icon.png') ||
+    existingFile('./assets/images/dev-launch-icon.png') ||
+    existingFile('./assets/images/dev-launch-icon.jpg')
+  );
+}
+
+let shopRowCache;
+let shopRowTried = false;
+
+function fetchShopRow(fileEnv) {
+  if (shopRowTried) {
+    return shopRowCache;
+  }
+  shopRowTried = true;
   const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || fileEnv.EXPO_PUBLIC_SUPABASE_URL || '')
     .trim()
     .replace(/\/$/, '');
   const anonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || fileEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
   const businessId = (process.env.EXPO_PUBLIC_BUSINESS_ID || fileEnv.EXPO_PUBLIC_BUSINESS_ID || '').trim();
   if (!supabaseUrl || !anonKey || !businessId) {
-    return existingLaunchIcon();
+    shopRowCache = null;
+    return null;
   }
   try {
     const raw = curl(
@@ -88,13 +95,40 @@ function fetchLaunchIcon(fileEnv) {
       'utf8',
     );
     const rows = JSON.parse(raw);
-    const logoUrl = (Array.isArray(rows) ? rows[0]?.logo_url : rows?.logo_url)?.trim?.() || '';
-    if (!logoUrl) {
+    shopRowCache = (Array.isArray(rows) ? rows[0] : rows) || null;
+  } catch {
+    shopRowCache = null;
+  }
+  return shopRowCache;
+}
+
+function downloadImage(fileUrl, destRelative) {
+  const destPath = path.join(__dirname, destRelative);
+  const tempPath = `${destPath}.bin`;
+  const contentType = curl(['-L', '-o', tempPath, '-w', '%{content_type}', fileUrl], 'utf8');
+  const ext = imageExtension(contentType, fileUrl);
+  if (!ext || (destRelative.endsWith('.png') && ext !== 'png')) {
+    fs.rmSync(tempPath, { force: true });
+    return null;
+  }
+  fs.renameSync(tempPath, destPath);
+  return destRelative;
+}
+
+/** Colour home-screen icon from Profile (saved app icon, else logo). */
+function fetchLaunchIcon(fileEnv) {
+  try {
+    const shop = fetchShopRow(fileEnv);
+    const colourUrl = shop?.app_icon_url?.trim?.() || shop?.logo_url?.trim?.() || '';
+    if (!colourUrl) {
       return existingLaunchIcon();
     }
+    if (shop?.app_icon_url?.trim?.()) {
+      return downloadImage(colourUrl, './assets/images/shop-app-icon.png') || existingLaunchIcon();
+    }
     const destBase = path.join(__dirname, 'assets/images/dev-launch-icon');
-    const contentType = curl(['-L', '-o', `${destBase}.bin`, '-w', '%{content_type}', logoUrl], 'utf8');
-    const ext = imageExtension(contentType, logoUrl);
+    const contentType = curl(['-L', '-o', `${destBase}.bin`, '-w', '%{content_type}', colourUrl], 'utf8');
+    const ext = imageExtension(contentType, colourUrl);
     const downloaded = `${destBase}.bin`;
     if (!ext) {
       fs.rmSync(downloaded, { force: true });
@@ -108,18 +142,35 @@ function fetchLaunchIcon(fileEnv) {
   }
 }
 
+function fetchNotificationIcon(fileEnv) {
+  try {
+    const shop = fetchShopRow(fileEnv);
+    const glyphUrl = shop?.notification_icon_url?.trim?.() || '';
+    if (!glyphUrl) {
+      return existingFile('./assets/images/shop-notification-icon.png');
+    }
+    return (
+      downloadImage(glyphUrl, './assets/images/shop-notification-icon.png') ||
+      existingFile('./assets/images/shop-notification-icon.png')
+    );
+  } catch {
+    return existingFile('./assets/images/shop-notification-icon.png');
+  }
+}
+
 let launchIconCache;
+let notificationIconCache;
 let refreshStarted = false;
 
 function loadLaunchIcon(fileEnv) {
   if (launchIconCache !== undefined) {
     return launchIconCache;
   }
-  if (process.env.EAS_BUILD === 'true') {
-    launchIconCache = null;
-    return null;
-  }
   const existing = existingLaunchIcon();
+  if (process.env.EAS_BUILD === 'true') {
+    launchIconCache = fetchLaunchIcon(fileEnv);
+    return launchIconCache;
+  }
   if (existing) {
     launchIconCache = existing;
     if (!refreshStarted) {
@@ -127,8 +178,9 @@ function loadLaunchIcon(fileEnv) {
       setImmediate(() => {
         try {
           fetchLaunchIcon(fileEnv);
+          fetchNotificationIcon(fileEnv);
         } catch {
-          // Keep the saved Profile logo.
+          // Keep the saved Profile icon.
         }
       });
     }
@@ -136,6 +188,19 @@ function loadLaunchIcon(fileEnv) {
   }
   launchIconCache = fetchLaunchIcon(fileEnv);
   return launchIconCache;
+}
+
+function loadNotificationIcon(fileEnv) {
+  if (notificationIconCache !== undefined) {
+    return notificationIconCache;
+  }
+  if (process.env.EAS_BUILD === 'true') {
+    notificationIconCache = fetchNotificationIcon(fileEnv);
+    return notificationIconCache;
+  }
+  notificationIconCache =
+    existingFile('./assets/images/shop-notification-icon.png') || fetchNotificationIcon(fileEnv);
+  return notificationIconCache;
 }
 
 module.exports = ({ config }) => {
@@ -169,29 +234,47 @@ module.exports = ({ config }) => {
   delete infoPlist.NSSpeechRecognitionUsageDescription;
   ios.infoPlist = infoPlist;
 
+  const easBuild = process.env.EAS_BUILD === 'true';
   const launchIcon = loadLaunchIcon(fileEnv);
+  const notificationIcon = loadNotificationIcon(fileEnv);
   let icon = config.icon;
   let name = config.name;
   if (launchIcon) {
     icon = launchIcon;
-    name = '\u200b';
     android.icon = launchIcon;
     android.adaptiveIcon = {
       ...(android.adaptiveIcon ?? {}),
       backgroundColor: '#F5F5F4',
       foregroundImage: launchIcon,
     };
+    if (!easBuild) {
+      name = '\u200b';
+      plugins = plugins.map((plugin) => {
+        if (!Array.isArray(plugin) || plugin[0] !== 'expo-splash-screen') {
+          return plugin;
+        }
+        return [
+          plugin[0],
+          {
+            ...(plugin[1] ?? {}),
+            backgroundColor: '#F5F5F4',
+            image: launchIcon,
+            imageWidth: 220,
+          },
+        ];
+      });
+    }
+  }
+  if (notificationIcon) {
     plugins = plugins.map((plugin) => {
-      if (!Array.isArray(plugin) || plugin[0] !== 'expo-splash-screen') {
+      if (!Array.isArray(plugin) || plugin[0] !== 'expo-notifications') {
         return plugin;
       }
       return [
         plugin[0],
         {
           ...(plugin[1] ?? {}),
-          backgroundColor: '#F5F5F4',
-          image: launchIcon,
-          imageWidth: 220,
+          icon: notificationIcon,
         },
       ];
     });

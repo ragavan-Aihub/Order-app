@@ -148,8 +148,8 @@ export function ShopBannerCarousel({
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
   frame: {
     borderRadius: radius.md,

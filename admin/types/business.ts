@@ -7,6 +7,8 @@ export type Business = {
   address: string | null;
   description: string | null;
   banner_url: string | null;
+  app_icon_url?: string | null;
+  notification_icon_url?: string | null;
   shop_closed: boolean;
   shop_closed_message: string | null;
   min_order_amount?: number | null;

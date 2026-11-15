@@ -16,6 +16,7 @@ import { formatSavedAddressLabel, getAddressBook, splitDeliveryAddress } from '@
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { showAppDialog } from '@/components/AppDialogHost';
+import { CancelOrderDialog } from '@/components/CancelOrderDialog';
 import { OrderProgress } from '@/components/OrderProgress';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
@@ -85,6 +86,7 @@ export default function OrderStatusScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [showAddress, setShowAddress] = useState(false);
 
   const load = useCallback(
@@ -158,35 +160,29 @@ export default function OrderStatusScreen() {
     if (!order) {
       return;
     }
-    showAppDialog({
-      title: 'Cancel this order?',
-      message: `Order #${formatOrderNumber(order.order_number)} will be cancelled. This cannot be undone.`,
-      icon: 'close-circle',
-      tone: 'danger',
-      actions: [
-        {
-          label: 'Cancel order',
-          variant: 'danger',
-          onPress: () => {
-            setCancelling(true);
-            cancelMyOrder(order.id)
-              .then(() => {
-                forgetOpenOrder(order.id);
-                return load(true);
-              })
-              .catch((error) => {
-                showAppDialog({
-                  title: 'Could not cancel',
-                  message: error instanceof Error ? error.message : 'Try again in a moment.',
-                  icon: 'cloud-offline',
-                  tone: 'warning',
-                });
-              })
-              .finally(() => setCancelling(false));
-          },
-        },
-      ],
-    });
+    setCancelOpen(true);
+  }
+
+  function submitCancel(reason: string) {
+    if (!order) {
+      return;
+    }
+    setCancelling(true);
+    cancelMyOrder(order.id, reason)
+      .then(() => {
+        setCancelOpen(false);
+        forgetOpenOrder(order.id);
+        return load(true);
+      })
+      .catch((error) => {
+        showAppDialog({
+          title: 'Could not cancel',
+          message: error instanceof Error ? error.message : 'Try again in a moment.',
+          icon: 'cloud-offline',
+          tone: 'warning',
+        });
+      })
+      .finally(() => setCancelling(false));
   }
 
   function openMore() {
@@ -424,6 +420,19 @@ export default function OrderStatusScreen() {
       >
         <PrimaryButton label="Back to home" onPress={() => router.replace('/home')} style={styles.footerButton} />
       </View>
+      {order ? (
+        <CancelOrderDialog
+          visible={cancelOpen}
+          orderLabel={`Order #${formatOrderNumber(order.order_number)}`}
+          busy={cancelling}
+          onClose={() => {
+            if (!cancelling) {
+              setCancelOpen(false);
+            }
+          }}
+          onConfirm={submitCancel}
+        />
+      ) : null}
     </View>
   );
 }

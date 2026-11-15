@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { showAppDialog } from '@/components/AppDialogHost';
+import { CancelOrderDialog } from '@/components/CancelOrderDialog';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { ProductImage } from '@/components/ProductImage';
@@ -57,6 +58,8 @@ export default function OrderDetailScreen() {
   const [adminOrderDiff, setAdminOrderDiff] = useState<CustomerAdminOrderDiff | null>(null);
   const [upiQrUrl, setUpiQrUrl] = useState<string | null>(null);
   const [upiQrLoading, setUpiQrLoading] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const refreshAdminModNotice = useCallback(async (orderId: string, items: OrderWithItems['order_items']) => {
     try {
@@ -140,33 +143,26 @@ export default function OrderDetailScreen() {
   const orderTitle = `Order #${formatOrderNumber(order.order_number)}`;
 
   function confirmCancel() {
-    showAppDialog({
-      title: 'Cancel this order?',
-      message: `Order #${formatOrderNumber(current.order_number)} will be cancelled. This cannot be undone.`,
-      icon: 'close-circle',
-      tone: 'danger',
-      actions: [
-        {
-          label: 'Cancel order',
-          variant: 'danger',
-          onPress: () => {
-            cancelMyOrder(current.id)
-              .then(() => {
-                forgetOpenOrder(current.id);
-                return load(true);
-              })
-              .catch((error) => {
-                showAppDialog({
-                  title: 'Could not cancel',
-                  message: error instanceof Error ? error.message : 'Try again in a moment.',
-                  icon: 'cloud-offline',
-                  tone: 'warning',
-                });
-              });
-          },
-        },
-      ],
-    });
+    setCancelOpen(true);
+  }
+
+  function submitCancel(reason: string) {
+    setCancelling(true);
+    cancelMyOrder(current.id, reason)
+      .then(() => {
+        setCancelOpen(false);
+        forgetOpenOrder(current.id);
+        return load(true);
+      })
+      .catch((error) => {
+        showAppDialog({
+          title: 'Could not cancel',
+          message: error instanceof Error ? error.message : 'Try again in a moment.',
+          icon: 'cloud-offline',
+          tone: 'warning',
+        });
+      })
+      .finally(() => setCancelling(false));
   }
 
   const shopModified = adminOrderDiff !== null;
@@ -345,6 +341,17 @@ export default function OrderDetailScreen() {
         </View>
       </ScrollView>
       </View>
+      <CancelOrderDialog
+        visible={cancelOpen}
+        orderLabel={`Order #${formatOrderNumber(current.order_number)}`}
+        busy={cancelling}
+        onClose={() => {
+          if (!cancelling) {
+            setCancelOpen(false);
+          }
+        }}
+        onConfirm={submitCancel}
+      />
     </>
   );
 }

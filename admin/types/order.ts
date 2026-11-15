@@ -33,6 +33,8 @@ export type Order = {
   community_name?: string | null;
   item_count?: number;
   items_revision?: number;
+  /** Shop saved the invoice (required before out for delivery). */
+  invoice_prepared_at?: string | null;
   /** Admin changed lines away from the originally placed snapshot. */
   admin_modified_from_placed?: boolean;
   /** Customer changed lines after the order was confirmed. */

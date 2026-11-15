@@ -46,7 +46,7 @@ This is an online ordering system for a small business that takes orders and del
 | **Admin panel** | Business owner and staff | Web browser on a laptop or phone |
 | **Delivery app** (optional) | Shop staff who deliver orders | Android phone (installed as an app) |
 
-The customer app carries **your** business name, logo, welcome photo, products and prices, so the same system can serve any business. Home posters are separate and are set under Announcements. You manage products, prices, orders and customers in the admin panel. The delivery app uses the **same admin login** (email and password) for staff on the road.
+The customer app carries **your** business name, logo, products and prices, so the same system can serve any business. Home posters are set under Announcements. You manage products, prices, orders and customers in the admin panel. The delivery app uses the **same admin login** (email and password) for staff on the road.
 
 The delivery app is optional. Many shops run deliveries from the admin panel only; use the delivery app when drivers need a phone-first list, maps links, swipe-to-advance status, and UPI QR at the door.
 
@@ -76,10 +76,11 @@ Both parts share one online database. When a customer places an order in the app
 |---|---|
 | **Order number** | A 6-digit number for each order, for example #100058. It starts at 100001 and goes up by one. |
 | **Status** | Where the order is now: Placed, Confirmed, Out for delivery, Delivered or Cancelled. |
-| **Open order** | An order that is still **Placed** or **Confirmed**. Customers can modify open orders. They can cancel only while the order is Placed. |
+| **Open order** | An order that is still **Placed** or **Confirmed**. Customers can modify open orders. They can cancel while the order is Placed or Confirmed. |
 | **Modify** | The customer changes an open order: adds items, removes items or changes quantities. |
 | **Modify limit** | A customer can modify one order at most 5 times. Shop edits to items do not count toward this limit. |
-| **Shop modified** | The shop changed items on an open order. The customer sees a tag until they review what changed. |
+| **Shop modified** | In the customer app: the shop saved an invoice that differs from the original order. The customer sees a tag until they review what changed. |
+| **Invoice** | In the admin panel: billed quantities and total on the same order. Ordered lines stay on record so you can see the difference. |
 | **Coming soon** | A product that customers can see, but cannot buy yet. It shows dimmed with "Coming soon". |
 | **Active / Inactive** | Active products show in the app. Inactive products are hidden from the app. |
 | **Outstanding** | An order that is delivered but not yet paid. |
@@ -88,7 +89,6 @@ Both parts share one online database. When a customer places an order in the app
 | **Source** | How a customer first reached you, for example App or Phone / Offline. |
 | **Community** | An optional group of delivery addresses (for example, one apartment complex). Only the shop sees it. Customers never see communities. |
 | **Category** | An optional group of products (for example, Sweets, Spices, Oils). Customers see categories as filters on Home, including while they search. |
-| **Welcome photo** | The wide picture on the customer sign-in screen. It is not the home poster. |
 | **Poster** | A wide picture under the categories on Home. Set under Announcements. The app does not offer voice ordering. |
 | **Google sign-in** | The customer taps Continue with Google and uses the Google account on the phone. There is no password. |
 | **Email link** | The customer taps Continue with Email and opens a sign-in link sent to that address. The mail currently comes from Supabase Auth. |
@@ -246,7 +246,7 @@ There is no voice-ordering button, and the app does not ask for the microphone.
 
 **Rules:**
 
-- Customers can cancel only while the order is **Placed**. Once the shop confirms it, the Cancel option disappears. The customer can still modify the order until it is Out for delivery, or call the shop to cancel.
+- Customers can cancel while the order is **Placed** or **Confirmed**. Once it is Out for delivery, Cancel disappears. The customer can still modify until it is Out for delivery, or call the shop after that.
 - A customer can cancel at most **3 orders in 24 hours**. After that the app says "Cancel limit reached for today. Please contact the shop to cancel this order." Cancellations done by the shop do not count.
 - These limits apply only to customers. The admin panel can cancel or change any order at any time.
 - The reason is saved as "Customer requested". The customer is not asked to type a reason.
@@ -362,18 +362,22 @@ Open an order to see:
 3. **Payment** panel (see below).
 4. **Customer**: name, mobile, source, and a link to the customer's history.
 5. **Delivery**: address, pincode and any order notes.
-6. **Items** with quantity, price, subtotal and total.
+6. **Invoice** with ordered qty, invoice qty, amount and total. When billed lines differ from the original order, the table shows added, removed, and qty-changed lines.
 
-#### Changing items on an open order
+#### Preparing the invoice (order qty vs delivery qty)
 
-While the order is **Placed** or **Confirmed**, open the order and use **Modify order** on the Items section when a customer asks for a change (same rules as the customer app: not after Out for delivery or Delivered). Most orders are left as placed.
+Homemade shops often pack a different qty than the customer ordered, drop a line, or add a line. Do that on the **invoice**, not by rewriting the customer’s request.
 
-1. Tap **Modify order**. The items table switches to an editable list with product search.
-2. Add, remove or change quantities.
-3. Tap **Review & update**, check the totals, optionally add a short reason for the customer, then confirm **Update order**.
-4. Tap **Cancel** to leave without saving.
+While the order is **Placed**, **Confirmed**, or **Out for delivery**, open the order and use **Prepare invoice** (or **Update invoice** if you already saved one). **Mark out for delivery** stays off until the invoice is saved — even if billed qty matches what the customer ordered. After **Delivered** or **Cancelled**, the invoice is locked. Cancel the whole order from the status menu, not by clearing lines.
 
-Payment method and whether the order is paid do not change automatically. If the total went up or down, use the payment panel or collect/refund manually. The customer sees a **Shop modified** notice in the app with a before/after summary. These edits do not use up the customer's 5 self-service modifications.
+1. Tap **Prepare invoice**. Ordered qty stays visible on each line.
+2. Change invoice qty (for Kg/Liter you can type values such as 0.70), add products, or remove a line with trash. Minus does not delete the line.
+3. Tap **Review invoice**, check ordered vs billed totals, optionally add a short reason for the customer, then **Save invoice**.
+4. Tap **Cancel** to leave without saving. **Reset to original order** restores billed lines to the original request (customer edits from before the shop invoice are kept).
+
+Saving the invoice updates the live order so the customer app shows billed qty and total (no app update needed). The original order stays in history. The customer sees **Shop modified** and **View changes** (added, removed, qty, old/new total). These invoice saves do not use up the customer's 5 self-service modifications. After the first shop invoice save, the customer cannot keep modifying that order in the app.
+
+Payment method and whether the order is paid do not change automatically. If the total went up or down, use the payment panel or collect/refund manually. The delivery bill PDF uses the invoice (live) lines.
 
 #### Moving an order to the next status
 
@@ -382,7 +386,7 @@ The **Order status** panel shows the four steps with the date and time under eac
 | Current status | Button | Confirmation |
 |---|---|---|
 | Placed | **Confirm order** | "Confirm order #N?" |
-| Confirmed | **Mark out for delivery** | "Mark order #N as Out for delivery?" |
+| Confirmed | **Mark out for delivery** | Only after the invoice is saved. "Mark order #N as Out for delivery?" |
 | Out for delivery | **Mark as delivered** | "Mark order #N as Delivered?" |
 
 - When you mark an unpaid order as Delivered, the app asks **Payment collected?** with **Cash**, **UPI** or **Not yet**. If you choose Not yet, the order shows as **Outstanding** until you record the payment.
@@ -547,8 +551,9 @@ Each row shows **when**, **app** (admin panel or delivery app), **area**, and a 
 
 Open **Profile** in the menu to set what prints on the delivery bill and what customers see when they sign in.
 
-- **Logo** (JPG, PNG, WebP or GIF), **welcome photo**, **business name**, **phone**, **email**, and **address**.
-- The welcome photo is the wide picture on the customer sign-in screen. The whole picture is shown. Remove it to hide that strip. Home posters are set under **Announcements**, not here.
+- **Logo** (JPG, PNG, WebP or GIF), **business name**, **phone**, **email**, and **address**.
+- **Create app icon** crops a square from the logo. **Download PNG files** gives a colour home-screen icon and a white alert icon. **Save for this shop** stores those files. The next customer app build uses them as the home-screen icon and the phone-alert icon. Phones keep the old icon until that build is installed.
+- Home posters are set under **Announcements**, not here.
 - Tap **Save**. You see **Saved successfully**, then the page closes and you are back on the Dashboard.
 - The customer app uses the business name. The logo, phone, email, and address on the bill come from this page.
 
@@ -595,7 +600,6 @@ Open **Shop status** when the shop should stop taking new orders from the app.
 | Customers | Mobile number must be unique. Customers with orders cannot be deleted. |
 | Communities | Optional. Never shown to customers. |
 | Categories | Optional. Shown to customers as a fixed chip row under search on Home, including on the search screen. |
-| Welcome photo | Optional. Sign-in screen only. Set on Profile. |
 | Home posters | Optional, up to 8. Set under Announcements. Shown under the categories when turned on. A phone alert is sent only for posters you switch on at publish time. |
 | Shop closed | Blocks new customer orders. Existing orders can still be updated. The admin panel can still create an order. |
 | Microphone | The customer app does not ask for the microphone and does not offer voice ordering. |
@@ -614,7 +618,7 @@ Shop status may be **Shop is closed**. They can still update an order that is al
 The order is no longer open (it is Out for delivery, Delivered or Cancelled), or it has already been modified 5 times. If the order is still Placed, the customer can cancel it instead.
 
 **Why can't a customer cancel their order?**
-Either the shop has already confirmed it (customers can cancel only while it is Placed), or the customer has cancelled 3 orders in the last 24 hours. The shop can cancel it from the admin panel.
+Either the order is already Out for delivery (customers can cancel while it is Placed or Confirmed), or the customer has cancelled 3 orders in the last 24 hours. The shop can cancel it from the admin panel.
 
 **Why does the app say an order is already open for this address?**
 Each address can have only one open order. The customer can modify that order, or choose or add another address.

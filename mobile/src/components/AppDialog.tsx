@@ -13,6 +13,7 @@ export type AppDialogAction = {
   onPress?: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
+  disabled?: boolean;
 };
 
 export function AppDialog({
@@ -44,7 +45,7 @@ export function AppDialog({
   }
 
   function closeThen(action: AppDialogAction) {
-    if (action.busy) {
+    if (action.busy || action.disabled) {
       return;
     }
     if (action.onPress) {
@@ -92,14 +93,14 @@ export function AppDialog({
                 <Pressable
                   key={action.label}
                   onPress={() => closeThen(action)}
-                  disabled={action.busy}
+                  disabled={action.busy || action.disabled}
                   style={({ pressed }) => [
                     styles.btn,
                     variant === 'primary' && styles.btnPrimary,
                     variant === 'danger' && styles.btnDanger,
                     variant === 'secondary' && styles.btnSecondary,
                     pressed && !action.busy && styles.pressed,
-                    action.busy && styles.busy,
+                    (action.busy || action.disabled) && styles.busy,
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={action.label}

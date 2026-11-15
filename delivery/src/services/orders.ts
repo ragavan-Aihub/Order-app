@@ -122,7 +122,7 @@ export async function updateDeliveryOrderStatus(
 
   const { data: current, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status, order_number')
+    .select('id, status, payment_method, refund_status, order_number, invoice_prepared_at')
     .eq('id', orderId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -142,6 +142,21 @@ export async function updateDeliveryOrderStatus(
       outcome: conflict.outcome,
       currentStatus,
       userMessage: conflict.message,
+    };
+  }
+
+  const invoicePrepared = Boolean(
+    (current as { invoice_prepared_at?: string | null }).invoice_prepared_at,
+  );
+  if (
+    (status === 'out_for_delivery' || status === 'delivered') &&
+    currentStatus !== 'out_for_delivery' &&
+    currentStatus !== 'delivered' &&
+    !invoicePrepared
+  ) {
+    return {
+      error: 'Prepare and save the invoice before sending this order out.',
+      userMessage: 'The shop must save the invoice before this order can go out for delivery.',
     };
   }
 
@@ -167,6 +182,12 @@ export async function updateDeliveryOrderStatus(
     .maybeSingle();
 
   if (error) {
+    if (/Prepare and save the invoice/i.test(error.message)) {
+      return {
+        error: error.message,
+        userMessage: 'The shop must save the invoice before this order can go out for delivery.',
+      };
+    }
     return { error: error.message };
   }
   if (!data) {

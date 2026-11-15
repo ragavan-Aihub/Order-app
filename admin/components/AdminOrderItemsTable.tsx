@@ -7,8 +7,36 @@ import {
   type OrderDiffTableRow,
 } from '@/lib/order-modification-diff';
 import type { OrderItem, OrderModificationItemSnapshot } from '@/types/order';
-import { formatOrderItemQty, formatOrderItemUnit } from '@/lib/selling-units';
+import { formatOrderItemPackLabel, formatOrderItemQty } from '@/lib/selling-units';
 import { formatPrice } from '@/utils/format';
+
+function liveItemForName(items: OrderItem[], productName: string, rowKey: string): OrderItem | undefined {
+  return items.find(
+    (item) =>
+      (item.product_id != null && item.product_id === rowKey) ||
+      item.product_name === productName ||
+      item.product_name.trim().toLowerCase() === rowKey,
+  );
+}
+
+function ItemNameCell({ name, item }: { name: string; item?: OrderItem }) {
+  const pack = item ? formatOrderItemPackLabel(item) : null;
+  return (
+    <div>
+      <p className="font-medium text-stone-900">{name}</p>
+      {pack ? <p className="text-xs font-normal text-stone-500">{pack}</p> : null}
+    </div>
+  );
+}
+function qtyWithUnit(quantity: number | null | undefined, item?: OrderItem): string {
+  if (quantity == null) {
+    return '—';
+  }
+  if (!item) {
+    return formatOrderItemQty({ quantity });
+  }
+  return formatOrderItemQty({ ...item, quantity });
+}
 
 const STATUS_LABEL: Record<OrderDiffRowKind, string> = {
   unchanged: '—',
@@ -86,12 +114,14 @@ function mergeDiffWithLiveItems(
 
 function DiffItemsTable({
   rows,
+  items,
   total,
   compareTotal,
   legendTitle,
   legendCompareLabel,
 }: {
   rows: Array<OrderDiffTableRow & { displayQty: number; displaySubtotal: number }>;
+  items: OrderItem[];
   total: number;
   compareTotal?: number;
   legendTitle: string;
@@ -130,14 +160,15 @@ function DiffItemsTable({
             <tr>
               <th className="w-28 px-3 py-2 font-medium">Change</th>
               <th className="px-3 py-2 font-medium">Item</th>
-              <th className="px-3 py-2 font-medium">Qty</th>
-              <th className="px-3 py-2 font-medium">Price</th>
-              <th className="px-3 py-2 font-medium">Subtotal</th>
+              <th className="px-3 py-2 font-medium">Ordered qty</th>
+              <th className="px-3 py-2 font-medium">Invoiced qty</th>
+              <th className="px-3 py-2 font-medium">Amount</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
               const removed = row.kind === 'removed';
+              const live = liveItemForName(items, row.productName, row.rowKey);
               const removedRowClass =
                 'text-stone-500 line-through decoration-stone-400 decoration-2 [&_*]:line-through [&_*]:decoration-stone-400';
               const cellClass = removed ? removedRowClass : '';
@@ -157,18 +188,18 @@ function DiffItemsTable({
                       </span>
                     )}
                   </td>
-                  <td className={`px-3 py-2 font-medium ${cellClass}`}>{row.productName}</td>
+                  <td className={`px-3 py-2 ${cellClass}`}>
+                    <ItemNameCell name={row.productName} item={live} />
+                  </td>
                   <td className={`px-3 py-2 tabular-nums ${cellClass}`}>
-                    {row.kind === 'qty_changed' && row.placedQuantity != null ? (
-                      <span className="inline-flex flex-wrap items-baseline gap-1.5">
-                        <span className="font-semibold text-stone-900">{row.displayQty}</span>
-                        <span className="text-xs font-normal text-stone-500">was {row.placedQuantity}</span>
-                      </span>
-                    ) : (
-                      row.displayQty
+                    {qtyWithUnit(
+                      row.kind === 'added' ? null : (row.placedQuantity ?? row.displayQty),
+                      live,
                     )}
                   </td>
-                  <td className={`px-3 py-2 tabular-nums ${cellClass}`}>{formatPrice(row.unitPrice)}</td>
+                  <td className={`px-3 py-2 tabular-nums font-semibold ${cellClass}`}>
+                    {row.kind === 'removed' ? '—' : qtyWithUnit(row.displayQty, live)}
+                  </td>
                   <td className={`px-3 py-2 tabular-nums font-medium ${cellClass}`}>
                     {formatPrice(row.displaySubtotal)}
                   </td>
@@ -249,16 +280,18 @@ export function AdminOrderItemsTable({
       {useDiff ? (
         <DiffItemsTable
           rows={shopRows}
+          items={items}
           total={total}
           compareTotal={placedTotal}
-          legendTitle="Shop changes only"
-          legendCompareLabel="Placed total"
+          legendTitle="Invoice vs order"
+          legendCompareLabel="Ordered total"
         />
       ) : null}
 
       {useCustomerDiff ? (
         <DiffItemsTable
           rows={customerRows}
+          items={items}
           total={total}
           compareTotal={confirmBaselineTotal}
           legendTitle="Customer changes after confirm"
@@ -272,20 +305,30 @@ export function AdminOrderItemsTable({
             <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
               <tr>
                 <th className="px-3 py-2 font-medium">Item</th>
-                <th className="px-3 py-2 font-medium">Qty</th>
-                <th className="px-3 py-2 font-medium">Price</th>
-                <th className="px-3 py-2 font-medium">Subtotal</th>
+                <th className="px-3 py-2 font-medium">Ordered qty</th>
+                <th className="px-3 py-2 font-medium">Invoiced qty</th>
+                <th className="px-3 py-2 font-medium">Amount</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className="border-t border-stone-200">
-                  <td className="px-3 py-2">{formatOrderItemUnit(item)}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatOrderItemQty(item)}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatPrice(item.product_price)}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatPrice(item.subtotal)}</td>
-                </tr>
-              ))}
+              {items.map((item) => {
+                const ordered = placedItems.find(
+                  (line) =>
+                    (item.product_id && line.product_id === item.product_id) ||
+                    line.product_name === item.product_name,
+                );
+                const orderedQty = ordered?.quantity ?? item.quantity;
+                return (
+                  <tr key={item.id} className="border-t border-stone-200">
+                    <td className="px-3 py-2">
+                      <ItemNameCell name={item.product_name} item={item} />
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">{qtyWithUnit(orderedQty, item)}</td>
+                    <td className="px-3 py-2 tabular-nums font-semibold">{qtyWithUnit(item.quantity, item)}</td>
+                    <td className="px-3 py-2 tabular-nums">{formatPrice(item.subtotal)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-3">

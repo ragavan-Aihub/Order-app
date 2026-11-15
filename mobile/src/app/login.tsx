@@ -16,7 +16,8 @@ export default function LoginScreen() {
     next === 'buy-again' ||
     next === 'reorder' ||
     next === 'cart' ||
-    next === 'sam';
+    next === 'sam' ||
+    next === 'notifications';
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   useEffect(() => {

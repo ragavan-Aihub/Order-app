@@ -65,9 +65,21 @@ export function weightOptionPrice(pricePerKg: number, weightGrams: number, quant
   return roundMoney(pricePerKg * (weightGrams / 1000) * quantity);
 }
 
+function formatLineMultiplier(quantity: number): string {
+  if (Number.isInteger(quantity)) {
+    return String(quantity);
+  }
+  return (Math.round(quantity * 100) / 100)
+    .toFixed(2)
+    .replace(/0$/, '')
+    .replace(/\.0$/, '');
+}
+
 /** "500g" for one unit, "2 × 500g" for several. */
 export function formatKgLine(weightGrams: number, quantity: number): string {
-  return quantity > 1 ? `${quantity} × ${formatWeight(weightGrams)}` : formatWeight(weightGrams);
+  return Math.abs(quantity - 1) > 1e-9
+    ? `${formatLineMultiplier(quantity)} × ${formatWeight(weightGrams)}`
+    : formatWeight(weightGrams);
 }
 
 export function formatVolume(ml: number): string {
@@ -87,11 +99,21 @@ export function volumeOptionPrice(pricePerLiter: number, volumeMl: number, quant
 }
 
 export function formatLiterLine(volumeMl: number, quantity: number): string {
-  return quantity > 1 ? `${quantity} × ${formatVolume(volumeMl)}` : formatVolume(volumeMl);
+  return Math.abs(quantity - 1) > 1e-9
+    ? `${formatLineMultiplier(quantity)} × ${formatVolume(volumeMl)}`
+    : formatVolume(volumeMl);
 }
 
 function inrLabel(n: number): string {
   return Number.isInteger(n) ? `₹${n}` : `₹${roundMoney(n).toFixed(2)}`;
+}
+
+function activeWeights(product: { weightOptions?: WeightOption[] | null }) {
+  return (product.weightOptions ?? []).filter((option) => option.is_active);
+}
+
+function activeVolumes(product: { volumeOptions?: VolumeOption[] | null }) {
+  return (product.volumeOptions ?? []).filter((option) => option.is_active);
 }
 
 export function catalogPriceAmountLabel(product: {
@@ -100,13 +122,27 @@ export function catalogPriceAmountLabel(product: {
   price_per_kg?: number | null;
   price_per_liter?: number | null;
   packs?: PackOption[] | null;
+  weightOptions?: WeightOption[] | null;
+  volumeOptions?: VolumeOption[] | null;
 }): string {
   const type = sellingTypeOf(product);
   if (type === 'kg') {
-    return inrLabel(product.price_per_kg ?? product.price);
+    const perKg = product.price_per_kg ?? product.price;
+    const weights = activeWeights(product);
+    if (weights.length === 0) {
+      return inrLabel(perKg);
+    }
+    const lowest = Math.min(...weights.map((option) => weightOptionPrice(perKg, option.weight_grams)));
+    return weights.length > 1 ? `From ${inrLabel(lowest)}` : inrLabel(lowest);
   }
   if (type === 'liter') {
-    return inrLabel(product.price_per_liter ?? product.price);
+    const perL = product.price_per_liter ?? product.price;
+    const volumes = activeVolumes(product);
+    if (volumes.length === 0) {
+      return inrLabel(perL);
+    }
+    const lowest = Math.min(...volumes.map((option) => volumeOptionPrice(perL, option.volume_ml)));
+    return volumes.length > 1 ? `From ${inrLabel(lowest)}` : inrLabel(lowest);
   }
   if (type === 'fixed_pack') {
     const active = (product.packs ?? []).filter((pack) => pack.is_active);
@@ -123,12 +159,28 @@ export function catalogUnitLabel(product: {
   selling_type?: string | null;
   selling_unit?: string | null;
   packs?: PackOption[] | null;
+  weightOptions?: WeightOption[] | null;
+  volumeOptions?: VolumeOption[] | null;
 }): string | null {
   const type = sellingTypeOf(product);
   if (type === 'kg') {
+    const weights = activeWeights(product);
+    if (weights.length > 1) {
+      return 'Multiple sizes';
+    }
+    if (weights.length === 1) {
+      return formatWeight(weights[0].weight_grams);
+    }
     return 'per Kg';
   }
   if (type === 'liter') {
+    const volumes = activeVolumes(product);
+    if (volumes.length > 1) {
+      return 'Multiple sizes';
+    }
+    if (volumes.length === 1) {
+      return formatVolume(volumes[0].volume_ml);
+    }
     return 'per L';
   }
   if (type === 'fixed_pack') {
@@ -137,7 +189,7 @@ export function catalogUnitLabel(product: {
       return formatPackWeight(active[0].weight_grams);
     }
     if (active.length > 1) {
-      return 'multiple sizes';
+      return 'Multiple sizes';
     }
   }
   const unit = product.selling_unit?.trim();
@@ -151,18 +203,25 @@ export function catalogPriceLabel(product: {
   price_per_liter?: number | null;
   selling_unit?: string | null;
   packs?: PackOption[] | null;
+  weightOptions?: WeightOption[] | null;
+  volumeOptions?: VolumeOption[] | null;
 }): string {
   const type = sellingTypeOf(product);
   const amount = catalogPriceAmountLabel(product);
+  if (amount.startsWith('From ')) {
+    return amount;
+  }
   if (type === 'kg') {
-    return `${amount} / Kg`;
+    const weights = activeWeights(product);
+    return weights.length === 1 ? amount : `${amount} / Kg`;
   }
   if (type === 'liter') {
-    return `${amount} / L`;
+    const volumes = activeVolumes(product);
+    return volumes.length === 1 ? amount : `${amount} / L`;
   }
   if (type === 'fixed_pack') {
     const unit = catalogUnitLabel(product);
-    if (unit && unit !== 'multiple sizes' && !amount.startsWith('From ')) {
+    if (unit && unit !== 'Multiple sizes') {
       return `${amount} / ${unit}`;
     }
   }

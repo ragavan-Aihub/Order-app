@@ -22,7 +22,13 @@ begin
 
   delete from public.orders where business_id = v_business_id;
 
+  delete from public.customer_inbox where business_id = v_business_id;
+
+  delete from public.inbox_broadcasts where business_id = v_business_id;
+
   delete from public.product_notify_interests where business_id = v_business_id;
+
+  delete from public.product_favorites where business_id = v_business_id;
 
   delete from public.product_info_requests where business_id = v_business_id;
 

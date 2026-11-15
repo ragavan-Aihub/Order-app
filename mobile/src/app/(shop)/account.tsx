@@ -188,6 +188,12 @@ export default function AccountScreen() {
 
           <Text style={styles.sectionTitle}>Help & Support</Text>
           <View style={styles.helpList}>
+            <HelpRow
+              icon="notifications-outline"
+              title="Notifications"
+              subtitle="Orders, offers, and shop updates"
+              onPress={() => router.push('/notifications')}
+            />
             {supportPhone ? (
               <HelpRow
                 icon="logo-whatsapp"

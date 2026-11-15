@@ -13,6 +13,7 @@ import {
 } from '@/cart/address-book';
 import { AddressPickerSheet } from '@/components/AddressPickerSheet';
 import { colors, spacing } from '@/config/theme';
+import { fetchInboxUnreadCount } from '@/services/inbox';
 import { getCustomerProfile } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 
@@ -24,6 +25,7 @@ export function HomeHeader() {
   const [addressLine, setAddressLine] = useState('Add delivery address');
   const [initial, setInitial] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
 
   const showSelected = useCallback(() => {
     const selected = getSelectedAddress();
@@ -45,12 +47,14 @@ export function HomeHeader() {
     const user = await getSignedInUser();
     if (!user) {
       setInitial(null);
+      setUnread(0);
       return;
     }
-    const profile = await getCustomerProfile();
+    const [profile, count] = await Promise.all([getCustomerProfile(), fetchInboxUnreadCount()]);
     const name = profile?.name?.trim() || '';
     const generic = !name || name.toLowerCase() === 'customer';
     setInitial(generic ? null : name.charAt(0).toUpperCase());
+    setUnread(count);
   }, [showSelected]);
 
   useEffect(() => subscribeAddressBook(showSelected), [showSelected]);
@@ -82,6 +86,19 @@ export function HomeHeader() {
             <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
           </View>
         </View>
+      </Pressable>
+      <Pressable
+        onPress={() => router.push('/notifications')}
+        style={({ pressed }) => [styles.bell, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+      >
+        <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+        {unread > 0 ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeLabel}>{unread > 9 ? '9+' : String(unread)}</Text>
+          </View>
+        ) : null}
       </Pressable>
       <Pressable
         onPress={() => router.push('/account')}
@@ -152,6 +169,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
+  },
+  bell: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeLabel: {
+    color: colors.primaryText,
+    fontSize: 9,
+    fontWeight: '800',
   },
   avatar: {
     width: 40,

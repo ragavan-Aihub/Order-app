@@ -16,6 +16,8 @@ function revalidateOrder(orderId: string) {
   revalidatePath('/customers');
 }
 
+const INVOICE_REQUIRED_BEFORE_OFD = 'Prepare and save the invoice before sending this order out.';
+
 export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus,
@@ -59,7 +61,7 @@ export async function updateOrderStatus(
 
   const { data: current } = await supabase
     .from('orders')
-    .select('id, status, payment_method, refund_status, order_number')
+    .select('id, status, payment_method, refund_status, order_number, invoice_prepared_at')
     .eq('id', orderId)
     .eq('business_id', profile.business_id)
     .maybeSingle();
@@ -71,6 +73,15 @@ export async function updateOrderStatus(
   const currentStatus = (current.status === 'preparing' ? 'confirmed' : current.status) as OrderStatus;
   if (options?.mode !== 'correct' && !NEXT_STATUSES[currentStatus].includes(status)) {
     return { error: 'That status change is not allowed.' };
+  }
+
+  if (
+    (status === 'out_for_delivery' || status === 'delivered') &&
+    currentStatus !== 'out_for_delivery' &&
+    currentStatus !== 'delivered' &&
+    !current.invoice_prepared_at
+  ) {
+    return { error: INVOICE_REQUIRED_BEFORE_OFD };
   }
 
   const paid = current.payment_method === 'cash' || current.payment_method === 'upi';
@@ -95,6 +106,9 @@ export async function updateOrderStatus(
     .maybeSingle();
 
   if (error) {
+    if (/Prepare and save the invoice/i.test(error.message)) {
+      return { error: INVOICE_REQUIRED_BEFORE_OFD };
+    }
     return { error: error.message };
   }
   if (!data) {
@@ -291,8 +305,20 @@ export async function replaceAdminOrderItems(
   if (!items.length) {
     return { error: 'Add at least one item.' };
   }
-  if (items.some((item) => item.quantity < 1 || item.quantity > 10)) {
-    return { error: 'Each item quantity must be between 1 and 10.' };
+  if (
+    items.some((item) => {
+      const qty = Number(item.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return true;
+      }
+      const rounded = Math.round(qty * 100) / 100;
+      if (rounded > 100 || Math.abs(rounded - qty) > 1e-9) {
+        return true;
+      }
+      return false;
+    })
+  ) {
+    return { error: 'Check item quantities. Kg and liter can use up to 2 decimal places.' };
   }
   if (items.length > 15) {
     return { error: 'You can add up to 15 items in one order.' };
@@ -336,6 +362,56 @@ export async function replaceAdminOrderItems(
     p_reason: options?.reason?.trim() || null,
     p_expected_items_revision: options?.expectedRevision ?? null,
     p_relaxed_validation: options?.relaxedValidation ?? false,
+  });
+
+  if (error) {
+    if (/ORDER_STALE/i.test(error.message)) {
+      return {
+        error: 'This order was updated elsewhere. Reload the page and try again.',
+        conflict: true,
+      };
+    }
+    return { error: error.message };
+  }
+
+  revalidateOrder(orderId);
+  return { error: null };
+}
+
+export async function markAdminInvoicePrepared(
+  orderId: string,
+  expectedRevision?: number | null,
+): Promise<{ error: string | null; conflict?: boolean }> {
+  if (!isSupabaseConfigured) {
+    return { error: 'Supabase is not configured.' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return { error: 'Supabase is not configured.' };
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) {
+    return { error: 'You are not signed in as an admin.' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, business_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile || profile.role !== 'admin' || !profile.business_id) {
+    return { error: 'You are not signed in as an admin.' };
+  }
+
+  const { error } = await supabase.rpc('admin_mark_invoice_prepared', {
+    p_order_id: orderId,
+    p_expected_items_revision: expectedRevision ?? null,
   });
 
   if (error) {

@@ -1,6 +1,10 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"/><title>Farm2Flavours — Privacy policy (draft)</title>
-<style>/* Readable privacy policy PDF (md-to-pdf / print). */
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Farm2Flavours — Privacy policy (draft)</title>
+  <style>/* Readable privacy policy PDF (md-to-pdf / print). */
 
 html {
   -webkit-print-color-adjust: exact;
@@ -99,8 +103,11 @@ strong {
   font-weight: bold;
 }
 
-body { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; }
-</style></head><body><h1>Farm2Flavour customer app</h1>
+  body { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; }
+  @media print { body { max-width: none; margin: 0; } }
+  </style>
+</head>
+<body><h1>Farm2Flavour customer app</h1>
 <h2>Privacy policy (draft for review)</h2>
 <p>Please read this draft and confirm the items still marked <strong>in bold capitals</strong>. It will be published on a website before the app goes on Google Play.</p>
 <p><em>Draft for business owner review. Not legal advice.</em></p>
@@ -109,7 +116,7 @@ body { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; }
 </blockquote>
 <hr>
 <h2>Privacy Policy - Farm2Flavours</h2>
-<p><strong>Last updated:</strong> DATE</p>
+<p><strong>Last updated:</strong> 15 November 2026</p>
 <p><strong>Contact:</strong> SUPPORT EMAIL | SUPPORT PHONE</p>
 <h3>1. Who we are</h3>
 <p>Farm2Flavours (&quot;we&quot;, &quot;us&quot;) operates the Farm2Flavour mobile app for customers in SERVICE AREA (for example your city or India). This policy explains how we handle personal information when you use the app.</p>
@@ -143,11 +150,19 @@ body { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; }
 </tr>
 <tr>
 <td>Order details</td>
-<td>Products, quantities, totals, status, payment method choice (cash or UPI at delivery)</td>
+<td>Products, quantities, totals, status, payment method choice (cash or UPI at delivery), and a record of shop or customer changes</td>
+</tr>
+<tr>
+<td>In-app notification messages</td>
+<td>Order updates, important shop messages, and offers in the app Notifications list (latest 20 kept per customer)</td>
+</tr>
+<tr>
+<td>Product “notify me”</td>
+<td>Remember which Coming soon products you asked to hear about</td>
 </tr>
 <tr>
 <td>Push notification token</td>
-<td>Send order status updates, an optional alert when a product becomes available, and a shop poster only when the shop chooses to notify about that poster</td>
+<td>Optional phone alerts for order status, Coming soon items you asked about, Home posters the shop chooses to alert, and important shop messages or offers</td>
 </tr>
 <tr>
 <td>App interactions</td>
@@ -161,21 +176,25 @@ body { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; }
 <ul>
 <li>Create and manage your account</li>
 <li>Process, deliver, and support orders</li>
-<li>Send push notifications about your orders, and about a shop poster when the shop chooses to, if you allow notifications</li>
+<li>Show in-app notifications, and send phone alerts if you allow them</li>
+<li>Remember Coming soon products you asked to hear about</li>
 <li>Comply with law and prevent abuse</li>
 </ul>
+<p>The shop may change items on an order when a product is not available, or cancel the order. You may change your order in the app until it is marked Out for delivery. You may cancel only while the order is still Placed, before the shop confirms. After that, contact the shop.</p>
 <h3>4. Service providers</h3>
 <p>We use trusted processors who store or process data on our instructions:</p>
 <ul>
 <li><strong>Supabase</strong> - database, authentication, file storage (for example product images)</li>
-<li><strong>Google</strong> - Sign-In (account picker) and Firebase Cloud Messaging (Android push)</li>
+<li><strong>Google</strong> - Sign-In (account picker)</li>
+<li><strong>Expo</strong> - phone notifications, delivered on Android via Google Firebase Cloud Messaging</li>
 </ul>
 <p>They may process data in regions where they operate. We use them under their terms and our configuration.</p>
 <h3>5. Retention</h3>
-<p>We keep order and account information as long as needed to run the business, support you, and meet legal or accounting requirements. You may ask us to delete or correct your data subject to applicable law and ongoing orders.</p>
+<p>We keep order and account information as long as needed to run the business, support you, and meet legal or accounting requirements. In-app notifications keep the latest 20 messages per customer. You may ask us to delete or correct your data subject to applicable law and ongoing orders.</p>
 <h3>6. Your choices</h3>
 <ul>
-<li><strong>Notifications:</strong> You can disable push notifications in Android settings.</li>
+<li><strong>Phone alerts:</strong> You can disable them in Android settings. The in-app Notifications list can still show.</li>
+<li><strong>Coming soon:</strong> You can stop Notify me on a product in the app.</li>
 <li><strong>Account / data requests:</strong> Contact SUPPORT EMAIL.</li>
 </ul>
 <h3>7. Children</h3>
@@ -219,4 +238,5 @@ body { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; }
 </tbody></table>
 
 <p style="margin-top:32px;font-size:10pt;color:#666;">Open in Safari or Chrome → File → Print → Save as PDF if you need another copy.</p>
-</body></html>
+</body>
+</html>

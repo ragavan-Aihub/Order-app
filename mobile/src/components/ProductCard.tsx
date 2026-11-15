@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { memo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { FavoriteHeart } from '@/components/FavoriteHeart';
 import { ProductImage } from '@/components/ProductImage';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { productNotifyCopy } from '@/copy/product-notify';
@@ -9,7 +10,7 @@ import { colors, radius, shadow, spacing } from '@/config/theme';
 import { hapticTap } from '@/utils/haptics';
 import type { Product } from '@/types/product';
 import { catalogPriceAmountLabel, catalogUnitLabel, sellingTypeOf } from '@/utils/selling-units';
-import { stockLeftLabel } from '@/utils/stock';
+import { stockLimitOf } from '@/utils/stock';
 
 type ProductCardProps = {
   product: Product;
@@ -22,6 +23,8 @@ type ProductCardProps = {
   notifyNotified?: boolean;
   notifyBusy?: boolean;
   onNotifyPress?: () => void;
+  favorited?: boolean;
+  onFavoritePress?: () => void;
 };
 
 const IMAGE_ASPECT = 5 / 4;
@@ -37,20 +40,23 @@ export const ProductCard = memo(function ProductCard({
   notifyNotified = false,
   notifyBusy = false,
   onNotifyPress,
+  favorited = false,
+  onFavoritePress,
 }: ProductCardProps) {
   const comingSoon = product.available === false;
+  const soldOut = !comingSoon && stockLimitOf(product.stock_qty) === 0;
+  const blocked = comingSoon || soldOut;
   const needsOptions = sellingTypeOf(product) !== 'quantity';
   const unit = catalogUnitLabel(product);
   const price = catalogPriceAmountLabel(product);
-  const stockLeft = comingSoon ? null : stockLeftLabel(product.stock_qty, product.selling_type);
 
   const header = (
     <>
-      <View style={styles.imageFrame}>
+      <View style={[styles.imageFrame, compact && styles.imageFrameCompact]}>
         <ProductImage
           uri={product.image_url}
           style={styles.image}
-          dimmed={comingSoon}
+          dimmed={blocked}
           recyclingKey={product.id}
           accessibilityLabel={product.name}
         />
@@ -60,23 +66,27 @@ export const ProductCard = memo(function ProductCard({
               Coming soon
             </Text>
           </View>
+        ) : soldOut ? (
+          <View style={styles.soonWrap} pointerEvents="none">
+            <Text style={[styles.soon, compact && styles.soonCompact]} numberOfLines={1}>
+              Sold out
+            </Text>
+          </View>
+        ) : null}
+        {onFavoritePress ? (
+          <FavoriteHeart size={compact ? 'compact' : 'card'} on={favorited} onPress={onFavoritePress} />
         ) : null}
       </View>
       <View style={[styles.body, compact && styles.bodyCompact]}>
         <Text
-          style={[styles.name, compact && styles.nameCompact, comingSoon && styles.dimmedText]}
+          style={[styles.name, compact && styles.nameCompact, blocked && styles.dimmedText]}
           numberOfLines={2}
         >
           {product.name}
         </Text>
         {unit ? (
-          <Text style={[styles.unit, comingSoon && styles.dimmedText]} numberOfLines={1}>
+          <Text style={[styles.unit, compact && styles.unitCompact, blocked && styles.dimmedText]} numberOfLines={1}>
             {unit}
-          </Text>
-        ) : null}
-        {stockLeft ? (
-          <Text style={styles.stockLeft} numberOfLines={1}>
-            {stockLeft}
           </Text>
         ) : null}
       </View>
@@ -104,7 +114,7 @@ export const ProductCard = memo(function ProductCard({
         </Text>
       )}
     </Pressable>
-  ) : comingSoon ? null : quantity > 0 ? (
+  ) : comingSoon || (soldOut && quantity <= 0) ? null : quantity > 0 ? (
     <QuantityStepper
       compact
       dense
@@ -112,20 +122,7 @@ export const ProductCard = memo(function ProductCard({
       onDecrease={onDecrease}
       onIncrease={onIncrease}
     />
-  ) : needsOptions ? (
-    <Pressable
-      onPress={() => {
-        hapticTap();
-        onAddToCart();
-      }}
-      style={({ pressed }) => [styles.optionsButton, pressed && styles.buttonPressed]}
-      accessibilityRole="button"
-      accessibilityLabel={`Choose options for ${product.name}`}
-    >
-      <Text style={styles.optionsLabel}>Options</Text>
-      <Ionicons name="chevron-forward" size={13} color={colors.primaryDark} />
-    </Pressable>
-  ) : (
+  ) : needsOptions ? null : (
     <Pressable
       onPress={() => {
         hapticTap();
@@ -150,13 +147,32 @@ export const ProductCard = memo(function ProductCard({
         </Pressable>
       )}
       <View style={[styles.footer, compact && styles.footerCompact]}>
-        <Text
-          style={[styles.price, compact && styles.priceCompact, comingSoon && styles.dimmedText]}
-          numberOfLines={1}
-        >
-          {price}
-        </Text>
-        {actionControl}
+        {needsOptions && !comingSoon && !soldOut ? (
+          <Pressable
+            onPress={() => {
+              hapticTap();
+              onAddToCart();
+            }}
+            style={({ pressed }) => [styles.fromButton, pressed && styles.buttonPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Choose size for ${product.name}, ${price}`}
+          >
+            <Text style={[styles.price, compact && styles.priceCompact]} numberOfLines={1}>
+              {price}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+          </Pressable>
+        ) : (
+          <>
+            <Text
+              style={[styles.price, compact && styles.priceCompact, blocked && styles.dimmedText]}
+              numberOfLines={1}
+            >
+              {price}
+            </Text>
+            {actionControl}
+          </>
+        )}
       </View>
     </View>
   );
@@ -179,6 +195,9 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     backgroundColor: colors.placeholder,
+  },
+  imageFrameCompact: {
+    aspectRatio: 1,
   },
   image: {
     width: '100%',
@@ -221,10 +240,14 @@ const styles = StyleSheet.create({
   },
   unit: {
     marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '500',
     color: colors.textMuted,
+  },
+  unitCompact: {
+    fontSize: 10,
+    lineHeight: 14,
   },
   stockLeft: {
     marginTop: 2,
@@ -252,12 +275,12 @@ const styles = StyleSheet.create({
   },
   price: {
     flexShrink: 1,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '800',
     color: colors.primaryDark,
   },
   priceCompact: {
-    fontSize: 14,
+    fontSize: 15,
   },
   addButton: {
     minWidth: 72,
@@ -270,23 +293,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  optionsButton: {
-    minWidth: 84,
-    height: 40,
-    paddingHorizontal: 10,
+  fromButton: {
+    flex: 1,
+    minHeight: 40,
     flexDirection: 'row',
-    gap: 2,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.primaryOutline,
-    backgroundColor: colors.primarySoft,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionsLabel: {
-    color: colors.primaryDark,
-    fontSize: 12,
-    fontWeight: '800',
+    justifyContent: 'space-between',
+    gap: 4,
   },
   buttonPressed: {
     opacity: 0.88,

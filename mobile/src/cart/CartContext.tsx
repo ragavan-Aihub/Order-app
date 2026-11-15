@@ -138,7 +138,7 @@ function notifyLimit(kind: 'items' | 'qty') {
 
 function notifyStock(left: number, sellingType?: string | null) {
   showAppDialog({
-    title: 'Limited stock',
+    title: 'Not available',
     message: stockMessage(left, sellingType),
     icon: 'alert-circle',
     tone: 'warning',
@@ -418,40 +418,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const key = cartLineKey(nextLine);
         const reserved = editing ? reservedUnitsOf(originalItems, product.id) : 0;
         const size = unitSizeOf(product, { weightGrams: nextLine.weightGrams, volumeMl: nextLine.volumeMl });
-        setItems((current) => {
-          const existing = current.find((item) => cartLineKey(item) === key);
-          const others = unitsOfProduct(current, product.id, key);
-          const lineMax = maxLineQty(product.stock_qty, reserved, others, size);
-          const remaining = Math.max(0, (stockLimitOf(product.stock_qty) ?? 0) + reserved - others);
-          if (existing) {
-            if (existing.quantity >= lineMax) {
-              if (lineMax < MAX_ITEM_QTY) {
-                notifyStock(remaining, type);
-              } else {
-                notifyLimit('qty');
-              }
-              return current;
-            }
-            const nextQty = Math.min(lineMax, existing.quantity + add);
-            if (existing.quantity + add > lineMax) {
-              if (lineMax < MAX_ITEM_QTY) {
-                notifyStock(remaining, type);
-              } else {
-                notifyLimit('qty');
-              }
-            }
-            return current.map((item) => (cartLineKey(item) === key ? { ...item, quantity: nextQty } : item));
-          }
-          if (current.length >= MAX_CART_ITEMS) {
-            notifyLimit('items');
-            return current;
-          }
-          if (lineMax < 1) {
+        const existing = items.find((item) => cartLineKey(item) === key);
+        const others = unitsOfProduct(items, product.id, key);
+        const lineMax = maxLineQty(product.stock_qty, reserved, others, size);
+        const remaining = Math.max(0, (stockLimitOf(product.stock_qty) ?? 0) + reserved - others);
+        const wanted = (existing?.quantity ?? 0) + add;
+        if (!existing && items.length >= MAX_CART_ITEMS) {
+          notifyLimit('items');
+          return false;
+        }
+        if (wanted > lineMax) {
+          if (lineMax < MAX_ITEM_QTY) {
             notifyStock(remaining, type);
-            return current;
+          } else {
+            notifyLimit('qty');
           }
-          return [...current, { ...nextLine, quantity: Math.min(add, lineMax) }];
-        });
+          return false;
+        }
+        setItems((current) => mergeCartLine(current, nextLine, reserved));
         return true;
       },
       increase(productId, lineKey) {

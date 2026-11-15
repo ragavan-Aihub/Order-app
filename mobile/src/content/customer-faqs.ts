@@ -17,7 +17,7 @@ export const CUSTOMER_FAQS: CustomerFaq[] = [
   {
     question: 'Can I cancel the order?',
     answer:
-      'You can cancel only while it is still Placed, before the shop confirms. After that, call the shop.',
+      'You can cancel while it is Placed or Confirmed. Open the order and tap Cancel order. Once it is Out for delivery, call the shop.',
   },
   {
     question: 'It says I already have an order for this address.',

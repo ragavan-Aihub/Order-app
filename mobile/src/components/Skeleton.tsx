@@ -73,7 +73,38 @@ export function ProductGridSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
+/** First-load Home chrome: category pills, promo block, then product cards. */
+export function HomeCatalogSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <View accessibilityLabel="Loading products" accessibilityRole="progressbar">
+      <View style={styles.chipRow}>
+        <Skeleton width={52} height={32} borderRadius={radius.pill} />
+        <Skeleton width={88} height={32} borderRadius={radius.pill} />
+        <Skeleton width={72} height={32} borderRadius={radius.pill} />
+        <Skeleton width={96} height={32} borderRadius={radius.pill} />
+      </View>
+      <View style={styles.banner}>
+        <Skeleton height="100%" borderRadius={radius.md} />
+      </View>
+      <ProductGridSkeleton rows={rows} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  chipRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  banner: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+    aspectRatio: 16 / 7,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

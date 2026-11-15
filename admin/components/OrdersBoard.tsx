@@ -32,7 +32,7 @@ function orderModificationBadges(order: Order) {
     <>
       {order.admin_modified_from_placed ? (
         <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950">
-          Shop modified
+          Invoice updated
         </span>
       ) : null}
       {order.customer_modified_after_confirm ? (
@@ -466,6 +466,7 @@ export function OrdersBoard({
                       cancelReason={order.cancel_reason}
                       paymentMethod={order.payment_method ?? 'pending'}
                       detailsHref={`/orders/${order.id}`}
+                      invoicePrepared={Boolean(order.invoice_prepared_at)}
                     />
                   </div>
                 </div>
@@ -537,6 +538,7 @@ export function OrdersBoard({
                             cancelReason={order.cancel_reason}
                             paymentMethod={order.payment_method ?? 'pending'}
                             detailsHref={`/orders/${order.id}`}
+                            invoicePrepared={Boolean(order.invoice_prepared_at)}
                           />
                         </td>
                       ) : null}

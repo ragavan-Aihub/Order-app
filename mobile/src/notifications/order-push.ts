@@ -120,7 +120,9 @@ function readId(data: Record<string, unknown> | undefined, ...keys: string[]): s
 export type PushNavigationTarget =
   | { kind: 'order'; orderId: string }
   | { kind: 'product'; productId: string }
-  | { kind: 'home' };
+  | { kind: 'home' }
+  | { kind: 'inbox'; inboxId: string | null; broadcastId: string | null }
+  | { kind: 'notifications' };
 
 export function getPushNavigationTarget(
   data: Record<string, unknown> | undefined,
@@ -132,6 +134,11 @@ export function getPushNavigationTarget(
   const productId = readId(data, 'productId', 'product_id');
   if (productId) {
     return { kind: 'product', productId };
+  }
+  const inboxId = readId(data, 'inboxId', 'inbox_id');
+  const broadcastId = readId(data, 'broadcastId', 'broadcast_id');
+  if (inboxId || broadcastId || data?.screen === 'notifications' || data?.screen === 'notification') {
+    return { kind: 'inbox', inboxId, broadcastId };
   }
   if (data?.screen === 'home' || data?.announcement === '1') {
     return { kind: 'home' };
@@ -146,10 +153,20 @@ export function handlePushNotificationData(
     onOpenOrder?: (orderId: string) => void;
     onOpenProduct?: (productId: string) => void;
     onOpenHome?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenInbox?: (inboxId: string | null, broadcastId: string | null) => void;
   },
 ): void {
   const target = getPushNavigationTarget(data);
   if (!target) {
+    return;
+  }
+  if (target.kind === 'inbox') {
+    handlers.onOpenInbox?.(target.inboxId, target.broadcastId);
+    return;
+  }
+  if (target.kind === 'notifications') {
+    handlers.onOpenNotifications?.();
     return;
   }
   if (target.kind === 'home') {
@@ -169,6 +186,8 @@ export function handlePushNotificationResponse(
     onOpenOrder?: (orderId: string) => void;
     onOpenProduct?: (productId: string) => void;
     onOpenHome?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenInbox?: (inboxId: string | null, broadcastId: string | null) => void;
   },
 ): void {
   handlePushNotificationData(
@@ -186,8 +205,10 @@ export async function getPushNotificationLaunchResponse(): Promise<Notifications
 export async function addOrderNotificationResponseListener(handlers: {
   onOpenOrder?: (orderId: string) => void;
   onOpenProduct?: (productId: string) => void;
-  onOpenHome?: () => void;
-}): Promise<Notifications.EventSubscription> {
+    onOpenHome?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenInbox?: (inboxId: string | null, broadcastId: string | null) => void;
+  }): Promise<Notifications.EventSubscription> {
   const NotificationsModule = await import('expo-notifications');
   return NotificationsModule.addNotificationResponseReceivedListener((response) => {
     handlePushNotificationResponse(response, handlers);

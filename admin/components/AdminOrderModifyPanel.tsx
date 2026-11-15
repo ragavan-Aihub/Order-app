@@ -1,12 +1,24 @@
 'use client';
 
-import { Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AdminOrderItemsTable } from '@/components/AdminOrderItemsTable';
+import { AdminQtyStepper } from '@/components/AdminQtyStepper';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { replaceAdminOrderItems, revertAdminOrderToPlaced } from '@/services/order-actions';
+import {
+  ADMIN_PIECE_QTY_MAX,
+  ADMIN_WEIGHT_QTY_MAX,
+  formatLineMultiplier,
+  formatOrderItemPackLabel,
+  isValidAdminQty,
+  isWeightSellingType,
+  roundQty2,
+  volumeOptionPrice,
+  weightOptionPrice,
+} from '@/lib/selling-units';
+import { markAdminInvoicePrepared, replaceAdminOrderItems, revertAdminOrderToPlaced } from '@/services/order-actions';
 import {
   isPaymentCollected,
   type OrderItem,
@@ -63,6 +75,7 @@ export function AdminOrderModifyPanel({
   confirmBaselineTotal,
   revertTargetTotal,
   relaxProductValidation = false,
+  invoicePrepared = false,
 }: {
   orderId: string;
   status: OrderStatus;
@@ -82,9 +95,11 @@ export function AdminOrderModifyPanel({
   confirmBaselineTotal?: number;
   revertTargetTotal?: number;
   relaxProductValidation?: boolean;
+  invoicePrepared?: boolean;
 }) {
   const router = useRouter();
-  const canModify = status === 'new' || status === 'confirmed';
+  const canModify = status === 'new' || status === 'confirmed' || status === 'out_for_delivery';
+  const invoiceActionLabel = invoicePrepared || adminModifiedFromPlaced ? 'Update invoice' : 'Prepare invoice';
   const baseline = useMemo(() => linesFromOrderItems(originalItems), [originalItems]);
   const [editing, setEditing] = useState(false);
   const [lines, setLines] = useState<Line[]>(() => linesFromOrderItems(originalItems));
@@ -117,17 +132,31 @@ export function AdminOrderModifyPanel({
         }
         const unit = product?.price ?? Number(onOrder?.product_price ?? 0);
         const name = product?.name ?? onOrder?.product_name ?? 'Item';
+        const sellingType = product?.selling_type ?? onOrder?.selling_type;
         const catalogAvailable = product ? product.available !== false && product.active !== false : false;
         const available = relaxProductValidation ? Boolean(product ?? onOrder) : catalogAvailable;
+        const grams = onOrder?.weight_grams ?? null;
+        const ml = onOrder?.volume_ml ?? null;
+        const perKg = Number(product?.price_per_kg ?? onOrder?.product_price ?? unit);
+        const perL = Number(product?.price_per_liter ?? onOrder?.product_price ?? unit);
+        const subtotal =
+          sellingType === 'kg' && grams
+            ? weightOptionPrice(perKg, grams, line.quantity)
+            : sellingType === 'liter' && ml
+              ? volumeOptionPrice(perL, ml, line.quantity)
+              : unit * line.quantity;
         return {
           ...line,
           name,
           unit,
-          subtotal: unit * line.quantity,
+          sellingType,
+          subtotal,
           available,
         };
       })
-      .filter(Boolean) as Array<Line & { name: string; unit: number; subtotal: number; available: boolean }>;
+      .filter(Boolean) as Array<
+      Line & { name: string; unit: number; subtotal: number; available: boolean; sellingType?: string | null }
+    >;
   }, [lines, orderItemByProductId, productById, relaxProductValidation]);
 
   const removedLines = useMemo(() => {
@@ -187,13 +216,35 @@ export function AdminOrderModifyPanel({
     setEditing(false);
   }
 
+  function sellingTypeOf(productId: string) {
+    return productById.get(productId)?.selling_type ?? orderItemByProductId.get(productId)?.selling_type;
+  }
+
+  function orderedQtyOf(productId: string): number | null {
+    const placed = placedItems.find((line) => line.product_id === productId);
+    if (placed) {
+      return placed.quantity;
+    }
+    const live = originalItems.find((item) => item.product_id === productId);
+    return live?.quantity ?? null;
+  }
+
   function setQty(productId: string, quantity: number) {
+    const sellingType = sellingTypeOf(productId);
+    const weight = isWeightSellingType(sellingType);
+    const max = weight ? ADMIN_WEIGHT_QTY_MAX : ADMIN_PIECE_QTY_MAX;
+    const minKeep = weight ? 0.01 : 1;
+    const next = Math.min(max, Math.max(minKeep, weight ? roundQty2(quantity) : Math.floor(quantity)));
     setLines((current) => {
-      if (quantity < 1) {
-        return current.filter((line) => line.productId !== productId);
+      if (current.some((line) => line.productId === productId)) {
+        return current.map((line) => (line.productId === productId ? { ...line, quantity: next } : line));
       }
-      return current.map((line) => (line.productId === productId ? { ...line, quantity } : line));
+      return [...current, { productId, quantity: next }];
     });
+  }
+
+  function removeLine(productId: string) {
+    setLines((current) => current.filter((line) => line.productId !== productId));
   }
 
   function addProduct(product: Product) {
@@ -203,13 +254,20 @@ export function AdminOrderModifyPanel({
         return current;
       }
       const existing = current.find((line) => line.productId === product.id);
+      const weight = isWeightSellingType(product.selling_type);
+      const max = weight ? ADMIN_WEIGHT_QTY_MAX : ADMIN_PIECE_QTY_MAX;
+      const step = 1;
       if (existing) {
-        if (existing.quantity >= 10) {
-          setError('Each item quantity must be between 1 and 10.');
+        if (existing.quantity >= max) {
+          setError(
+            weight
+              ? 'Kg and liter quantity can be up to 100, with 2 decimal places.'
+              : 'Each item quantity must be between 1 and 10.',
+          );
           return current;
         }
         return current.map((line) =>
-          line.productId === product.id ? { ...line, quantity: line.quantity + 1 } : line,
+          line.productId === product.id ? { ...line, quantity: roundQty2(line.quantity + step) } : line,
         );
       }
       setError(null);
@@ -219,13 +277,20 @@ export function AdminOrderModifyPanel({
   }
 
   async function applyChanges() {
+    const invalid = lines.find((line) => !isValidAdminQty(line.quantity, sellingTypeOf(line.productId)));
+    if (invalid) {
+      setError('Check item quantities. Kg and liter can use up to 2 decimal places.');
+      return;
+    }
     setBusy(true);
     setError(null);
-    const result = await replaceAdminOrderItems(
-      orderId,
-      lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
-      { reason, expectedRevision: revision, relaxedValidation: relaxProductValidation },
-    );
+    const result = hasChanges
+      ? await replaceAdminOrderItems(
+          orderId,
+          lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+          { reason, expectedRevision: revision, relaxedValidation: relaxProductValidation },
+        )
+      : await markAdminInvoicePrepared(orderId, revision);
     setBusy(false);
     if (result.error) {
       setError(result.error);
@@ -272,11 +337,14 @@ export function AdminOrderModifyPanel({
       <div className={panelClass}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-stone-900">Items</h2>
+            <h2 className="text-base font-semibold text-stone-900">Invoice</h2>
+            <p className="mt-0.5 text-sm text-stone-600">
+              Ordered lines stay on record. Invoice qty is what you bill and deliver.
+            </p>
             {adminModifiedFromPlaced ? (
               <p className="mt-0.5 text-sm text-amber-900">
-                Shop changed this order vs as placed
-                {typeof placedTotal === 'number' ? ` · Placed total ${formatPrice(placedTotal)}` : ''}
+                Invoice differs from the original order
+                {typeof placedTotal === 'number' ? ` · Ordered total ${formatPrice(placedTotal)}` : ''}
               </p>
             ) : null}
             {!adminModifiedFromPlaced && customerModifiedAfterConfirm ? (
@@ -299,7 +367,7 @@ export function AdminOrderModifyPanel({
                 onClick={() => setRevertOpen(true)}
                 className="min-h-10 rounded-lg border border-amber-400 bg-white px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50"
               >
-                Undo shop changes
+                Reset to original order
               </button>
             ) : null}
             {canModify ? (
@@ -308,7 +376,7 @@ export function AdminOrderModifyPanel({
                 onClick={startEditing}
                 className="min-h-10 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
               >
-                Modify order
+                {invoiceActionLabel}
               </button>
             ) : null}
           </div>
@@ -332,9 +400,9 @@ export function AdminOrderModifyPanel({
         />
         {revertOpen ? (
           <ConfirmDialog
-            title="Undo shop changes?"
-            body="Restores the order to how it was before the shop edited it. Customer changes made before the shop edit are kept."
-            confirmLabel="Undo shop changes"
+            title="Reset to original order?"
+            body="Restores invoice lines to the original order (including any customer edits from before the shop invoice). The original order stays on record."
+            confirmLabel="Reset to original order"
             busy={busy}
             onCancel={() => {
               if (!busy) {
@@ -365,10 +433,10 @@ export function AdminOrderModifyPanel({
     <div className="rounded-xl border border-emerald-200 bg-white p-4 ring-1 ring-emerald-100">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-stone-900">Modify order</h2>
+          <h2 className="text-base font-semibold text-stone-900">{invoiceActionLabel}</h2>
           <p className="mt-0.5 text-sm text-stone-600">
-            Adjust lines below, then review. Current total {formatPrice(originalTotal)} · Preview{' '}
-            {formatPrice(previewTotal)}
+            Change invoice qty, add or remove lines. Original order stays on record. Invoice total{' '}
+            {formatPrice(originalTotal)} · Preview {formatPrice(previewTotal)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -382,11 +450,13 @@ export function AdminOrderModifyPanel({
           </button>
           <button
             type="button"
-            disabled={!hasChanges || resolved.some((line) => !line.available) || busy}
+            disabled={
+              (!hasChanges && invoicePrepared) || resolved.some((line) => !line.available) || busy
+            }
             onClick={() => setConfirmOpen(true)}
             className="min-h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            Review &amp; update
+            Review invoice
           </button>
         </div>
       </div>
@@ -397,31 +467,43 @@ export function AdminOrderModifyPanel({
         </p>
       ) : null}
 
-      <ul className="mt-4 space-y-2">
+      <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem] gap-x-2 px-3 text-xs font-medium uppercase tracking-wide text-stone-500 sm:grid">
+        <span>Item</span>
+        <span className="text-center">Ordered qty</span>
+        <span className="text-center">Invoiced qty</span>
+        <span className="text-right">Amount</span>
+        <span />
+      </div>
+      <ul className="mt-1 space-y-2">
         {removedLines.map((line) => {
           const struck = 'text-stone-500 line-through decoration-stone-400 decoration-2';
+          const packLabel = formatOrderItemPackLabel(orderItemByProductId.get(line.productId) ?? {});
           return (
             <li
               key={`removed-${line.productId}`}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-100/90 px-3 py-2 text-sm"
+              className="grid grid-cols-1 items-center gap-2 rounded-lg border border-stone-300 bg-stone-100/90 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem]"
             >
-              <span className={`min-w-0 flex-1 font-medium ${struck}`}>{line.name}</span>
-              <span
-                className={`rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-stone-600 ${struck}`}
-              >
+              <span className={`min-w-0 font-medium ${struck}`}>
+                {line.name}
+                {packLabel ? <span className="mt-0.5 block text-xs font-normal">{packLabel}</span> : null}
+                <span className="mt-0.5 block text-xs font-normal sm:hidden">
+                  Ordered qty {formatLineMultiplier(orderedQtyOf(line.productId) ?? line.quantity)}
+                </span>
+              </span>
+              <span className={`hidden text-center font-semibold tabular-nums sm:block ${struck}`}>
+                {formatLineMultiplier(orderedQtyOf(line.productId) ?? line.quantity)}
+              </span>
+              <span className={`text-center text-xs font-bold uppercase tracking-wide text-stone-600 ${struck}`}>
                 Removed
               </span>
-              <span className={`min-w-[1.5rem] text-center font-semibold tabular-nums ${struck}`}>
-                × {line.quantity}
-              </span>
-              <span className={`w-20 text-right font-semibold tabular-nums ${struck}`}>
+              <span className={`text-right font-semibold tabular-nums ${struck}`}>
                 {formatPrice(line.subtotal)}
               </span>
               <button
                 type="button"
                 aria-label={`Restore ${line.name}`}
                 onClick={() => setQty(line.productId, line.quantity)}
-                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-stone-600 hover:bg-stone-200/80"
+                className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-end rounded-md text-stone-600 hover:bg-stone-200/80 sm:justify-self-center"
                 title="Restore line"
               >
                 <Plus size={16} />
@@ -429,43 +511,50 @@ export function AdminOrderModifyPanel({
             </li>
           );
         })}
-        {resolved.map((line) => (
-          <li
-            key={line.productId}
-            className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"
-          >
-            <span className="min-w-0 flex-1 font-medium text-stone-900">{line.name}</span>
-            {!line.available ? <span className="text-xs font-medium text-amber-700">Unavailable</span> : null}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="Decrease quantity"
-                onClick={() => setQty(line.productId, line.quantity - 1)}
-                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-stone-300"
-              >
-                <Minus size={14} />
-              </button>
-              <span className="min-w-[1.5rem] text-center font-semibold">{line.quantity}</span>
-              <button
-                type="button"
-                aria-label="Increase quantity"
-                onClick={() => setQty(line.productId, Math.min(10, line.quantity + 1))}
-                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-stone-300"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-            <span className="w-20 text-right font-semibold tabular-nums">{formatPrice(line.subtotal)}</span>
-            <button
-              type="button"
-              aria-label={`Remove ${line.name}`}
-              onClick={() => setQty(line.productId, 0)}
-              className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-stone-500 hover:bg-stone-100"
+        {resolved.map((line) => {
+          const orderedQty = orderedQtyOf(line.productId);
+          const packLabel = formatOrderItemPackLabel(orderItemByProductId.get(line.productId) ?? {});
+          return (
+            <li
+              key={line.productId}
+              className="grid grid-cols-1 items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem]"
             >
-              <Trash2 size={16} />
-            </button>
-          </li>
-        ))}
+              <span className="min-w-0 font-medium text-stone-900">
+                {line.name}
+                {packLabel ? (
+                  <span className="mt-0.5 block text-xs font-normal text-stone-500">{packLabel}</span>
+                ) : null}
+                {!line.available ? (
+                  <span className="mt-0.5 block text-xs font-medium text-amber-700">Unavailable</span>
+                ) : (
+                  <span className="mt-0.5 block text-xs font-normal text-stone-500 sm:hidden">
+                    Ordered qty {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
+                  </span>
+                )}
+              </span>
+              <span className="hidden text-center font-semibold tabular-nums text-stone-700 sm:block">
+                {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
+              </span>
+              <div className="flex justify-center">
+                <AdminQtyStepper
+                  quantity={line.quantity}
+                  sellingType={line.sellingType}
+                  productName={line.name}
+                  onChange={(quantity) => setQty(line.productId, quantity)}
+                />
+              </div>
+              <span className="text-right font-semibold tabular-nums">{formatPrice(line.subtotal)}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${line.name}`}
+                onClick={() => removeLine(line.productId)}
+                className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-end rounded-md text-stone-500 hover:bg-stone-100 sm:justify-self-center"
+              >
+                <Trash2 size={16} />
+              </button>
+            </li>
+          );
+        })}
       </ul>
 
       <div className="relative mt-4">
@@ -497,9 +586,13 @@ export function AdminOrderModifyPanel({
 
       {confirmOpen ? (
         <ConfirmDialog
-          title="Update this order?"
-          body="Prices and totals are calculated on the server when you confirm."
-          confirmLabel="Update order"
+          title="Save invoice?"
+          body={
+            hasChanges
+              ? 'Billed quantities and totals are saved on this order. The original order stays in the change history so you and the customer can see the difference.'
+              : 'Quantities match the order. Saving marks this invoice as prepared so the order can go out for delivery.'
+          }
+          confirmLabel="Save invoice"
           busy={busy}
           confirmDisabled={resolved.length === 0 || resolved.some((line) => !line.available)}
           onCancel={() => {
@@ -515,7 +608,7 @@ export function AdminOrderModifyPanel({
               <span>{formatPrice(originalTotal)}</span>
             </div>
             <div className="flex justify-between font-semibold text-stone-900">
-              <span>New total (preview)</span>
+              <span>Invoice total (preview)</span>
               <span>{formatPrice(previewTotal)}</span>
             </div>
             {paid && delta !== 0 ? (

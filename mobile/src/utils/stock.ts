@@ -46,17 +46,11 @@ export function unitSizeOf(product: { selling_type?: string | null }, extras?: {
   return 1;
 }
 
-export function stockMessage(left: number, sellingType?: string | null): string {
+export function stockMessage(left: number, _sellingType?: string | null): string {
   if (left <= 0) {
     return 'This item is sold out.';
   }
-  if (sellingType === 'kg') {
-    return `Only ${formatWeight(left)} left.`;
-  }
-  if (sellingType === 'liter') {
-    return `Only ${formatVolume(left)} left.`;
-  }
-  return left === 1 ? 'Only 1 left.' : `Only ${left} left.`;
+  return 'That quantity is not available.';
 }
 
 export function stockLeftLabel(

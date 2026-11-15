@@ -17,9 +17,11 @@ export function PosterCrop({
   panY,
   zoom,
   onChange,
+  square = false,
 }: Crop & {
   src: string;
   onChange?: (next: Crop) => void;
+  square?: boolean;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -88,9 +90,9 @@ export function PosterCrop({
     <div>
       <div
         ref={frameRef}
-        className={`relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-stone-200 ${
-          onChange ? 'cursor-grab touch-none active:cursor-grabbing' : ''
-        }`}
+        className={`relative overflow-hidden rounded-xl bg-stone-200 ${
+          square ? 'aspect-square w-full max-w-xs mx-auto' : 'aspect-[2/1] w-full'
+        } ${onChange ? 'cursor-grab touch-none active:cursor-grabbing' : ''}`}
         onPointerDown={
           onChange
             ? (event) => {

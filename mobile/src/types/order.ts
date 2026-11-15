@@ -18,7 +18,7 @@ export function isUndeliveredOrder(status: string) {
 const MAX_ORDER_UPDATES = 5;
 
 export function canCancelOrder(status: string) {
-  return status === 'new';
+  return status === 'new' || status === 'confirmed';
 }
 
 export function orderLockedMessage(status: string) {

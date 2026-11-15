@@ -9,13 +9,20 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 5 Nov 2026 (home posters, shop status, search screen, voice ordering removed from the app).
+Last updated: 15 Nov 2026 (inbox + Announcements tabs, selling units, min order, privacy review). Operator pending list: [go-live-checklist.md](go-live-checklist.md) **Current pending**.
 
 ## Must do before go-live
 
 **Operator checklist:** [docs/go-live-checklist.md](go-live-checklist.md)  
 **Migration audit table:** [docs/supabase-migration-checklist.md](supabase-migration-checklist.md)  
 **Practice data wipe:** [supabase/scripts/go-live-reset.sql](../supabase/scripts/go-live-reset.sql)
+
+### Ship 15 Nov features (inbox, selling units, privacy)
+
+- **Status:** Pending (code in working tree / local; not go-live until GitHub + Vercel + customer APK)
+- **What:** Kg/liter/pack selling, min order, Home polish, in-app Notifications (latest 20) + admin Announcements (Poster / Inbox & phone), privacy copy.
+- **How:** Commit/push, Vercel admin deploy, new customer APK (`versionCode` 24+). Confirm hosted SQL through `20261115170000_inbox_keep_latest_20.sql`.
+- **Docs:** [go-live-checklist.md](go-live-checklist.md) Current pending.
 
 ### Run the database migrations
 

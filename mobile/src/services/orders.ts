@@ -777,7 +777,10 @@ export async function cancelMyOrder(orderId: string, reason?: string): Promise<O
   if (!supabase) {
     throw new Error('Supabase is not configured.');
   }
-  const reasonText = reason ?? 'Customer requested';
+  const reasonText = reason?.trim() ?? '';
+  if (reasonText.length < 3) {
+    throw new Error('Please choose a reason to cancel this order.');
+  }
   const rpc = supabase.rpc('customer_cancel_order', {
     p_order_id: orderId,
     p_reason: reasonText,

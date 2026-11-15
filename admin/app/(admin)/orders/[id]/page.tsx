@@ -45,7 +45,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           <StatusBadge status={order.status} size="lg" />
           {order.modification_summary?.modifiedFromPlaced ? (
             <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-950">
-              Shop modified
+              Invoice updated
             </span>
           ) : null}
           {order.modification_summary?.customerModifiedAfterConfirm ? (
@@ -81,6 +81,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
             allowCorrection
             statusEvents={order.status_events}
             placedAt={order.created_at}
+            invoicePrepared={Boolean(order.invoice_prepared_at)}
           />
         </div>
         <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 max-lg:order-2">
@@ -139,6 +140,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         confirmBaselineTotal={order.modification_summary?.confirmBaselineTotal ?? undefined}
         revertTargetTotal={order.modification_summary?.revertTargetTotal ?? undefined}
         relaxProductValidation={Boolean(order.modification_summary?.hasAdminModification)}
+        invoicePrepared={Boolean(order.invoice_prepared_at)}
       />
     </div>
   );

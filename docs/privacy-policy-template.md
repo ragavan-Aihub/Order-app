@@ -6,7 +6,7 @@
 
 ## Privacy Policy — Farm2Flavours
 
-**Last updated:** DATE
+**Last updated:** 15 November 2026
 
 **Contact:** SUPPORT EMAIL · SUPPORT PHONE
 
@@ -23,8 +23,10 @@ Farm2Flavours (“we”, “us”) operates the Farm2Flavour mobile app for cust
 | **Receiver phone number** | Typed on a delivery address so the shop can reach the drop-off |
 | **Name** | Delivery and order communication |
 | **Delivery addresses** | Fulfil and deliver your orders (up to 3 saved addresses) |
-| **Order details** | Products, quantities, totals, status, payment method choice (cash or UPI at delivery) |
-| **Push notification token** | Send order status updates, an optional alert when a product becomes available, and a shop poster only when the shop chooses to notify about that poster |
+| **Order details** | Products, quantities, totals, status, payment method choice (cash or UPI at delivery), and a record of shop or customer changes |
+| **In-app notification messages** | Order updates, important shop messages, and offers in the app Notifications list (latest 20 kept per customer) |
+| **Product “notify me”** | Remember which Coming soon products you asked to hear about |
+| **Push notification token** | Optional phone alerts for order status, Coming soon items you asked about, Home posters the shop chooses to alert, and important shop messages or offers |
 | **App interactions** | Operate the service (e.g. sign-in events stored by our hosting provider) |
 
 We **do not** collect payment card details in the app. Payment is made at delivery (cash or UPI).
@@ -37,25 +39,30 @@ We **do not** sell your personal information.
 
 - Create and manage your account
 - Process, deliver, and support orders
-- Send push notifications about your orders, and about a shop poster when the shop chooses to, if you allow notifications
+- Show in-app notifications, and send phone alerts if you allow them
+- Remember Coming soon products you asked to hear about
 - Comply with law and prevent abuse
+
+The shop may change items on an order when a product is not available, or cancel the order. You may change your order in the app until it is marked Out for delivery. You may cancel while the order is Placed or Confirmed. After it is Out for delivery, contact the shop.
 
 ### 4. Service providers
 
 We use trusted processors who store or process data on our instructions:
 
 - **Supabase** — database, authentication, file storage (e.g. product images)
-- **Google** — Sign-In (account picker) and Firebase Cloud Messaging (Android push)
+- **Google** — Sign-In (account picker)
+- **Expo** — phone notifications, delivered on Android via Google Firebase Cloud Messaging
 
 They may process data in regions where they operate. We use them under their terms and our configuration.
 
 ### 5. Retention
 
-We keep order and account information as long as needed to run the business, support you, and meet legal or accounting requirements. You may ask us to delete or correct your data subject to applicable law and ongoing orders.
+We keep order and account information as long as needed to run the business, support you, and meet legal or accounting requirements. In-app notifications keep the latest 20 messages per customer. You may ask us to delete or correct your data subject to applicable law and ongoing orders.
 
 ### 6. Your choices
 
-- **Notifications:** You can disable push notifications in Android settings.
+- **Phone alerts:** You can disable them in Android settings. The in-app Notifications list can still show.
+- **Coming soon:** You can stop Notify me on a product in the app.
 - **Account / data requests:** Contact SUPPORT EMAIL.
 
 ### 7. Children
@@ -83,7 +90,7 @@ When filling Google Play **Data safety**, align with the policy above. Typical a
 
 | Question | Typical answer |
 |----------|----------------|
-| Data collected | Name, email, address, receiver phone on an address, purchase history, app interactions, device or other IDs (push token) |
+| Data collected | Name, email, address, receiver phone on an address, purchase history, in-app messages, product notify-me, app interactions, device or other IDs (push token) |
 | Data shared | With service providers (hosting, Google Sign-In, push) — not sold |
 | Optional vs required | Google or email required for account; notifications optional |
 | Encrypted in transit | Yes (HTTPS) |

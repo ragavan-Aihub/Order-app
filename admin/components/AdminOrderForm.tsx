@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, MapPin, Minus, Plus, Search, Trash2, UserPlus } from 'lucide-react';
+import { AlertCircle, MapPin, Plus, Search, Trash2, UserPlus } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -18,11 +18,17 @@ import { AddressFields, type AddressFieldsValue } from '@/components/AddressFiel
 import { DuplicateCustomerDialog } from '@/components/DuplicateCustomerDialog';
 import { BrowserAddressDecoy, NoFillInput } from '@/components/NoBrowserFill';
 import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
+import { AdminQtyStepper } from '@/components/AdminQtyStepper';
 import {
+  ADMIN_PIECE_QTY_MAX,
+  ADMIN_WEIGHT_QTY_MAX,
   catalogPriceLabel,
   formatVolume,
   formatWeight,
+  isValidAdminQty,
+  isWeightSellingType,
   roundMoney,
+  roundQty2,
   volumeOptionPrice,
   weightOptionPrice,
 } from '@/lib/selling-units';
@@ -469,22 +475,36 @@ export function AdminOrderForm({
   function setLineRowQty(rowId: string, quantity: number) {
     setProductRows((current) => {
       const target = current.find((row) => row.id === rowId && row.kind === 'line');
-      if (target && target.kind === 'line' && quantity > target.quantity) {
-        const product = products.find((item) => item.id === target.productId);
+      if (!target || target.kind !== 'line') {
+        return current;
+      }
+      const product = products.find((item) => item.id === target.productId);
+      const weight = isWeightSellingType(product?.selling_type);
+      quantity = weight ? roundQty2(quantity) : Math.floor(quantity);
+      const maxQty = weight ? ADMIN_WEIGHT_QTY_MAX : ADMIN_PIECE_QTY_MAX;
+      quantity = Math.min(maxQty, quantity);
+      if (target && quantity > target.quantity) {
         const stock = stockLimitOf(product?.stock_qty);
         if (stock != null) {
           const others = productUnitsInRows(current, products, target.productId, rowId);
           const size = lineStockUnits(product?.selling_type, 1, target.weightGrams, target.volumeMl) || 1;
-          quantity = Math.min(quantity, Math.max(0, Math.floor((stock - others) / size)));
+          const maxByStock = weight
+            ? roundQty2(Math.max(0, (stock - others) / size))
+            : Math.max(0, Math.floor((stock - others) / size));
+          quantity = Math.min(quantity, maxByStock);
         }
       }
-      let next = current.map((row) =>
-        row.id === rowId && row.kind === 'line' ? { ...row, quantity } : row,
-      );
-      if (quantity < 1) {
-        next = next.filter((row) => row.id !== rowId);
+      const minKeep = weight ? 0.01 : 1;
+      if (quantity < minKeep) {
+        return ensureTrailingSearch(
+          current.filter((row) => row.id !== rowId),
+          createProductRowId,
+        );
       }
-      return ensureTrailingSearch(next, createProductRowId);
+      return ensureTrailingSearch(
+        current.map((row) => (row.id === rowId && row.kind === 'line' ? { ...row, quantity } : row)),
+        createProductRowId,
+      );
     });
   }
 
@@ -607,6 +627,15 @@ export function AdminOrderForm({
       }
       if (type === 'fixed_pack' && !line.packOptionId) {
         setError(`Choose a pack size for ${line.product.name}.`);
+        productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (!isValidAdminQty(line.quantity, type)) {
+        setError(
+          isWeightSellingType(type)
+            ? `Check the quantity for ${line.product.name} (up to 2 decimal places).`
+            : `Check the quantity for ${line.product.name}.`,
+        );
         productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return;
       }
@@ -944,7 +973,7 @@ export function AdminOrderForm({
 
             <div className="rounded-lg border border-stone-200">
               <div
-                className="grid min-w-[28rem] grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_2.5rem] gap-x-2 border-b border-stone-100 bg-stone-50/80 px-3 py-2 text-xs font-medium text-stone-500"
+                className="grid min-w-[28rem] grid-cols-[minmax(0,1fr)_8.5rem_5.5rem_2.5rem] gap-x-2 border-b border-stone-100 bg-stone-50/80 px-3 py-2 text-xs font-medium text-stone-500"
                 role="row"
               >
                 <div role="columnheader">Item name</div>
@@ -971,7 +1000,7 @@ export function AdminOrderForm({
                     return (
                       <li
                         key={row.id}
-                        className="grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_2.5rem] items-center gap-x-2 px-3 py-2.5"
+                        className="grid grid-cols-[minmax(0,1fr)_8.5rem_5.5rem_2.5rem] items-center gap-x-2 px-3 py-2.5"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-stone-900">{product.name}</p>
@@ -1049,25 +1078,12 @@ export function AdminOrderForm({
                           ) : null}
                         </div>
                         <div className="flex justify-center">
-                          <div className="flex items-center rounded-lg border border-stone-200 bg-white">
-                            <button
-                              type="button"
-                              onClick={() => setLineRowQty(row.id, row.quantity - 1)}
-                              className="inline-flex size-8 items-center justify-center rounded-l-lg text-stone-600 hover:bg-stone-50"
-                              aria-label={`Decrease ${product.name}`}
-                            >
-                              <Minus size={14} />
-                            </button>
-                            <span className="w-8 text-center text-sm font-semibold tabular-nums">{row.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => setLineRowQty(row.id, row.quantity + 1)}
-                              className="inline-flex size-8 items-center justify-center rounded-r-lg text-stone-600 hover:bg-stone-50"
-                              aria-label={`Increase ${product.name}`}
-                            >
-                              <Plus size={14} />
-                            </button>
-                          </div>
+                          <AdminQtyStepper
+                            quantity={row.quantity}
+                            sellingType={type}
+                            productName={product.name}
+                            onChange={(quantity) => setLineRowQty(row.id, quantity)}
+                          />
                         </div>
                         <span className="text-right text-sm font-semibold tabular-nums text-stone-900">
                           {formatPrice(subtotal)}
@@ -1092,7 +1108,7 @@ export function AdminOrderForm({
                       key={row.id}
                       className={`px-3 py-2.5 ${dropdownOpen ? 'relative z-10 bg-white' : ''}`}
                     >
-                      <div className="grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_2.5rem] items-start gap-x-2">
+                      <div className="grid grid-cols-[minmax(0,1fr)_8.5rem_5.5rem_2.5rem] items-start gap-x-2">
                         <div className="min-w-0">
                           <div className="relative">
                             <Search

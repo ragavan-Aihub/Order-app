@@ -19,8 +19,8 @@ export default async function BusinessInfoPage() {
       <div>
         <h1 className="text-2xl font-bold md:text-3xl">Profile</h1>
         <p className="mt-1 text-stone-600">
-          Shop logo, phone, and address. The logo and welcome photo appear on the customer welcome screen. The logo
-          also prints on the delivery bill.
+          Shop logo, phone, and address. Crop an app icon from the logo for the next customer app build. The logo
+          appears on the customer welcome screen and prints on the delivery bill.
         </p>
       </div>
       <BusinessInfoForm business={business} />

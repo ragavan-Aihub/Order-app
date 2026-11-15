@@ -71,7 +71,17 @@ export async function markPushLaunchHandled(responseId: string): Promise<void> {
 
 export function routeForPushLaunch(
   launch: PendingPushLaunch,
-): { pathname: '/home' } | { pathname: '/order/[id]'; params: { id: string } } {
+):
+  | { pathname: '/home' }
+  | { pathname: '/notifications' }
+  | { pathname: '/notification/[id]'; params: { id: string } }
+  | { pathname: '/order/[id]'; params: { id: string } } {
+  if (launch.target.kind === 'inbox' && launch.target.inboxId) {
+    return { pathname: '/notification/[id]', params: { id: launch.target.inboxId } };
+  }
+  if (launch.target.kind === 'inbox' || launch.target.kind === 'notifications') {
+    return { pathname: '/notifications' };
+  }
   if (launch.target.kind === 'home' || launch.target.kind === 'product') {
     return { pathname: '/home' };
   }

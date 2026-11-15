@@ -11,6 +11,9 @@ type QuantityStepperProps = {
   stretch?: boolean;
   /** Tighter control for product grid cards (28px buttons). */
   dense?: boolean;
+  /** Full-width outlined control (product detail for count items). */
+  boxed?: boolean;
+  valueLabel?: string;
 };
 
 export function QuantityStepper({
@@ -20,6 +23,8 @@ export function QuantityStepper({
   compact = false,
   stretch = false,
   dense = false,
+  boxed = false,
+  valueLabel,
 }: QuantityStepperProps) {
   const useCompact = compact || dense;
 
@@ -29,7 +34,14 @@ export function QuantityStepper({
   }
 
   return (
-    <View style={[styles.row, useCompact && styles.rowCompact, stretch && styles.rowStretch]}>
+    <View
+      style={[
+        styles.row,
+        useCompact && styles.rowCompact,
+        stretch && styles.rowStretch,
+        boxed && styles.rowBoxed,
+      ]}
+    >
       <Pressable
         onPress={() => press(onDecrease)}
         android_ripple={{ color: 'rgba(15, 118, 110, 0.28)', foreground: true }}
@@ -37,19 +49,33 @@ export function QuantityStepper({
           styles.button,
           useCompact && styles.buttonCompact,
           dense && styles.buttonDense,
+          boxed && styles.buttonBoxed,
           pressed && styles.buttonPressed,
         ]}
         accessibilityRole="button"
         accessibilityLabel="Decrease quantity"
       >
-        <Text style={[styles.buttonLabel, useCompact && styles.buttonLabelCompact, dense && styles.buttonLabelDense]}>
+        <Text
+          style={[
+            styles.buttonLabel,
+            useCompact && styles.buttonLabelCompact,
+            dense && styles.buttonLabelDense,
+            boxed && styles.buttonLabelBoxed,
+          ]}
+        >
           −
         </Text>
       </Pressable>
       <Text
-        style={[styles.value, useCompact && styles.valueCompact, dense && styles.valueDense, stretch && styles.valueStretch]}
+        style={[
+          styles.value,
+          useCompact && styles.valueCompact,
+          dense && styles.valueDense,
+          stretch && styles.valueStretch,
+          boxed && styles.valueBoxed,
+        ]}
       >
-        {value}
+        {valueLabel ?? String(value)}
       </Text>
       <Pressable
         onPress={() => press(onIncrease)}
@@ -58,12 +84,20 @@ export function QuantityStepper({
           styles.button,
           useCompact && styles.buttonCompact,
           dense && styles.buttonDense,
+          boxed && styles.buttonBoxed,
           pressed && styles.buttonPressed,
         ]}
         accessibilityRole="button"
         accessibilityLabel="Increase quantity"
       >
-        <Text style={[styles.buttonLabel, useCompact && styles.buttonLabelCompact, dense && styles.buttonLabelDense]}>
+        <Text
+          style={[
+            styles.buttonLabel,
+            useCompact && styles.buttonLabelCompact,
+            dense && styles.buttonLabelDense,
+            boxed && styles.buttonLabelBoxed,
+          ]}
+        >
           +
         </Text>
       </Pressable>
@@ -145,7 +179,36 @@ const styles = StyleSheet.create({
   rowStretch: {
     alignSelf: 'stretch',
   },
+  rowBoxed: {
+    alignSelf: 'stretch',
+    gap: 0,
+    minHeight: 52,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  buttonBoxed: {
+    width: 56,
+    height: 52,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  buttonLabelBoxed: {
+    fontSize: 26,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
   valueStretch: {
     flex: 1,
+  },
+  valueBoxed: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
   },
 });
