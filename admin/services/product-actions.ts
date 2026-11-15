@@ -347,9 +347,8 @@ export async function saveProduct(formData: FormData): Promise<{ error: string |
       if (!packs.some((row) => row.is_active)) {
         return { error: 'Keep at least one pack option active.' };
       }
-      if (unitPrice == null) {
-        unitPrice = packs.find((row) => row.is_active)?.selling_price ?? packs[0]?.selling_price ?? null;
-      }
+      const activePackPrices = packs.filter((row) => row.is_active).map((row) => row.selling_price);
+      unitPrice = activePackPrices.length ? Math.min(...activePackPrices) : packs[0]?.selling_price ?? null;
       if (unitPrice == null) {
         return { error: 'Each pack needs a selling price of 0 or more.' };
       }

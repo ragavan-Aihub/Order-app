@@ -78,6 +78,7 @@ export type OrderItem = {
   subtotal: number;
   selling_type?: string | null;
   selling_unit?: string | null;
+  pack_option_id?: string | null;
   pack_weight_grams?: number | null;
   weight_grams?: number | null;
   volume_ml?: number | null;

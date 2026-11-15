@@ -130,15 +130,31 @@ export function AdminOrderModifyPanel({
         if (!product && !onOrder) {
           return null;
         }
-        const unit = product?.price ?? Number(onOrder?.product_price ?? 0);
         const name = product?.name ?? onOrder?.product_name ?? 'Item';
         const sellingType = product?.selling_type ?? onOrder?.selling_type;
         const catalogAvailable = product ? product.available !== false && product.active !== false : false;
         const available = relaxProductValidation ? Boolean(product ?? onOrder) : catalogAvailable;
-        const grams = onOrder?.weight_grams ?? null;
-        const ml = onOrder?.volume_ml ?? null;
-        const perKg = Number(product?.price_per_kg ?? onOrder?.product_price ?? unit);
-        const perL = Number(product?.price_per_liter ?? onOrder?.product_price ?? unit);
+        const grams =
+          onOrder?.weight_grams ??
+          product?.weightOptions?.find((option) => option.is_active)?.weight_grams ??
+          null;
+        const ml =
+          onOrder?.volume_ml ??
+          product?.volumeOptions?.find((option) => option.is_active)?.volume_ml ??
+          null;
+        const packs = (product?.packs ?? []).filter((option) => option.is_active);
+        const pack =
+          packs.find((option) => option.id === onOrder?.pack_option_id) ??
+          packs.find((option) => option.weight_grams === onOrder?.pack_weight_grams) ??
+          packs[0];
+        const perKg = Number(product?.price_per_kg ?? onOrder?.product_price ?? product?.price ?? 0);
+        const perL = Number(product?.price_per_liter ?? onOrder?.product_price ?? product?.price ?? 0);
+        const unit =
+          sellingType === 'kg'
+            ? perKg
+            : sellingType === 'liter'
+              ? perL
+              : Number(pack?.selling_price ?? onOrder?.product_price ?? product?.price ?? 0);
         const subtotal =
           sellingType === 'kg' && grams
             ? weightOptionPrice(perKg, grams, line.quantity)
