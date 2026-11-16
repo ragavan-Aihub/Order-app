@@ -173,6 +173,39 @@ export function formatOrderItemPackLabel(item: {
   return null;
 }
 
+export function formatReportPackLabel(item: {
+  selling_type?: string | null;
+  pack_weight_grams?: number | null;
+  weight_grams?: number | null;
+  volume_ml?: number | null;
+}): string | null {
+  if (item.selling_type === 'kg') {
+    return 'Kg';
+  }
+  if (item.selling_type === 'liter') {
+    return 'L';
+  }
+  return formatOrderItemPackLabel(item) ?? 'pcs';
+}
+
+/** Sold qty for reports: Kg/L as a single number, packs as pack count. */
+export function reportSoldQty(item: {
+  quantity: number;
+  selling_type?: string | null;
+  pack_weight_grams?: number | null;
+  weight_grams?: number | null;
+  volume_ml?: number | null;
+}): number {
+  const qty = Number(item.quantity) || 0;
+  if (item.selling_type === 'kg' && item.weight_grams) {
+    return roundQty2(qty * (item.weight_grams / 1000));
+  }
+  if (item.selling_type === 'liter' && item.volume_ml) {
+    return roundQty2(qty * (item.volume_ml / 1000));
+  }
+  return qty;
+}
+
 export function formatOrderItemUnit(item: {
   product_name: string;
   quantity: number;

@@ -2,6 +2,27 @@ export function formatPrice(amount: number): string {
   return `₹${Number(amount).toFixed(2)}`;
 }
 
+export function formatSignedPrice(amount: number): string {
+  const value = Math.round(Number(amount) * 100) / 100;
+  if (Math.abs(value) < 0.005) {
+    return formatPrice(0);
+  }
+  const formatted = formatPrice(Math.abs(value));
+  return value > 0 ? `+${formatted}` : `-${formatted}`;
+}
+
+/** + difference green, − difference red, unchanged stays default. */
+export function signedPriceClass(amount: number): string {
+  const value = Math.round(Number(amount) * 100) / 100;
+  if (value > 0.005) {
+    return 'text-emerald-700';
+  }
+  if (value < -0.005) {
+    return 'text-rose-700';
+  }
+  return '';
+}
+
 export function formatOrderNumber(orderNumber: number | string | null | undefined): string {
   if (orderNumber == null || orderNumber === '') {
     return '—';

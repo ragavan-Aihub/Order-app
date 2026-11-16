@@ -154,7 +154,8 @@ export default async function DashboardPage() {
   }
 
   const data = result.data;
-  const outstandingHref = '/reports?range=30d&status=delivered&payment=outstanding&focus=outstanding';
+  const outstandingHref =
+    '/reports/collections?range=30d&status=delivered&payment=outstanding&focus=outstanding';
   const pendingDeliveryHref = '/orders?view=pending_delivery';
   const customerModifiedHref = '/orders?view=customer_modified_after_confirm';
   const insightWarns = data.outstandingCount > 0;

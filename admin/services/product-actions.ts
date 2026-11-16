@@ -6,7 +6,15 @@ import { notifyProductAvailablePush } from '@/lib/product-status-push';
 import { isSupabaseConfigured } from '@/config/env';
 import { logAdminAudit } from '@/services/admin-audit';
 import { createServerSupabaseClient } from '@/services/supabase/server';
+import {
+  csvEscape,
+  parsePackList,
+  parseSellingType,
+  parseVolumeList,
+  parseWeightList,
+} from '@/lib/product-catalog-csv';
 import { parseStockInput } from '@/lib/stock';
+import { VOLUME_PRESETS_ML, WEIGHT_PRESETS_GRAMS } from '@/lib/selling-units';
 import { MAX_IMAGE_BYTES, uploadProductImageBytes } from '@/services/storage';
 
 const NAME_MAX = 120;
@@ -661,13 +669,6 @@ function headerIndex(headers: string[], name: string) {
   return headers.findIndex((header) => header.trim().toLowerCase() === name);
 }
 
-function csvEscape(value: string) {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
 function parseAvailable(value: string): { ok: true; available: boolean } | { ok: false } {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'yes') {
@@ -783,13 +784,19 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
   const headers = rows[0].map((value) => value.trim().toLowerCase());
   const nameIdx = headerIndex(headers, 'name');
   const descriptionIdx = headerIndex(headers, 'description');
+  const ingredientsIdx = headerIndex(headers, 'ingredients');
+  const sellingTypeIdx = headerIndex(headers, 'selling_type');
   const priceIdx = headerIndex(headers, 'price');
+  const packsIdx = headerIndex(headers, 'packs');
+  const weightsIdx = headerIndex(headers, 'weights');
+  const volumesIdx = headerIndex(headers, 'volumes');
+  const stockIdx = headerIndex(headers, 'stock_qty');
   const availableIdx = headerIndex(headers, 'available');
   const activeIdx = headerIndex(headers, 'active');
   const imageIdx = headerIndex(headers, 'image_path');
   const categoryIdx = headerIndex(headers, 'category');
 
-  if (nameIdx < 0 || descriptionIdx < 0 || priceIdx < 0 || imageIdx < 0) {
+  if (nameIdx < 0 || descriptionIdx < 0 || imageIdx < 0) {
     return {
       created: 0,
       skipped: 0,
@@ -797,7 +804,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
         {
           row: 1,
           field: 'header',
-          message: 'CSV must include name, description, price, and image_path columns.',
+          message: 'CSV must include name, description, and image_path columns.',
         },
       ],
       errorLogCsv: null,
@@ -831,16 +838,26 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     const row = rows[i];
     const line = i + 1;
     const rowErrors: ProductImportIssue[] = [];
-    const name = (row[nameIdx] ?? '').trim();
-    const description = (row[descriptionIdx] ?? '').trim().slice(0, DESCRIPTION_MAX);
-    const priceRaw = (row[priceIdx] ?? '').trim();
-    const availableRaw = availableIdx >= 0 ? (row[availableIdx] ?? '').trim() : '';
-    const activeRaw = activeIdx >= 0 ? (row[activeIdx] ?? '').trim() : '';
-    const imagePathRaw = (row[imageIdx] ?? '').trim();
-    const categoryRaw = categoryIdx >= 0 ? (row[categoryIdx] ?? '').trim() : '';
-    const price = parsePrice(priceRaw);
+    const cell = (index: number) => (index >= 0 ? (row[index] ?? '').trim() : '');
+    const name = cell(nameIdx);
+    const description = cell(descriptionIdx).slice(0, DESCRIPTION_MAX);
+    const ingredients = cell(ingredientsIdx).slice(0, DESCRIPTION_MAX);
+    const sellingType = parseSellingType(cell(sellingTypeIdx));
+    const priceRaw = cell(priceIdx);
+    const packsRaw = cell(packsIdx);
+    const weightsRaw = cell(weightsIdx);
+    const volumesRaw = cell(volumesIdx);
+    const stockRaw = cell(stockIdx);
+    const availableRaw = cell(availableIdx);
+    const activeRaw = cell(activeIdx);
+    const imagePathRaw = cell(imageIdx);
+    const categoryRaw = cell(categoryIdx);
     const availableParsed = availableRaw ? parseAvailable(availableRaw) : { ok: true as const, available: true };
     const activeParsed = activeRaw ? parseAvailable(activeRaw) : { ok: true as const, available: true };
+    const stockParsed = parseStockInput(stockRaw, sellingType);
+    const packsParsed = parsePackList(packsRaw);
+    const weightsParsed = parseWeightList(weightsRaw);
+    const volumesParsed = parseVolumeList(volumesRaw);
 
     if (!name) {
       rowErrors.push({ row: line, field: 'name', message: 'Name is required.' });
@@ -850,8 +867,53 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     if (!description) {
       rowErrors.push({ row: line, field: 'description', message: 'Description is required.' });
     }
-    if (!priceRaw || price == null) {
-      rowErrors.push({ row: line, field: 'price', message: 'Price must be a number 0 or more.' });
+    if ('error' in packsParsed) {
+      rowErrors.push({ row: line, field: 'packs', message: packsParsed.error });
+    }
+    if ('error' in weightsParsed) {
+      rowErrors.push({ row: line, field: 'weights', message: weightsParsed.error });
+    }
+    if ('error' in volumesParsed) {
+      rowErrors.push({ row: line, field: 'volumes', message: volumesParsed.error });
+    }
+    if (!stockParsed.ok) {
+      rowErrors.push({
+        row: line,
+        field: 'stock_qty',
+        message:
+          sellingType === 'kg'
+            ? 'stock_qty must be kilograms, or blank for unlimited.'
+            : sellingType === 'liter'
+              ? 'stock_qty must be liters, or blank for unlimited.'
+              : 'stock_qty must be a whole number, or blank for unlimited.',
+      });
+    }
+
+    let unitPrice = parsePrice(priceRaw);
+    let packs: Array<{ weight_grams: number; selling_price: number }> = [];
+    let weights: number[] = [];
+    let volumes: number[] = [];
+    if (!('error' in packsParsed) && !('error' in weightsParsed) && !('error' in volumesParsed)) {
+      if (sellingType === 'fixed_pack') {
+        packs = packsParsed;
+        if (packs.length === 0) {
+          rowErrors.push({ row: line, field: 'packs', message: 'Add packs like 100g=80;300g=220.' });
+        } else {
+          unitPrice = Math.min(...packs.map((pack) => pack.selling_price));
+        }
+      } else if (sellingType === 'kg') {
+        weights = weightsParsed.length > 0 ? weightsParsed : [...WEIGHT_PRESETS_GRAMS];
+        if (unitPrice == null) {
+          rowErrors.push({ row: line, field: 'price', message: 'Price per Kg must be a number 0 or more.' });
+        }
+      } else if (sellingType === 'liter') {
+        volumes = volumesParsed.length > 0 ? volumesParsed : [...VOLUME_PRESETS_ML];
+        if (unitPrice == null) {
+          rowErrors.push({ row: line, field: 'price', message: 'Price per liter must be a number 0 or more.' });
+        }
+      } else if (unitPrice == null) {
+        rowErrors.push({ row: line, field: 'price', message: 'Price must be a number 0 or more.' });
+      }
     }
     if (availableRaw && !availableParsed.ok) {
       rowErrors.push({ row: line, field: 'available', message: 'Available must be Yes or No when provided.' });
@@ -873,7 +935,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       }
     }
 
-    if (rowErrors.length > 0) {
+    if (rowErrors.length > 0 || unitPrice == null) {
       errors.push(...rowErrors);
       skipped += 1;
       continue;
@@ -926,21 +988,73 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       continue;
     }
 
-    const { error } = await ctx.supabase.from('products').insert({
-      name,
-      description,
-      price,
-      available: availableParsed.ok ? availableParsed.available : true,
-      active: activeParsed.ok ? activeParsed.available : true,
-      business_id: ctx.businessId,
-      image_url: imageUrl,
-      ...(categoriesEnabled && categoryId ? { category_id: categoryId } : {}),
-    });
+    const { data: inserted, error } = await ctx.supabase
+      .from('products')
+      .insert({
+        name,
+        description,
+        ingredients: ingredients || null,
+        price: unitPrice,
+        selling_type: sellingType,
+        selling_unit:
+          sellingType === 'kg' ? 'Kg' : sellingType === 'liter' ? 'L' : sellingType === 'fixed_pack' ? 'pack' : null,
+        price_per_kg: sellingType === 'kg' ? unitPrice : null,
+        price_per_liter: sellingType === 'liter' ? unitPrice : null,
+        available: availableParsed.ok ? availableParsed.available : true,
+        active: activeParsed.ok ? activeParsed.available : true,
+        stock_qty: stockParsed.ok ? stockParsed.value : null,
+        business_id: ctx.businessId,
+        image_url: imageUrl,
+        ...(categoriesEnabled && categoryId ? { category_id: categoryId } : {}),
+      })
+      .select('id')
+      .maybeSingle();
 
-    if (error) {
+    if (error || !inserted) {
       errors.push({ row: line, field: 'save', message: 'Could not save this product.' });
       skipped += 1;
       continue;
+    }
+
+    if (sellingType === 'fixed_pack') {
+      const { error: packError } = await ctx.supabase.from('product_pack_options').insert(
+        packs.map((pack, index) => ({
+          product_id: inserted.id,
+          weight_grams: pack.weight_grams,
+          selling_price: pack.selling_price,
+          is_active: true,
+          display_order: index,
+        })),
+      );
+      if (packError) {
+        errors.push({ row: line, field: 'packs', message: 'Product saved, but pack options could not be saved.' });
+      }
+    }
+    if (sellingType === 'kg') {
+      const { error: weightError } = await ctx.supabase.from('product_weight_options').insert(
+        weights.map((weight_grams, index) => ({
+          product_id: inserted.id,
+          weight_grams,
+          is_active: true,
+          display_order: index,
+        })),
+      );
+      if (weightError) {
+        errors.push({ row: line, field: 'weights', message: 'Product saved, but weight options could not be saved.' });
+      }
+    }
+    if (sellingType === 'liter') {
+      const { error: volumeError } = await ctx.supabase.from('product_volume_options').insert(
+        volumes.map((volume_ml, index) => ({
+          product_id: inserted.id,
+          volume_ml,
+          is_active: true,
+          display_order: index,
+        })),
+      );
+      if (volumeError) {
+        errors.push({ row: line, field: 'volumes', message: 'Product saved, but volume options could not be saved.' });
+      }
     }
     created += 1;
   }
@@ -954,6 +1068,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     });
     revalidatePath('/');
     revalidatePath('/products');
+    revalidatePath('/products/import');
   }
 
   if (created === 0 && skipped > 0) {

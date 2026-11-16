@@ -1,17 +1,21 @@
 'use client';
 
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AdminOrderItemsTable } from '@/components/AdminOrderItemsTable';
 import { AdminQtyStepper } from '@/components/AdminQtyStepper';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { VariantOptionCard, VariantOptionRow } from '@/components/VariantOptionCard';
 import {
   ADMIN_PIECE_QTY_MAX,
   ADMIN_WEIGHT_QTY_MAX,
   formatLineMultiplier,
   formatOrderItemPackLabel,
+  formatPackWeight,
+  formatVolume,
+  formatWeight,
   isValidAdminQty,
   isWeightSellingType,
   roundQty2,
@@ -29,20 +33,54 @@ import {
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 
-type Line = { productId: string; quantity: number };
+type Line = {
+  rowId: string;
+  productId: string;
+  quantity: number;
+  weightGrams?: number;
+  volumeMl?: number;
+  packOptionId?: string;
+};
+
+function newRowId() {
+  return crypto.randomUUID();
+}
+
+function lineMissingSize(line: {
+  sellingType?: string | null;
+  weightOptions: { id: string }[];
+  volumeOptions: { id: string }[];
+  packOptions: { id: string }[];
+  weightGrams?: number;
+  volumeMl?: number;
+  packOptionId?: string;
+}): boolean {
+  if (line.sellingType === 'kg' && line.weightOptions.length > 1 && line.weightGrams == null) {
+    return true;
+  }
+  if (line.sellingType === 'liter' && line.volumeOptions.length > 1 && line.volumeMl == null) {
+    return true;
+  }
+  if (line.sellingType === 'fixed_pack' && line.packOptions.length > 1 && !line.packOptionId) {
+    return true;
+  }
+  return false;
+}
 
 const searchClass =
   'min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-stone-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100';
 
 function linesFromOrderItems(items: OrderItem[]): Line[] {
-  const map = new Map<string, number>();
-  for (const item of items) {
-    if (!item.product_id) {
-      continue;
-    }
-    map.set(item.product_id, (map.get(item.product_id) ?? 0) + item.quantity);
-  }
-  return [...map.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  return items
+    .filter((item) => item.product_id)
+    .map((item) => ({
+      rowId: item.id || newRowId(),
+      productId: item.product_id as string,
+      quantity: item.quantity,
+      weightGrams: item.weight_grams ?? undefined,
+      volumeMl: item.volume_ml ?? undefined,
+      packOptionId: item.pack_option_id ?? undefined,
+    }));
 }
 
 function linesEqual(a: Line[], b: Line[]) {
@@ -50,7 +88,12 @@ function linesEqual(a: Line[], b: Line[]) {
     return false;
   }
   const sortKey = (lines: Line[]) =>
-    [...lines].sort((x, y) => x.productId.localeCompare(y.productId)).map((l) => `${l.productId}:${l.quantity}`);
+    [...lines]
+      .sort((x, y) => x.productId.localeCompare(y.productId) || x.rowId.localeCompare(y.rowId))
+      .map(
+        (l) =>
+          `${l.productId}:${l.quantity}:${l.weightGrams ?? ''}:${l.volumeMl ?? ''}:${l.packOptionId ?? ''}`,
+      );
   const sa = sortKey(a);
   const sb = sortKey(b);
   return sa.every((value, index) => value === sb[index]);
@@ -98,7 +141,7 @@ export function AdminOrderModifyPanel({
   invoicePrepared?: boolean;
 }) {
   const router = useRouter();
-  const canModify = status === 'new' || status === 'confirmed' || status === 'out_for_delivery';
+  const canInvoice = status === 'confirmed' || status === 'out_for_delivery';
   const invoiceActionLabel = invoicePrepared || adminModifiedFromPlaced ? 'Update invoice' : 'Prepare invoice';
   const baseline = useMemo(() => linesFromOrderItems(originalItems), [originalItems]);
   const [editing, setEditing] = useState(false);
@@ -110,6 +153,7 @@ export function AdminOrderModifyPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(itemsRevision);
+  const [variantRowId, setVariantRowId] = useState<string | null>(null);
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const orderItemByProductId = useMemo(() => {
@@ -134,19 +178,15 @@ export function AdminOrderModifyPanel({
         const sellingType = product?.selling_type ?? onOrder?.selling_type;
         const catalogAvailable = product ? product.available !== false && product.active !== false : false;
         const available = relaxProductValidation ? Boolean(product ?? onOrder) : catalogAvailable;
-        const grams =
-          onOrder?.weight_grams ??
-          product?.weightOptions?.find((option) => option.is_active)?.weight_grams ??
-          null;
-        const ml =
-          onOrder?.volume_ml ??
-          product?.volumeOptions?.find((option) => option.is_active)?.volume_ml ??
-          null;
+        const placed = originalItems.find((item) => item.id === line.rowId);
+        const grams = line.weightGrams ?? placed?.weight_grams ?? null;
+        const ml = line.volumeMl ?? placed?.volume_ml ?? null;
         const packs = (product?.packs ?? []).filter((option) => option.is_active);
         const pack =
-          packs.find((option) => option.id === onOrder?.pack_option_id) ??
-          packs.find((option) => option.weight_grams === onOrder?.pack_weight_grams) ??
-          packs[0];
+          packs.find((option) => option.id === line.packOptionId) ??
+          packs.find((option) => option.id === placed?.pack_option_id) ??
+          packs.find((option) => option.weight_grams === placed?.pack_weight_grams) ??
+          null;
         const perKg = Number(product?.price_per_kg ?? onOrder?.product_price ?? product?.price ?? 0);
         const perL = Number(product?.price_per_liter ?? onOrder?.product_price ?? product?.price ?? 0);
         const unit =
@@ -168,32 +208,54 @@ export function AdminOrderModifyPanel({
           sellingType,
           subtotal,
           available,
+          grams,
+          ml,
+          packId: pack?.id ?? line.packOptionId ?? null,
+          weightOptions: (product?.weightOptions ?? []).filter((option) => option.is_active),
+          volumeOptions: (product?.volumeOptions ?? []).filter((option) => option.is_active),
+          packOptions: packs,
+          perKg,
+          perL,
         };
       })
       .filter(Boolean) as Array<
-      Line & { name: string; unit: number; subtotal: number; available: boolean; sellingType?: string | null }
+      Line & {
+        name: string;
+        unit: number;
+        subtotal: number;
+        available: boolean;
+        sellingType?: string | null;
+        grams: number | null;
+        ml: number | null;
+        packId: string | null;
+        weightOptions: NonNullable<Product['weightOptions']>;
+        volumeOptions: NonNullable<Product['volumeOptions']>;
+        packOptions: NonNullable<Product['packs']>;
+        perKg: number;
+        perL: number;
+      }
     >;
-  }, [lines, orderItemByProductId, productById, relaxProductValidation]);
+  }, [lines, originalItems, orderItemByProductId, productById, relaxProductValidation]);
 
   const removedLines = useMemo(() => {
-    const active = new Set(lines.map((line) => line.productId));
+    const active = new Set(lines.map((line) => line.rowId));
     return baseline
-      .filter((line) => !active.has(line.productId))
+      .filter((line) => !active.has(line.rowId))
       .map((line) => {
-        const onOrder = orderItemByProductId.get(line.productId);
+        const onOrder = originalItems.find((item) => item.id === line.rowId) ?? orderItemByProductId.get(line.productId);
         const product = productById.get(line.productId);
         const name = product?.name ?? onOrder?.product_name ?? 'Item';
         const unit = product?.price ?? Number(onOrder?.product_price ?? 0);
         return {
-          productId: line.productId,
+          ...line,
           name,
-          quantity: line.quantity,
           unit,
           subtotal: unit * line.quantity,
         };
       });
-  }, [baseline, lines, orderItemByProductId, productById]);
+  }, [baseline, lines, orderItemByProductId, originalItems, productById]);
 
+  const pendingSize = resolved.find(lineMissingSize) ?? null;
   const previewTotal = resolved.reduce((sum, line) => sum + line.subtotal, 0);
   const hasChanges = !linesEqual(lines, baseline);
   const paid = isPaymentCollected(paymentMethod);
@@ -204,14 +266,12 @@ export function AdminOrderModifyPanel({
     if (!term) {
       return [];
     }
-    const inCart = new Set(lines.map((l) => l.productId));
     return products
       .filter(
         (p) =>
           p.available !== false &&
           p.active !== false &&
-          !inCart.has(p.id) &&
-          (p.name.toLowerCase().includes(term) || p.description?.toLowerCase().includes(term)),
+          p.name.toLowerCase().includes(term),
       )
       .slice(0, 8);
   }, [lines, products, query]);
@@ -236,66 +296,101 @@ export function AdminOrderModifyPanel({
     return productById.get(productId)?.selling_type ?? orderItemByProductId.get(productId)?.selling_type;
   }
 
-  function orderedQtyOf(productId: string): number | null {
-    const placed = placedItems.find((line) => line.product_id === productId);
-    if (placed) {
-      return placed.quantity;
+  function orderedQtyOf(line: Line): number | null {
+    const live = originalItems.find(
+      (item) =>
+        item.id === line.rowId ||
+        (item.product_id === line.productId &&
+          (item.weight_grams ?? undefined) === line.weightGrams &&
+          (item.volume_ml ?? undefined) === line.volumeMl &&
+          (item.pack_option_id ?? undefined) === line.packOptionId),
+    );
+    if (live) {
+      return live.quantity;
     }
-    const live = originalItems.find((item) => item.product_id === productId);
-    return live?.quantity ?? null;
+    const placed = placedItems.find((item) => item.product_id === line.productId);
+    return placed?.quantity ?? null;
   }
 
-  function setQty(productId: string, quantity: number) {
-    const sellingType = sellingTypeOf(productId);
+  function setQty(rowId: string, quantity: number, productId?: string) {
+    const id = productId ?? lines.find((line) => line.rowId === rowId)?.productId;
+    const sellingType = id ? sellingTypeOf(id) : undefined;
     const weight = isWeightSellingType(sellingType);
     const max = weight ? ADMIN_WEIGHT_QTY_MAX : ADMIN_PIECE_QTY_MAX;
     const minKeep = weight ? 0.01 : 1;
     const next = Math.min(max, Math.max(minKeep, weight ? roundQty2(quantity) : Math.floor(quantity)));
-    setLines((current) => {
-      if (current.some((line) => line.productId === productId)) {
-        return current.map((line) => (line.productId === productId ? { ...line, quantity: next } : line));
-      }
-      return [...current, { productId, quantity: next }];
-    });
+    if (pendingSize) {
+      setError(`Choose a size for ${pendingSize.name} before changing quantity.`);
+      setVariantRowId(pendingSize.rowId);
+      return;
+    }
+    setLines((current) =>
+      current.map((line) => (line.rowId === rowId ? { ...line, quantity: next } : line)),
+    );
+    setVariantRowId((open) => (open && open !== rowId ? null : open));
   }
 
-  function removeLine(productId: string) {
-    setLines((current) => current.filter((line) => line.productId !== productId));
+  function restoreLine(line: Line) {
+    setLines((current) => (current.some((item) => item.rowId === line.rowId) ? current : [...current, line]));
+  }
+
+  function removeLine(rowId: string) {
+    setLines((current) => current.filter((line) => line.rowId !== rowId));
+  }
+
+  function patchLine(rowId: string, patch: Partial<Line>) {
+    setLines((current) => current.map((line) => (line.rowId === rowId ? { ...line, ...patch } : line)));
+    setVariantRowId(null);
   }
 
   function addProduct(product: Product) {
-    setLines((current) => {
-      if (current.length >= 15) {
-        setError('You can add up to 15 items in one order.');
-        return current;
-      }
-      const existing = current.find((line) => line.productId === product.id);
-      const weight = isWeightSellingType(product.selling_type);
-      const max = weight ? ADMIN_WEIGHT_QTY_MAX : ADMIN_PIECE_QTY_MAX;
-      const step = 1;
-      if (existing) {
-        if (existing.quantity >= max) {
-          setError(
-            weight
-              ? 'Kg and liter quantity can be up to 100, with 2 decimal places.'
-              : 'Each item quantity must be between 1 and 10.',
-          );
-          return current;
-        }
-        return current.map((line) =>
-          line.productId === product.id ? { ...line, quantity: roundQty2(line.quantity + step) } : line,
-        );
-      }
-      setError(null);
-      return [...current, { productId: product.id, quantity: 1 }];
-    });
+    if (pendingSize) {
+      setError(`Choose a size for ${pendingSize.name} before adding another item.`);
+      setVariantRowId(pendingSize.rowId);
+      setQuery('');
+      return;
+    }
+    if (lines.length >= 15) {
+      setError('You can add up to 15 items in one order.');
+      return;
+    }
+    const rowId = newRowId();
+    const weights = (product.weightOptions ?? []).filter((option) => option.is_active);
+    const volumes = (product.volumeOptions ?? []).filter((option) => option.is_active);
+    const packs = (product.packs ?? []).filter((pack) => pack.is_active);
+    const needsPick =
+      (product.selling_type === 'kg' && weights.length > 1) ||
+      (product.selling_type === 'liter' && volumes.length > 1) ||
+      (product.selling_type === 'fixed_pack' && packs.length > 1);
+    setError(null);
+    setLines((current) => [
+      ...current,
+      {
+        rowId,
+        productId: product.id,
+        quantity: 1,
+        weightGrams: product.selling_type === 'kg' && weights.length === 1 ? weights[0].weight_grams : undefined,
+        volumeMl: product.selling_type === 'liter' && volumes.length === 1 ? volumes[0].volume_ml : undefined,
+        packOptionId: product.selling_type === 'fixed_pack' && packs.length === 1 ? packs[0].id : undefined,
+      },
+    ]);
+    setVariantRowId(needsPick ? rowId : null);
     setQuery('');
   }
 
   async function applyChanges() {
+    if (!canInvoice) {
+      setError('Confirm the order before preparing the invoice.');
+      return;
+    }
     const invalid = lines.find((line) => !isValidAdminQty(line.quantity, sellingTypeOf(line.productId)));
     if (invalid) {
       setError('Check item quantities. Kg and liter can use up to 2 decimal places.');
+      return;
+    }
+    if (pendingSize) {
+      setError(`Choose a size for ${pendingSize.name}.`);
+      setVariantRowId(pendingSize.rowId);
       return;
     }
     setBusy(true);
@@ -303,7 +398,13 @@ export function AdminOrderModifyPanel({
     const result = hasChanges
       ? await replaceAdminOrderItems(
           orderId,
-          lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+          lines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            weightGrams: line.weightGrams ?? null,
+            volumeMl: line.volumeMl ?? null,
+            packOptionId: line.packOptionId ?? null,
+          })),
           { reason, expectedRevision: revision, relaxedValidation: relaxProductValidation },
         )
       : await markAdminInvoicePrepared(orderId, revision);
@@ -348,7 +449,7 @@ export function AdminOrderModifyPanel({
       ? 'rounded-xl border border-sky-300 bg-sky-50/40 p-4 ring-1 ring-sky-100'
       : 'rounded-xl border border-stone-200 bg-white p-4';
 
-  if (!editing) {
+  if (!editing || !canInvoice) {
     return (
       <div className={panelClass}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -376,7 +477,7 @@ export function AdminOrderModifyPanel({
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {canModify && canRevertToPlaced ? (
+            {canInvoice && canRevertToPlaced ? (
               <button
                 type="button"
                 disabled={busy}
@@ -386,7 +487,7 @@ export function AdminOrderModifyPanel({
                 Reset to original order
               </button>
             ) : null}
-            {canModify ? (
+            {canInvoice ? (
               <button
                 type="button"
                 onClick={startEditing}
@@ -394,6 +495,8 @@ export function AdminOrderModifyPanel({
               >
                 {invoiceActionLabel}
               </button>
+            ) : status === 'new' ? (
+              <p className="text-sm font-medium text-amber-900">Confirm the order before preparing the invoice.</p>
             ) : null}
           </div>
         </div>
@@ -496,18 +599,18 @@ export function AdminOrderModifyPanel({
           const packLabel = formatOrderItemPackLabel(orderItemByProductId.get(line.productId) ?? {});
           return (
             <li
-              key={`removed-${line.productId}`}
+              key={`removed-${line.rowId}`}
               className="grid grid-cols-1 items-center gap-2 rounded-lg border border-stone-300 bg-stone-100/90 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem]"
             >
               <span className={`min-w-0 font-medium ${struck}`}>
                 {line.name}
                 {packLabel ? <span className="mt-0.5 block text-xs font-normal">{packLabel}</span> : null}
                 <span className="mt-0.5 block text-xs font-normal sm:hidden">
-                  Ordered qty {formatLineMultiplier(orderedQtyOf(line.productId) ?? line.quantity)}
+                  Ordered qty {formatLineMultiplier(orderedQtyOf(line) ?? line.quantity)}
                 </span>
               </span>
               <span className={`hidden text-center font-semibold tabular-nums sm:block ${struck}`}>
-                {formatLineMultiplier(orderedQtyOf(line.productId) ?? line.quantity)}
+                {formatLineMultiplier(orderedQtyOf(line) ?? line.quantity)}
               </span>
               <span className={`text-center text-xs font-bold uppercase tracking-wide text-stone-600 ${struck}`}>
                 Removed
@@ -518,7 +621,7 @@ export function AdminOrderModifyPanel({
               <button
                 type="button"
                 aria-label={`Restore ${line.name}`}
-                onClick={() => setQty(line.productId, line.quantity)}
+                onClick={() => restoreLine(line)}
                 className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-end rounded-md text-stone-600 hover:bg-stone-200/80 sm:justify-self-center"
                 title="Restore line"
               >
@@ -528,42 +631,146 @@ export function AdminOrderModifyPanel({
           );
         })}
         {resolved.map((line) => {
-          const orderedQty = orderedQtyOf(line.productId);
-          const packLabel = formatOrderItemPackLabel(orderItemByProductId.get(line.productId) ?? {});
+          const orderedQty = orderedQtyOf(line);
+          const packLabel = formatOrderItemPackLabel({
+            selling_type: line.sellingType,
+            pack_weight_grams: line.packOptions.find((pack) => pack.id === line.packId)?.weight_grams,
+            weight_grams: line.grams,
+            volume_ml: line.ml,
+          });
+          const showWeights = line.sellingType === 'kg' && line.weightOptions.length > 1;
+          const showVolumes = line.sellingType === 'liter' && line.volumeOptions.length > 1;
+          const showPacks = line.sellingType === 'fixed_pack' && line.packOptions.length > 1;
+          const canChangeVariant = showWeights || showVolumes || showPacks;
+          const sizePending = lineMissingSize(line);
+          const variantOpen = (pendingSize?.rowId ?? variantRowId) === line.rowId;
+          const selectedPackGrams = line.packOptions.find((pack) => pack.id === line.packId)?.weight_grams;
+          const selectedLabel = showWeights
+            ? line.grams != null
+              ? formatWeight(line.grams)
+              : null
+            : showVolumes
+              ? line.ml != null
+                ? formatVolume(line.ml)
+                : null
+              : showPacks
+                ? selectedPackGrams != null
+                  ? formatPackWeight(selectedPackGrams)
+                  : packLabel
+                : packLabel;
           return (
             <li
-              key={line.productId}
+              key={line.rowId}
               className="grid grid-cols-1 items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem]"
             >
-              <span className="min-w-0 font-medium text-stone-900">
-                {line.name}
-                {packLabel ? (
-                  <span className="mt-0.5 block text-xs font-normal text-stone-500">{packLabel}</span>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="min-w-0 truncate font-medium text-stone-900">{line.name}</p>
+                  {canChangeVariant ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (pendingSize && pendingSize.rowId !== line.rowId) {
+                          setError(`Choose a size for ${pendingSize.name} first.`);
+                          setVariantRowId(pendingSize.rowId);
+                          return;
+                        }
+                        if (variantOpen && sizePending) {
+                          return;
+                        }
+                        setVariantRowId(variantOpen ? null : line.rowId);
+                      }}
+                      aria-expanded={variantOpen}
+                      aria-label={selectedLabel ? `Change size, ${selectedLabel}` : `Choose size for ${line.name}`}
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full"
+                    >
+                      {selectedLabel ? (
+                        <span className="inline-flex items-center rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-white">
+                          {selectedLabel}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-dashed border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-500">
+                          Choose size
+                        </span>
+                      )}
+                      <ChevronDown
+                        size={14}
+                        className={`text-stone-400 transition ${variantOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                  ) : packLabel ? (
+                    <p className="shrink-0 text-xs font-normal text-stone-500">{packLabel}</p>
+                  ) : null}
+                </div>
+                {variantOpen && showWeights ? (
+                  <div className="mt-1.5">
+                    <VariantOptionRow>
+                      {line.weightOptions.map((option) => (
+                        <VariantOptionCard
+                          key={option.id}
+                          label={formatWeight(option.weight_grams)}
+                          price={formatPrice(weightOptionPrice(line.perKg, option.weight_grams))}
+                          on={line.grams === option.weight_grams}
+                          onClick={() => patchLine(line.rowId, { weightGrams: option.weight_grams })}
+                        />
+                      ))}
+                    </VariantOptionRow>
+                  </div>
+                ) : null}
+                {variantOpen && showVolumes ? (
+                  <div className="mt-1.5">
+                    <VariantOptionRow>
+                      {line.volumeOptions.map((option) => (
+                        <VariantOptionCard
+                          key={option.id}
+                          label={formatVolume(option.volume_ml)}
+                          price={formatPrice(volumeOptionPrice(line.perL, option.volume_ml))}
+                          on={line.ml === option.volume_ml}
+                          onClick={() => patchLine(line.rowId, { volumeMl: option.volume_ml })}
+                        />
+                      ))}
+                    </VariantOptionRow>
+                  </div>
+                ) : null}
+                {variantOpen && showPacks ? (
+                  <div className="mt-1.5">
+                    <VariantOptionRow>
+                      {line.packOptions.map((pack) => (
+                        <VariantOptionCard
+                          key={pack.id}
+                          label={formatPackWeight(pack.weight_grams)}
+                          price={formatPrice(pack.selling_price)}
+                          on={line.packId === pack.id}
+                          onClick={() => patchLine(line.rowId, { packOptionId: pack.id })}
+                        />
+                      ))}
+                    </VariantOptionRow>
+                  </div>
                 ) : null}
                 {!line.available ? (
-                  <span className="mt-0.5 block text-xs font-medium text-amber-700">Unavailable</span>
+                  <p className="mt-0.5 text-xs font-medium text-amber-700">Unavailable</p>
                 ) : (
-                  <span className="mt-0.5 block text-xs font-normal text-stone-500 sm:hidden">
+                  <p className="mt-0.5 text-xs font-normal text-stone-500 sm:hidden">
                     Ordered qty {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
-                  </span>
+                  </p>
                 )}
-              </span>
+              </div>
               <span className="hidden text-center font-semibold tabular-nums text-stone-700 sm:block">
                 {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
               </span>
-              <div className="flex justify-center">
+              <div className={`flex justify-center ${pendingSize ? 'pointer-events-none opacity-40' : ''}`}>
                 <AdminQtyStepper
                   quantity={line.quantity}
                   sellingType={line.sellingType}
                   productName={line.name}
-                  onChange={(quantity) => setQty(line.productId, quantity)}
+                  onChange={(quantity) => setQty(line.rowId, quantity, line.productId)}
                 />
               </div>
               <span className="text-right font-semibold tabular-nums">{formatPrice(line.subtotal)}</span>
               <button
                 type="button"
                 aria-label={`Remove ${line.name}`}
-                onClick={() => removeLine(line.productId)}
+                onClick={() => removeLine(line.rowId)}
                 className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-end rounded-md text-stone-500 hover:bg-stone-100 sm:justify-self-center"
               >
                 <Trash2 size={16} />
@@ -579,8 +786,11 @@ export function AdminOrderModifyPanel({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search products to add"
-          className={`${searchClass} pl-9`}
+          placeholder={
+            pendingSize ? `Choose a size for ${pendingSize.name} first` : 'Search products to add'
+          }
+          disabled={Boolean(pendingSize)}
+          className={`${searchClass} pl-9 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-400`}
         />
         {suggestions.length > 0 ? (
           <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-md">

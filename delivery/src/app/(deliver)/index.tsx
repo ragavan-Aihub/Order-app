@@ -106,7 +106,8 @@ export default function DeliveryListScreen() {
     void initialLoad();
   }, [mode, initialLoad]);
 
-  const emptyTitle = mode === 'pending' ? 'No active deliveries' : 'Nothing delivered today yet';
+  const emptyTitle =
+    mode === 'pending' ? 'No invoiced orders to deliver' : 'Nothing delivered today yet';
   const pendingTabLabel =
     pendingCount > 0 ? `To deliver (${pendingCount})` : 'To deliver';
 
@@ -162,6 +163,9 @@ export default function DeliveryListScreen() {
       ) : orders.length === 0 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+          {mode === 'pending' ? (
+            <Text style={styles.emptyHint}>Orders show here after the shop saves the invoice.</Text>
+          ) : null}
         </View>
       ) : (
         <FlatList
@@ -402,6 +406,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    textAlign: 'center',
+  },
+  emptyHint: {
+    marginTop: spacing.sm,
+    fontSize: 15,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
   },
   error: {
     color: colors.danger,

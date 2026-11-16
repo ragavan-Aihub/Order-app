@@ -43,12 +43,18 @@ export function ProductsBoard({
       if (!needle) {
         return true;
       }
-      return [product.name, product.description, product.category_name ?? '']
-        .join(' ')
-        .toLowerCase()
-        .includes(needle);
+      return product.name.toLowerCase().includes(needle);
     });
-    return rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return rows.sort((a, b) => {
+      if (needle) {
+        const aStarts = a.name.toLowerCase().startsWith(needle) ? 0 : 1;
+        const bStarts = b.name.toLowerCase().startsWith(needle) ? 0 : 1;
+        if (aStarts !== bStarts) {
+          return aStarts - bStarts;
+        }
+      }
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
   }, [categoryFilter, categoriesEnabled, products, query, statusFilter]);
 
   return (
@@ -57,7 +63,7 @@ export function ProductsBoard({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search products"
+          placeholder="Search product name"
           className="min-h-11 w-full max-w-md rounded-lg border border-stone-300 bg-white px-3 py-2"
         />
         {categoriesEnabled ? (

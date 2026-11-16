@@ -5,7 +5,7 @@ import {
 } from '@/services/order-modifications';
 import { getAdminSession } from '@/services/supabase/admin-session';
 import { createServerSupabaseClient } from '@/services/supabase/server';
-import type { Order, OrderItem, OrderStatusEvent, OrderWithItems } from '@/types/order';
+import type { LatestDeliveryAttempt, Order, OrderItem, OrderStatusEvent, OrderWithItems } from '@/types/order';
 
 const ORDER_COLUMNS =
   'id, order_number, business_id, user_id, customer_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, refund_status, channel, external_id, community_id, community_name, items_revision, invoice_prepared_at, created_at, updated_at';
@@ -75,6 +75,23 @@ export async function hydrateOrderCommunities(
     }
   }
   return orders.map((order) => applyMappedCommunity(order, mapped, names, authByCustomer, customerByAuth));
+}
+
+async function loadLatestDeliveryAttempt(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>,
+  orderId: string,
+): Promise<LatestDeliveryAttempt | null> {
+  const { data, error } = await supabase
+    .from('delivery_attempts')
+    .select('outcome, reason_text, next_action, created_at')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) {
+    return null;
+  }
+  return data as LatestDeliveryAttempt;
 }
 
 async function loadStatusEvents(
@@ -229,7 +246,10 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
       },
     ]);
     const orderItems = (fallbackItems ?? []) as OrderItem[];
-    const status_events = await loadStatusEvents(supabase, id);
+    const [status_events, latest_delivery_attempt] = await Promise.all([
+      loadStatusEvents(supabase, id),
+      loadLatestDeliveryAttempt(supabase, id),
+    ]);
     const modification_summary = await loadOrderModificationSummaryForOrder(id, orderItems, {
       businessId,
       status: hydrated.status,
@@ -241,17 +261,19 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
       customer_modified_after_confirm: modification_summary.customerModifiedAfterConfirm,
       order_items: orderItems,
       status_events,
+      latest_delivery_attempt,
       modification_summary,
     };
   }
 
-  const [{ data: items }, statusEvents] = await Promise.all([
+  const [{ data: items }, statusEvents, latest_delivery_attempt] = await Promise.all([
     supabase
       .from('order_items')
       .select('id, order_id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_option_id, pack_weight_grams, weight_grams, volume_ml, created_at')
       .eq('order_id', id)
       .order('created_at', { ascending: true }),
     loadStatusEvents(supabase, id),
+    loadLatestDeliveryAttempt(supabase, id),
   ]);
 
   const [hydrated] = await hydrateOrderCommunities(supabase, businessId, [order as Order]);
@@ -267,6 +289,7 @@ export async function getOrderById(id: string): Promise<OrderWithItems | null> {
     customer_modified_after_confirm: modification_summary.customerModifiedAfterConfirm,
     order_items: orderItems,
     status_events: statusEvents,
+    latest_delivery_attempt,
     modification_summary,
   };
 }

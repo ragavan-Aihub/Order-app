@@ -295,7 +295,13 @@ export async function updateOrderRefund(orderId: string): Promise<{ error: strin
 
 export async function replaceAdminOrderItems(
   orderId: string,
-  items: Array<{ productId: string; quantity: number }>,
+  items: Array<{
+    productId: string;
+    quantity: number;
+    weightGrams?: number | null;
+    volumeMl?: number | null;
+    packOptionId?: string | null;
+  }>,
   options?: {
     reason?: string | null;
     expectedRevision?: number | null;
@@ -354,6 +360,9 @@ export async function replaceAdminOrderItems(
   const payload = items.map((item) => ({
     product_id: item.productId,
     quantity: item.quantity,
+    weight_grams: item.weightGrams ?? null,
+    volume_ml: item.volumeMl ?? null,
+    pack_option_id: item.packOptionId ?? null,
   }));
 
   const { error } = await supabase.rpc('admin_replace_order_items', {

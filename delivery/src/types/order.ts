@@ -19,6 +19,7 @@ export type Order = {
   status: OrderStatus;
   payment_method: PaymentMethod;
   cancel_reason: string | null;
+  invoice_prepared_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +41,12 @@ export type OrderItem = {
 
 export type OrderWithItems = Order & {
   order_items: OrderItem[];
+  latest_delivery_attempt?: {
+    outcome: 'delivered' | 'not_delivered';
+    reason_text: string;
+    next_action: string;
+    created_at: string;
+  } | null;
 };
 
 export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
@@ -51,7 +58,7 @@ export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
 ];
 
 export const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
-  new: ['confirmed', 'cancelled'],
+  new: ['out_for_delivery', 'cancelled'],
   confirmed: ['out_for_delivery', 'cancelled'],
   out_for_delivery: ['delivered', 'cancelled'],
   delivered: [],

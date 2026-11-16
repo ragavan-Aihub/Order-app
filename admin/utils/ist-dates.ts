@@ -66,3 +66,7 @@ export function istRangeForCustom(fromYmd: string, toYmd: string): DayRange {
 export function todayYmd(now = new Date()): string {
   return ymdInKolkata(now);
 }
+
+export function istYmdFromIso(iso: string): string {
+  return ymdInKolkata(new Date(iso));
+}

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Spinner } from '@/components/ActionNotice';
+import { useNavigationPending } from '@/components/NavigationPending';
 import { AUDIT_APP_SOURCE_OPTIONS, AUDIT_ENTITY_OPTIONS, type AuditReportFilters } from '@/types/audit';
 
 const fieldClass = 'min-h-10 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
@@ -49,10 +50,12 @@ export function AuditFilters({
   rangeEnd: string;
 }) {
   const router = useRouter();
+  const { start } = useNavigationPending();
   const [view, setView] = useState(filters);
   const [applying, startTransition] = useTransition();
 
   function navigate(href: string) {
+    start(href);
     startTransition(() => {
       router.push(href);
     });

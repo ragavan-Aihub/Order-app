@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/AuthContext';
 import { DeliverPaymentModal } from '@/components/DeliverPaymentModal';
+import { DeliveryOutcomeModal } from '@/components/DeliveryOutcomeModal';
 import { OrderUpdateNotice } from '@/components/OrderUpdateNotice';
 import { DeliveryMapThumb } from '@/components/DeliveryMapThumb';
 import { OrderItemThumb } from '@/components/OrderItemThumb';
@@ -45,22 +46,16 @@ function fullAddress(order: OrderWithItems): string {
 }
 
 function swipeLabelForNext(next: OrderStatus | null): string | null {
-  if (next === 'confirmed') {
-    return 'Swipe to confirm order';
-  }
   if (next === 'out_for_delivery') {
     return 'Swipe to start delivery';
   }
   if (next === 'delivered') {
-    return 'Swipe to mark delivered';
+    return 'Swipe to update delivery';
   }
   return null;
 }
 
 function swipeKindForNext(next: OrderStatus | null): SwipeActionKind {
-  if (next === 'confirmed') {
-    return 'confirm';
-  }
   if (next === 'delivered') {
     return 'deliver';
   }
@@ -71,19 +66,13 @@ const ITEM_SCROLL_THRESHOLD = 5;
 
 function primaryNextAction(status: OrderStatus): OrderStatus | null {
   const next = NEXT_STATUSES[status];
-  if (next.includes('out_for_delivery') && status === 'confirmed') {
+  if (next.includes('out_for_delivery') && (status === 'new' || status === 'confirmed')) {
     return 'out_for_delivery';
-  }
-  if (next.includes('confirmed') && status === 'new') {
-    return 'confirmed';
   }
   if (next.includes('delivered')) {
     return 'delivered';
   }
-  if (next.includes('confirmed')) {
-    return 'confirmed';
-  }
-  return next[0] ?? null;
+  return next.find((value) => value !== 'cancelled') ?? null;
 }
 
 export default function DeliveryOrderScreen() {
@@ -97,8 +86,8 @@ export default function DeliveryOrderScreen() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliverModalOpen, setDeliverModalOpen] = useState(false);
+  const [outcomeModalOpen, setOutcomeModalOpen] = useState(false);
   const [paymentOnlyModal, setPaymentOnlyModal] = useState(false);
-  const [confirmedBanner, setConfirmedBanner] = useState(false);
   const [sharingBill, setSharingBill] = useState(false);
   const [notice, setNotice] = useState<{
     variant: 'info' | 'error';
@@ -141,14 +130,6 @@ export default function DeliveryOrderScreen() {
     }, [load, orderId, profile?.business_id]),
   );
 
-  useEffect(() => {
-    if (!confirmedBanner) {
-      return;
-    }
-    const timer = setTimeout(() => setConfirmedBanner(false), 3000);
-    return () => clearTimeout(timer);
-  }, [confirmedBanner]);
-
   async function applyStatus(next: OrderStatus) {
     if (!profile?.business_id || !order) {
       return;
@@ -182,9 +163,6 @@ export default function DeliveryOrderScreen() {
     if (next === 'delivered') {
       router.back();
       return;
-    }
-    if (next === 'confirmed') {
-      setConfirmedBanner(true);
     }
     await load();
   }
@@ -231,7 +209,7 @@ export default function DeliveryOrderScreen() {
         return;
       }
       setPaymentOnlyModal(false);
-      setDeliverModalOpen(true);
+      setOutcomeModalOpen(true);
       return;
     }
 
@@ -293,7 +271,12 @@ export default function DeliveryOrderScreen() {
   }
 
   const normalizedStatus = normalizeOrderStatus(order.status as string);
-  const nextAction = normalizedStatus === 'delivered' ? null : primaryNextAction(normalizedStatus);
+  const invoiceReady =
+    Boolean(order.invoice_prepared_at) ||
+    normalizedStatus === 'out_for_delivery' ||
+    normalizedStatus === 'delivered';
+  const nextAction =
+    normalizedStatus === 'delivered' || !invoiceReady ? null : primaryNextAction(normalizedStatus);
   const swipeLabel = swipeLabelForNext(nextAction);
   const paymentStillPending = !isPaymentCollected(order.payment_method);
   const showRecordPayment = normalizedStatus === 'delivered' && paymentStillPending;
@@ -311,8 +294,18 @@ export default function DeliveryOrderScreen() {
     ? (compact ? 88 : 120) + Math.max(insets.bottom, 6)
     : Math.max(insets.bottom, spacing.lg);
 
+  const lastAttempt = order.latest_delivery_attempt;
+  const showRetryNote =
+    normalizedStatus === 'out_for_delivery' && lastAttempt?.outcome === 'not_delivered';
+
   const body = (
     <>
+      {showRetryNote ? (
+        <View style={styles.retryNote}>
+          <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+          <Text style={styles.retryNoteText}>Last attempt: {lastAttempt.reason_text}. Try again.</Text>
+        </View>
+      ) : null}
       <SectionCard title="Pricing & payment" compact={compact}>
         <Text style={[styles.totalAmount, compact && styles.totalAmountCompact]}>
           {formatPrice(order.total_amount)}
@@ -424,10 +417,12 @@ export default function DeliveryOrderScreen() {
           <OrderStatusBadge status={order.status} />
         </View>
 
-        {confirmedBanner ? (
+        {!invoiceReady ? (
           <View style={styles.confirmedBanner} accessibilityLiveRegion="polite">
-            <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-            <Text style={styles.confirmedBannerText}>Order is confirmed</Text>
+            <Ionicons name="document-text-outline" size={22} color={colors.primaryDark} />
+            <Text style={styles.confirmedBannerText}>
+              Waiting for the shop to save the invoice. Delivery starts after that.
+            </Text>
           </View>
         ) : null}
 
@@ -448,7 +443,7 @@ export default function DeliveryOrderScreen() {
 
         {nextAction && swipeLabel ? (
           <View style={[styles.footer, compact && styles.footerCompact, { paddingBottom: Math.max(insets.bottom, 6) }]}>
-            {!compact ? <Text style={styles.footerTitle}>Update status</Text> : null}
+            {!compact ? <Text style={styles.footerTitle}>Update delivery</Text> : null}
             <SwipeActionButton
               label={swipeLabel}
               actionKind={swipeKindForNext(nextAction)}
@@ -473,6 +468,33 @@ export default function DeliveryOrderScreen() {
           </View>
         ) : null}
       </View>
+
+      {profile?.business_id && order ? (
+        <DeliveryOutcomeModal
+          visible={outcomeModalOpen}
+          businessId={profile.business_id}
+          orderId={order.id}
+          onClose={() => setOutcomeModalOpen(false)}
+          onDeliveredChosen={() => {
+            setOutcomeModalOpen(false);
+            setPaymentOnlyModal(false);
+            setDeliverModalOpen(true);
+          }}
+          onFinished={({ cancelled, message }) => {
+            setOutcomeModalOpen(false);
+            void load();
+            if (cancelled) {
+              router.back();
+              return;
+            }
+            setNotice({
+              variant: 'info',
+              title: 'Not delivered',
+              message: message ?? 'Saved. This order stays out for delivery so you can try again.',
+            });
+          }}
+        />
+      ) : null}
 
       {profile?.business_id && order ? (
         <DeliverPaymentModal
@@ -711,6 +733,23 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
+  },
+  retryNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FDBA74',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  retryNoteText: {
+    flex: 1,
+    color: colors.warning,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 19,
   },
   confirmedBanner: {
     flexDirection: 'row',

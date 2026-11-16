@@ -4,11 +4,19 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 
 import { Spinner } from '@/components/ActionNotice';
+import { useNavigationPending } from '@/components/NavigationPending';
 import type { CommunityListItem } from '@/types/community';
 import { ORDER_STATUSES, PAYMENT_METHODS } from '@/types/order';
-import { REPORT_CHANNELS, parseReportFilters, type ReportFilters, type ReportRangePreset } from '@/types/report';
+import {
+  REPORT_CHANNELS,
+  parseReportFilters,
+  reportHref,
+  type ReportFilterParseOptions,
+  type ReportFilters,
+  type ReportRangePreset,
+} from '@/types/report';
 
-const fieldClass = 'min-h-10 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
+const fieldClass = 'min-h-11 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-base';
 
 const PRESETS: { value: ReportRangePreset; label: string }[] = [
   { value: 'today', label: 'Today' },
@@ -18,55 +26,36 @@ const PRESETS: { value: ReportRangePreset; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
-function hrefFrom(next: ReportFilters) {
-  const params = new URLSearchParams();
-  if (next.preset !== '30d') {
-    params.set('range', next.preset);
-  }
-  if (next.preset === 'custom') {
-    params.set('from', next.fromYmd);
-    params.set('to', next.toYmd);
-  }
-  if (next.status !== 'all') {
-    params.set('status', next.status);
-  }
-  if (next.payment !== 'all') {
-    params.set('payment', next.payment);
-  }
-  if (next.method !== 'all') {
-    params.set('method', next.method);
-  }
-  if (next.channel) {
-    params.set('channel', next.channel);
-  }
-  if (next.communityId) {
-    params.set('community', next.communityId);
-  }
-  if (next.query) {
-    params.set('q', next.query);
-  }
-  const qs = params.toString();
-  return qs ? `/reports?${qs}` : '/reports';
-}
-
 export function ReportsFilters({
   filters,
   rangeStart,
   rangeEnd,
   communities,
   communitiesEnabled,
+  basePath = '/reports',
+  parseOptions,
+  hidePayment = false,
 }: {
   filters: ReportFilters;
   rangeStart: string;
   rangeEnd: string;
   communities: CommunityListItem[];
   communitiesEnabled: boolean;
+  basePath?: string;
+  parseOptions?: ReportFilterParseOptions;
+  hidePayment?: boolean;
 }) {
   const router = useRouter();
+  const { start } = useNavigationPending();
   const [view, setView] = useState(filters);
   const [applying, startTransition] = useTransition();
 
+  useEffect(() => {
+    setView(filters);
+  }, [filters]);
+
   function navigate(href: string) {
+    start(href);
     startTransition(() => {
       router.push(href);
     });
@@ -75,7 +64,7 @@ export function ReportsFilters({
   function go(patch: Partial<ReportFilters>) {
     const next = { ...view, page: 1, focusOutstanding: false, ...patch };
     setView(next);
-    navigate(hrefFrom(next));
+    navigate(reportHref(basePath, next, parseOptions));
   }
 
   return (
@@ -93,7 +82,7 @@ export function ReportsFilters({
       }}
     >
       <fieldset className="lg:col-span-4">
-        <legend className="mb-2 flex w-full items-center justify-between gap-3 text-sm font-medium text-stone-600">
+        <legend className="mb-2 flex w-full items-center justify-between gap-3 text-base font-medium text-stone-600">
           <span>Date range</span>
           {applying ? (
             <span className="inline-flex items-center gap-1.5 text-emerald-700" role="status">
@@ -109,7 +98,7 @@ export function ReportsFilters({
                 key={item.value}
                 type="button"
                 onClick={() => go({ preset: item.value, fromYmd: rangeStart, toYmd: rangeEnd })}
-                className={`min-h-10 rounded-full px-3 text-sm font-medium ${
+                className={`min-h-10 rounded-full px-3 text-base font-medium ${
                   on ? 'bg-emerald-700 text-white' : 'border border-stone-300 bg-white text-stone-700'
                 }`}
               >
@@ -121,17 +110,17 @@ export function ReportsFilters({
       </fieldset>
       {view.preset === 'custom' ? (
         <>
-          <label className="text-sm text-stone-600">
+          <label className="text-base text-stone-600">
             From
             <input name="from" type="date" defaultValue={rangeStart} className={`${fieldClass} mt-1 w-full`} />
           </label>
-          <label className="text-sm text-stone-600">
+          <label className="text-base text-stone-600">
             To
             <input name="to" type="date" defaultValue={rangeEnd} className={`${fieldClass} mt-1 w-full`} />
           </label>
         </>
       ) : null}
-      <label className="text-sm text-stone-600">
+      <label className="text-base text-stone-600">
         Order status
         <select
           className={`${fieldClass} mt-1 w-full`}
@@ -146,36 +135,40 @@ export function ReportsFilters({
           ))}
         </select>
       </label>
-      <label className="text-sm text-stone-600">
-        Payment status
-        <select
-          className={`${fieldClass} mt-1 w-full`}
-          value={view.payment}
-          onChange={(event) => go({ payment: event.target.value as ReportFilters['payment'] })}
-        >
-          <option value="all">All</option>
-          <option value="paid">Paid</option>
-          <option value="pending">Pending</option>
-          <option value="outstanding">Outstanding</option>
-          <option value="refunded">Refunded</option>
-        </select>
-      </label>
-      <label className="text-sm text-stone-600">
-        Payment method
-        <select
-          className={`${fieldClass} mt-1 w-full`}
-          value={view.method}
-          onChange={(event) => go({ method: event.target.value as ReportFilters['method'] })}
-        >
-          <option value="all">All</option>
-          {PAYMENT_METHODS.filter((item) => item.value !== 'pending').map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="text-sm text-stone-600">
+      {hidePayment ? null : (
+        <>
+          <label className="text-base text-stone-600">
+            Payment status
+            <select
+              className={`${fieldClass} mt-1 w-full`}
+              value={view.payment}
+              onChange={(event) => go({ payment: event.target.value as ReportFilters['payment'] })}
+            >
+              <option value="all">All</option>
+              <option value="paid">Paid</option>
+              <option value="pending">Pending</option>
+              <option value="outstanding">Outstanding</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </label>
+          <label className="text-base text-stone-600">
+            Payment method
+            <select
+              className={`${fieldClass} mt-1 w-full`}
+              value={view.method}
+              onChange={(event) => go({ method: event.target.value as ReportFilters['method'] })}
+            >
+              <option value="all">All</option>
+              {PAYMENT_METHODS.filter((item) => item.value !== 'pending').map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+      <label className="text-base text-stone-600">
         Channel
         <select
           className={`${fieldClass} mt-1 w-full`}
@@ -191,7 +184,7 @@ export function ReportsFilters({
         </select>
       </label>
       {communitiesEnabled ? (
-        <label className="text-sm text-stone-600">
+        <label className="text-base text-stone-600">
           Community
           <select
             className={`${fieldClass} mt-1 w-full`}
@@ -207,7 +200,7 @@ export function ReportsFilters({
           </select>
         </label>
       ) : null}
-      <label className="text-sm text-stone-600 lg:col-span-2">
+      <label className="text-base text-stone-600 lg:col-span-2">
         Customer
         <input
           name="q"
@@ -219,17 +212,17 @@ export function ReportsFilters({
       <div className="flex flex-wrap items-end gap-2">
         <button
           type="submit"
-          className="inline-flex min-h-10 items-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white"
+          className="inline-flex min-h-11 items-center rounded-md bg-emerald-700 px-4 text-base font-semibold text-white"
         >
           Apply
         </button>
         <button
           type="button"
           onClick={() => {
-            setView(parseReportFilters({}));
-            navigate('/reports');
+            setView(parseReportFilters({}, parseOptions));
+            navigate(basePath);
           }}
-          className="inline-flex min-h-10 items-center rounded-md border border-stone-300 px-4 text-sm font-medium text-stone-700"
+          className="inline-flex min-h-11 items-center rounded-md border border-stone-300 px-4 text-base font-medium text-stone-700"
         >
           Reset filters
         </button>

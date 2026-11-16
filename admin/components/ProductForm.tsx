@@ -19,6 +19,7 @@ import {
   readImageFromNextPaste,
 } from '@/lib/pasted-image';
 import {
+  formatPackWeight,
   formatVolume,
   formatWeight,
   type SellingType,
@@ -29,6 +30,8 @@ import {
 } from '@/lib/selling-units';
 import { saveProduct } from '@/services/product-actions';
 import { ProductDeleteButton } from '@/components/ProductDeleteButton';
+import { VariantOptionCard, VariantOptionRow } from '@/components/VariantOptionCard';
+import { formatPrice } from '@/utils/format';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -605,31 +608,31 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
         {sellingType === 'kg' ? (
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-medium text-stone-700">Weight options</p>
-              <p className="mt-0.5 text-xs text-stone-500">
-                Customers choose one of these weights, then a quantity. Each option costs price per Kg × weight.
-              </p>
+              <p className="text-sm font-semibold text-stone-800">Weights customers can pick</p>
+              <p className="mt-0.5 text-sm text-stone-500">Tap sizes to offer. Price follows ₹ / Kg.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {WEIGHT_PRESETS_GRAMS.map((grams) => {
-                const on = weights.some((row) => row.weight_grams === grams && row.is_active);
-                return (
-                  <button
-                    key={grams}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => togglePresetWeight(grams)}
-                    className={`min-h-10 rounded-full border px-4 text-sm font-semibold ${
-                      on
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                        : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-                    }`}
-                  >
-                    {formatWeight(grams)}
-                  </button>
-                );
-              })}
-            </div>
+            <VariantOptionRow>
+              {[...new Set([...WEIGHT_PRESETS_GRAMS, ...weights.map((row) => row.weight_grams)])]
+                .sort((a, b) => a - b)
+                .map((grams) => {
+                  const on = weights.some((row) => row.weight_grams === grams && row.is_active);
+                  const perKg = Number(price);
+                  const priceLabel =
+                    Number.isFinite(perKg) && perKg > 0 ? formatPrice(weightOptionPrice(perKg, grams)) : undefined;
+                  return (
+                    <VariantOptionCard
+                      key={grams}
+                      label={formatWeight(grams)}
+                      price={priceLabel}
+                      on={on}
+                      onClick={() => togglePresetWeight(grams)}
+                    />
+                  );
+                })}
+            </VariantOptionRow>
+            {weights.some((row) => row.is_active) ? null : (
+              <p className="text-sm text-amber-700">Turn on at least one weight. Customers cannot order this product yet.</p>
+            )}
             <div className="flex flex-wrap items-end gap-2">
               <label className="block text-xs text-stone-500">
                 Custom weight (g)
@@ -651,83 +654,37 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
                 Add weight
               </button>
             </div>
-            {weights.length > 0 ? (
-              <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
-                {[...weights]
-                  .sort((a, b) => a.weight_grams - b.weight_grams)
-                  .map((row) => {
-                    const perKg = Number(price);
-                    return (
-                      <li key={row.weight_grams} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
-                        <span className="w-20 font-semibold text-stone-900">{formatWeight(row.weight_grams)}</span>
-                        <span className="w-24 text-stone-600">
-                          {Number.isFinite(perKg) && perKg > 0
-                            ? `₹${weightOptionPrice(perKg, row.weight_grams)}`
-                            : '—'}
-                        </span>
-                        <label className="flex items-center gap-2 text-stone-700">
-                          <input
-                            type="checkbox"
-                            checked={row.is_active}
-                            onChange={(event) =>
-                              setWeights((current) =>
-                                current.map((item) =>
-                                  item.weight_grams === row.weight_grams
-                                    ? { ...item, is_active: event.target.checked }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                          Active
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setWeights((current) => current.filter((item) => item.weight_grams !== row.weight_grams))
-                          }
-                          className="ml-auto text-sm font-medium text-red-700 hover:underline"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    );
-                  })}
-              </ul>
-            ) : (
-              <p className="text-xs text-amber-700">No weight options yet. Customers cannot order this product.</p>
-            )}
           </div>
         ) : null}
 
         {sellingType === 'liter' ? (
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-medium text-stone-700">Volume options</p>
-              <p className="mt-0.5 text-xs text-stone-500">
-                Customers choose one of these volumes, then a quantity. Each option costs price per Liter × volume.
-              </p>
+              <p className="text-sm font-semibold text-stone-800">Volumes customers can pick</p>
+              <p className="mt-0.5 text-sm text-stone-500">Tap sizes to offer. Price follows ₹ / L.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {VOLUME_PRESETS_ML.map((ml) => {
-                const on = volumes.some((row) => row.volume_ml === ml && row.is_active);
-                return (
-                  <button
-                    key={ml}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => togglePresetVolume(ml)}
-                    className={`min-h-10 rounded-full border px-4 text-sm font-semibold ${
-                      on
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                        : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-                    }`}
-                  >
-                    {formatVolume(ml)}
-                  </button>
-                );
-              })}
-            </div>
+            <VariantOptionRow>
+              {[...new Set([...VOLUME_PRESETS_ML, ...volumes.map((row) => row.volume_ml)])]
+                .sort((a, b) => a - b)
+                .map((ml) => {
+                  const on = volumes.some((row) => row.volume_ml === ml && row.is_active);
+                  const perL = Number(price);
+                  const priceLabel =
+                    Number.isFinite(perL) && perL > 0 ? formatPrice(volumeOptionPrice(perL, ml)) : undefined;
+                  return (
+                    <VariantOptionCard
+                      key={ml}
+                      label={formatVolume(ml)}
+                      price={priceLabel}
+                      on={on}
+                      onClick={() => togglePresetVolume(ml)}
+                    />
+                  );
+                })}
+            </VariantOptionRow>
+            {volumes.some((row) => row.is_active) ? null : (
+              <p className="text-sm text-amber-700">Turn on at least one volume. Customers cannot order this product yet.</p>
+            )}
             <div className="flex flex-wrap items-end gap-2">
               <label className="block text-xs text-stone-500">
                 Custom volume (ml)
@@ -749,109 +706,77 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
                 Add volume
               </button>
             </div>
-            {volumes.length > 0 ? (
-              <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
-                {[...volumes]
-                  .sort((a, b) => a.volume_ml - b.volume_ml)
-                  .map((row) => {
-                    const perL = Number(price);
-                    return (
-                      <li key={row.volume_ml} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
-                        <span className="w-20 font-semibold text-stone-900">{formatVolume(row.volume_ml)}</span>
-                        <span className="w-24 text-stone-600">
-                          {Number.isFinite(perL) && perL > 0 ? `₹${volumeOptionPrice(perL, row.volume_ml)}` : '—'}
-                        </span>
-                        <label className="flex items-center gap-2 text-stone-700">
-                          <input
-                            type="checkbox"
-                            checked={row.is_active}
-                            onChange={(event) =>
-                              setVolumes((current) =>
-                                current.map((item) =>
-                                  item.volume_ml === row.volume_ml
-                                    ? { ...item, is_active: event.target.checked }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                          Active
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setVolumes((current) => current.filter((item) => item.volume_ml !== row.volume_ml))
-                          }
-                          className="ml-auto text-sm font-medium text-red-700 hover:underline"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    );
-                  })}
-              </ul>
-            ) : (
-              <p className="text-xs text-amber-700">No volume options yet. Customers cannot order this product.</p>
-            )}
           </div>
         ) : null}
 
         {sellingType === 'fixed_pack' ? (
           <div className="space-y-3">
-            <p className="text-sm font-medium text-stone-700">Pack options</p>
-            {packs.map((pack, index) => (
-              <div key={pack.id ?? `new-${index}`} className="grid gap-2 rounded-lg border border-stone-200 p-3 sm:grid-cols-[7rem_7rem_auto_auto]">
-                <label className="block text-xs text-stone-500">
-                  Weight (g)
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={pack.weight_grams}
-                    onChange={(event) =>
-                      setPacks((current) =>
-                        current.map((row, i) => (i === index ? { ...row, weight_grams: event.target.value } : row)),
-                      )
-                    }
-                    className={`${fieldClass} mt-1 min-h-10`}
-                  />
-                </label>
-                <label className="block text-xs text-stone-500">
-                  Selling price (₹)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={pack.selling_price}
-                    onChange={(event) =>
-                      setPacks((current) =>
-                        current.map((row, i) => (i === index ? { ...row, selling_price: event.target.value } : row)),
-                      )
-                    }
-                    className={`${fieldClass} mt-1 min-h-10`}
-                  />
-                </label>
-                <label className="flex items-center gap-2 text-sm text-stone-700 sm:mt-6">
-                  <input
-                    type="checkbox"
-                    checked={pack.is_active}
-                    onChange={(event) =>
-                      setPacks((current) =>
-                        current.map((row, i) => (i === index ? { ...row, is_active: event.target.checked } : row)),
-                      )
-                    }
-                  />
-                  Active
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setPacks((current) => current.filter((_, i) => i !== index))}
-                  className="text-sm font-medium text-red-700 hover:underline sm:mt-6"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+            <div>
+              <p className="text-sm font-semibold text-stone-800">Pack sizes customers can pick</p>
+              <p className="mt-0.5 text-sm text-stone-500">One row per pack. Tap Off to hide it in the app.</p>
+            </div>
+            <div className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
+              {packs.map((pack, index) => {
+                const grams = Number(pack.weight_grams);
+                const packPrice = Number(pack.selling_price);
+                const label = Number.isInteger(grams) && grams > 0 ? formatPackWeight(grams) : 'Pack';
+                const priceLabel = Number.isFinite(packPrice) && packPrice >= 0 ? formatPrice(packPrice) : '₹—';
+                return (
+                  <div key={pack.id ?? `new-${index}`} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    <VariantOptionCard
+                      label={label}
+                      price={priceLabel}
+                      on={pack.is_active}
+                      onClick={() =>
+                        setPacks((current) =>
+                          current.map((row, i) => (i === index ? { ...row, is_active: !row.is_active } : row)),
+                        )
+                      }
+                    />
+                    <label className="text-xs text-stone-500">
+                      g
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={pack.weight_grams}
+                        onChange={(event) =>
+                          setPacks((current) =>
+                            current.map((row, i) => (i === index ? { ...row, weight_grams: event.target.value } : row)),
+                          )
+                        }
+                        className={`${fieldClass} mt-0.5 min-h-9 w-20 px-2 py-1`}
+                      />
+                    </label>
+                    <label className="text-xs text-stone-500">
+                      ₹
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={pack.selling_price}
+                        onChange={(event) =>
+                          setPacks((current) =>
+                            current.map((row, i) => (i === index ? { ...row, selling_price: event.target.value } : row)),
+                          )
+                        }
+                        className={`${fieldClass} mt-0.5 min-h-9 w-24 px-2 py-1`}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setPacks((current) => current.filter((_, i) => i !== index))}
+                      className="ml-auto text-sm font-medium text-red-700 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {packs.some((pack) => pack.is_active) ? null : (
+              <p className="text-sm text-amber-700">Turn on at least one pack. Customers cannot order this product yet.</p>
+            )}
             <button
               type="button"
               onClick={() =>

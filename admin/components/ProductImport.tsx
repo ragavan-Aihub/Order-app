@@ -4,35 +4,38 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ChangeEvent } from 'react';
 
 import { Spinner, useActionNotice } from '@/components/ActionNotice';
+import { buildProductExportCsv, buildProductTemplateCsv } from '@/lib/product-catalog-csv';
 import { importProductsFromCsv, type ProductImportIssue } from '@/services/product-actions';
+import type { Product } from '@/types/product';
 
-function buildTemplate(categoriesEnabled: boolean, categoryNames: string[]) {
-  const sampleCategory =
-    categoriesEnabled && categoryNames[0] ? categoryNames[0] : categoriesEnabled ? 'Pickles' : '';
-  if (categoriesEnabled) {
-    return `name,description,price,image_path,category
-Mango pickle,Homemade pickle from farm mangoes,250,/Users/YOUR_NAME/Desktop/products/mango.jpg,${sampleCategory}
-Mixed vegetable pickle,Seasonal mix,180,/Users/YOUR_NAME/Desktop/products/mixed.jpg,
-`;
-  }
-  return `name,description,price,image_path
-Mango pickle,Homemade pickle from farm mangoes,250,/Users/YOUR_NAME/Desktop/products/mango.jpg
-Mixed vegetable pickle,Seasonal mix,180,/Users/YOUR_NAME/Desktop/products/mixed.jpg
-`;
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function ProductImport({
   categoriesEnabled = false,
   categoryNames = [],
+  products = [],
 }: {
   categoriesEnabled?: boolean;
   categoryNames?: string[];
+  products?: Product[];
 }) {
   const router = useRouter();
   const notice = useActionNotice();
   const template = useMemo(
-    () => buildTemplate(categoriesEnabled, categoryNames),
+    () => buildProductTemplateCsv(categoriesEnabled, categoryNames),
     [categoriesEnabled, categoryNames],
+  );
+  const catalogCsv = useMemo(
+    () => buildProductExportCsv(products, categoriesEnabled),
+    [categoriesEnabled, products],
   );
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,29 +55,6 @@ export function ProductImport({
     const next = event.target.files?.[0] ?? null;
     setFile(next);
     resetResult();
-  }
-
-  function downloadTemplate() {
-    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'product-import-template.csv';
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function downloadErrorLog() {
-    if (!errorLogCsv) {
-      return;
-    }
-    const blob = new Blob([errorLogCsv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'product-import-errors.csv';
-    link.click();
-    URL.revokeObjectURL(url);
   }
 
   async function onImport() {
@@ -100,32 +80,53 @@ export function ProductImport({
 
   return (
     <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-5">
-      <h2 className="text-lg font-semibold">Import products</h2>
+      <h2 className="text-lg font-semibold">CSV import</h2>
       <ol className="list-decimal space-y-1 pl-5 text-sm text-stone-600">
-        <li>Export the template and fill one row per product.</li>
         <li>
-          <span className="font-medium">image_path</span> is a full path on this Mac (home folder). Imported items start
-          as available. Optional <span className="font-medium">available</span> Yes/No is Coming soon when No. Optional{' '}
-          <span className="font-medium">active</span> Yes/No hides Inactive products from the app.
+          <span className="font-medium">Export template</span> has example rows for pcs, Kg, packs, and litres. Open it
+          in Excel.
+        </li>
+        <li>
+          <span className="font-medium">Export products</span> downloads every current product as one Excel row, with
+          selling type, packs, weights, volumes, stock, and category.
+        </li>
+        <li>
+          <span className="font-medium">selling_type</span> is <span className="font-medium">quantity</span>,{' '}
+          <span className="font-medium">kg</span>, <span className="font-medium">liter</span>, or{' '}
+          <span className="font-medium">fixed_pack</span>. Packs look like <span className="font-medium">100g=80;300g=220</span>.
+          Weights/volumes look like <span className="font-medium">250;500;1kg</span>.
+        </li>
+        <li>
+          <span className="font-medium">image_path</span> is a full path on this Mac for new imports. Exported rows leave
+          it blank. Optional <span className="font-medium">available</span> / <span className="font-medium">active</span>{' '}
+          are Yes/No.
         </li>
         {categoriesEnabled ? (
           <li>
             <span className="font-medium">category</span> is optional; use an active category name or leave blank.
           </li>
         ) : null}
-        <li>Choose the CSV, then import. Invalid rows are skipped.</li>
+        <li>Save as CSV, then import. Invalid rows are skipped. Import adds new products; it does not update existing ones.</li>
       </ol>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <button
           type="button"
-          onClick={downloadTemplate}
+          onClick={() => downloadCsv('product-import-template.csv', template)}
           className="min-h-11 rounded-lg border border-emerald-800 px-4 font-semibold text-emerald-800"
         >
           Export template
         </button>
+        <button
+          type="button"
+          onClick={() => downloadCsv('products-export.csv', catalogCsv)}
+          disabled={products.length === 0}
+          className="min-h-11 rounded-lg border border-stone-300 px-4 font-semibold text-stone-800 disabled:opacity-50"
+        >
+          Export products ({products.length})
+        </button>
         <label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800">
           {file ? file.name : 'Choose CSV'}
-          <input type="file" accept=".csv,text/csv" onChange={onFileChange} className="sr-only" />
+          <input type="file" accept=".csv,text/csv,.xls,text/plain" onChange={onFileChange} className="sr-only" />
         </label>
         <button
           type="button"
@@ -146,11 +147,7 @@ export function ProductImport({
       {errors.length > 0 ? (
         <div className="space-y-2">
           {errorLogCsv ? (
-            <button
-              type="button"
-              onClick={downloadErrorLog}
-              className="text-sm font-semibold text-emerald-800"
-            >
+            <button type="button" onClick={() => downloadCsv('product-import-errors.csv', errorLogCsv)} className="text-sm font-semibold text-emerald-800">
               Download error log
             </button>
           ) : null}

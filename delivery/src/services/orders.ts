@@ -9,6 +9,7 @@ import {
   isPaymentCollected,
   normalizeOrderStatus,
 } from '@/services/order-status-flow';
+import type { DeliveryAttempt, DeliveryNextAction } from '@/lib/delivery-outcome';
 import {
   type Order,
   type OrderStatus,
@@ -24,8 +25,10 @@ export type DeliveryMutationResult = {
   userMessage?: string;
 };
 
-/** Same queue as admin “Pending delivery”: new + confirmed + out for delivery (any date). */
+/** Invoiced orders only. Confirm / invoice prep stay in admin. */
 const LIST_STATUSES: OrderStatus[] = ['new', 'confirmed', 'out_for_delivery'];
+const ORDER_LIST_COLUMNS =
+  'id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, invoice_prepared_at, created_at, updated_at';
 
 export async function listDeliveryOrders(businessId: string): Promise<Order[]> {
   const supabase = getSupabaseClient();
@@ -35,11 +38,10 @@ export async function listDeliveryOrders(businessId: string): Promise<Order[]> {
 
   const { data, error } = await supabase
     .from('orders')
-    .select(
-      'id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, created_at, updated_at',
-    )
+    .select(ORDER_LIST_COLUMNS)
     .eq('business_id', businessId)
     .in('status', LIST_STATUSES)
+    .not('invoice_prepared_at', 'is', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -60,9 +62,7 @@ export async function listTodayDeliveredOrders(businessId: string): Promise<Orde
 
   const { data, error } = await supabase
     .from('orders')
-    .select(
-      'id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, created_at, updated_at',
-    )
+    .select(ORDER_LIST_COLUMNS)
     .eq('business_id', businessId)
     .eq('status', 'delivered')
     .gte('updated_at', startIso)
@@ -86,7 +86,7 @@ export async function getDeliveryOrder(orderId: string, businessId: string): Pro
     .from('orders')
     .select(
       `
-      id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, created_at, updated_at,
+      id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, invoice_prepared_at, created_at, updated_at,
       order_items ( id, product_id, product_name, product_price, quantity, subtotal, selling_type, selling_unit, pack_weight_grams, weight_grams, volume_ml )
     `,
     )
@@ -104,16 +104,66 @@ export async function getDeliveryOrder(orderId: string, businessId: string): Pro
 
   const row = data as OrderWithItems & { order_items: OrderWithItems['order_items'] | null };
   const items = await enrichDeliveryOrderItems(businessId, row.order_items ?? []);
+  const latest_delivery_attempt = await loadLatestDeliveryAttempt(orderId);
   return {
     ...row,
     order_items: items,
+    latest_delivery_attempt,
   };
+}
+
+async function loadLatestDeliveryAttempt(orderId: string): Promise<OrderWithItems['latest_delivery_attempt']> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return null;
+  }
+  const { data, error } = await supabase
+    .from('delivery_attempts')
+    .select('outcome, reason_text, next_action, created_at')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) {
+    return null;
+  }
+  return data as OrderWithItems['latest_delivery_attempt'];
+}
+
+async function insertDeliveryAttempt(
+  businessId: string,
+  orderId: string,
+  row: {
+    outcome: DeliveryAttempt['outcome'];
+    reason_code: string | null;
+    reason_text: string;
+    next_action: Exclude<DeliveryNextAction, 'choose'>;
+  },
+): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return 'Supabase is not configured.';
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase.from('delivery_attempts').insert({
+    order_id: orderId,
+    business_id: businessId,
+    outcome: row.outcome,
+    reason_code: row.reason_code,
+    reason_text: row.reason_text,
+    next_action: row.next_action,
+    created_by: user?.id ?? null,
+  });
+  return error ? error.message : null;
 }
 
 export async function updateDeliveryOrderStatus(
   orderId: string,
   businessId: string,
   status: OrderStatus,
+  options?: { cancelReason?: string | null },
 ): Promise<DeliveryMutationResult> {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -135,6 +185,12 @@ export async function updateDeliveryOrderStatus(
   }
 
   const currentStatus = normalizeOrderStatus(current.status as string);
+  if (status === 'confirmed') {
+    return {
+      error: 'Confirming orders is done in the shop, not the delivery app.',
+      userMessage: 'The shop confirms and invoices the order. You can start delivery after that.',
+    };
+  }
   const conflict = classifyStatusTransition(currentStatus, status);
   if (conflict) {
     return {
@@ -173,7 +229,8 @@ export async function updateDeliveryOrderStatus(
     .from('orders')
     .update({
       status,
-      cancel_reason: status === 'cancelled' ? 'Could not deliver' : null,
+      cancel_reason:
+        status === 'cancelled' ? options?.cancelReason?.trim() || 'Could not deliver' : null,
       refund_status: refundStatus,
     })
     .eq('id', orderId)
@@ -198,7 +255,7 @@ export async function updateDeliveryOrderStatus(
   const label = formatOrderNumber(current.order_number ?? 0);
   const summary =
     status === 'cancelled'
-      ? `[Delivery] Order #${label} cancelled (could not deliver)`
+      ? `[Delivery] Order #${label} cancelled (${options?.cancelReason?.trim() || 'could not deliver'})`
       : `[Delivery] Order #${label} → ${status.replace(/_/g, ' ')}`;
   await logDeliveryAudit(supabase, businessId, {
     action: 'delivery.status_update',
@@ -382,8 +439,89 @@ export async function deliverOrderWithPayment(
   ) {
     return statusResult;
   }
+  await insertDeliveryAttempt(businessId, orderId, {
+    outcome: 'delivered',
+    reason_code: null,
+    reason_text: 'Delivered',
+    next_action: 'complete',
+  });
   if (payment === 'pending') {
     return { error: null, outcome: 'ok', currentStatus: 'delivered' };
   }
   return updateDeliveryOrderPayment(orderId, businessId, payment);
+}
+
+export async function recordNotDelivered(
+  orderId: string,
+  businessId: string,
+  input: {
+    reasonCode: string;
+    reasonText: string;
+    nextAction: 'reschedule' | 'cancel';
+  },
+): Promise<DeliveryMutationResult> {
+  const reasonText = input.reasonText.trim();
+  if (reasonText.length < 3) {
+    return { error: 'Add a short reason.' };
+  }
+
+  const snapshot = await fetchOrderDeliverySnapshot(orderId, businessId);
+  if ('error' in snapshot) {
+    return { error: snapshot.error };
+  }
+  if (snapshot.status !== 'out_for_delivery') {
+    return {
+      error: null,
+      outcome: 'updated_elsewhere',
+      currentStatus: snapshot.status,
+      userMessage: `This order is now ${snapshot.status.replace(/_/g, ' ')}. Delivery outcome cannot be saved.`,
+    };
+  }
+
+  if (input.nextAction === 'cancel') {
+    const cancelled = await updateDeliveryOrderStatus(orderId, businessId, 'cancelled', {
+      cancelReason: reasonText,
+    });
+    if (cancelled.error) {
+      return cancelled;
+    }
+    if (cancelled.outcome && cancelled.outcome !== 'ok' && cancelled.currentStatus !== 'cancelled') {
+      return cancelled;
+    }
+    await insertDeliveryAttempt(businessId, orderId, {
+      outcome: 'not_delivered',
+      reason_code: input.reasonCode,
+      reason_text: reasonText,
+      next_action: 'cancel',
+    });
+    return { error: null, outcome: 'ok', currentStatus: 'cancelled' };
+  }
+
+  const insertError = await insertDeliveryAttempt(businessId, orderId, {
+    outcome: 'not_delivered',
+    reason_code: input.reasonCode,
+    reason_text: reasonText,
+    next_action: 'reschedule',
+  });
+  if (insertError) {
+    return { error: insertError };
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    await logDeliveryAudit(supabase, businessId, {
+      action: 'delivery.not_delivered',
+      entityType: 'order',
+      entityId: orderId,
+      summary: `[Delivery] Order #${formatOrderNumber(snapshot.order_number)} not delivered — try again (${reasonText})`,
+      details: { reason_code: input.reasonCode, next_action: 'reschedule' },
+    });
+  }
+
+  return {
+    error: null,
+    outcome: 'ok',
+    currentStatus: 'out_for_delivery',
+    userMessage: 'Saved. This order stays out for delivery so you can try again.',
+  };
 }

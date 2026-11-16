@@ -184,7 +184,7 @@ export function DeliverPaymentModal({
           </Pressable>
           <View style={styles.headerText}>
             <Text style={styles.title}>
-              {offerShare ? 'Order delivered' : paymentOnly ? 'Record payment' : 'Mark delivered'}
+              {offerShare ? 'Order delivered' : paymentOnly ? 'Record payment' : 'Collect payment'}
             </Text>
             <Text style={styles.subtitle}>
               {offerShare
@@ -316,7 +316,7 @@ export function DeliverPaymentModal({
                   <ActivityIndicator color={colors.surface} />
                 ) : (
                   <>
-                    <Text style={styles.confirmLabel}>{paymentOnly ? 'Save payment' : 'Mark delivered'}</Text>
+                    <Text style={styles.confirmLabel}>{paymentOnly ? 'Save payment' : 'Save delivered'}</Text>
                     <Ionicons name="checkmark-circle" size={22} color={colors.surface} />
                   </>
                 )}

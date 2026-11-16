@@ -85,10 +85,18 @@ export type OrderItem = {
   created_at: string;
 };
 
+export type LatestDeliveryAttempt = {
+  outcome: 'delivered' | 'not_delivered';
+  reason_text: string;
+  next_action: string;
+  created_at: string;
+};
+
 export type OrderWithItems = Order & {
   order_items: OrderItem[];
   status_events: OrderStatusEvent[];
   modification_summary?: OrderModificationSummary;
+  latest_delivery_attempt?: LatestDeliveryAttempt | null;
 };
 
 export type OrderStatusEvent = {

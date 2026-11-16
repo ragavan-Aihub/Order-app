@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import { ProductImport } from '@/components/ProductImport';
 import { ProductNotifyDemandPanel } from '@/components/ProductNotifyDemand';
 import { ProductsBoard } from '@/components/ProductsBoard';
 import { isCategoriesEnabled } from '@/services/business';
@@ -26,6 +25,12 @@ export default async function ProductsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
+            href="/products/import"
+            className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 py-2 font-semibold text-stone-800 hover:bg-stone-50"
+          >
+            Import
+          </Link>
+          <Link
             href="/products/categories"
             className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 py-2 font-semibold text-stone-800 hover:bg-stone-50"
           >
@@ -39,14 +44,10 @@ export default async function ProductsPage() {
           </Link>
         </div>
       </div>
-      <ProductImport
-        categoriesEnabled={enabled}
-        categoryNames={categories.map((item) => item.name)}
-      />
       <ProductNotifyDemandPanel rows={notifyDemand} />
       {products.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
-          No products yet. Add one, or import a filled template.
+          No products yet. Add one, or open Import for a template.
         </div>
       ) : (
         <ProductsBoard

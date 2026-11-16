@@ -53,11 +53,23 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
               Customer modified
             </span>
           ) : null}
+          {order.latest_delivery_attempt?.outcome === 'not_delivered' && order.status !== 'cancelled' ? (
+            <span className="rounded-full bg-orange-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-950">
+              Not delivered
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-sm font-medium text-stone-800">
           {order.customer_name} · {order.order_items.length}{' '}
           {order.order_items.length === 1 ? 'item' : 'items'} · {formatPrice(order.total_amount)}
         </p>
+        {order.latest_delivery_attempt?.outcome === 'not_delivered' ? (
+          <p className="mt-1 text-sm font-medium text-orange-950">
+            Last delivery attempt: {order.latest_delivery_attempt.reason_text}
+            {order.latest_delivery_attempt.next_action === 'reschedule' ? ' · Try again' : ''}
+            {order.latest_delivery_attempt.next_action === 'cancel' ? ' · Cancelled' : ''}
+          </p>
+        ) : null}
         <p className="mt-0.5 text-sm text-stone-600">
           Placed {formatDateTime(order.created_at)} · Channel {orderChannelLabel(order.channel)}
           {showCommunityType ? (
