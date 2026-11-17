@@ -25,7 +25,12 @@ import { productNotifyCopy } from '@/copy/product-notify';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
-import { fetchProductByIdLive, invalidateProductCatalogCache } from '@/services/products';
+import {
+  fetchProductByIdLive,
+  getCachedProducts,
+  invalidateProductCatalogCache,
+  peekCachedProducts,
+} from '@/services/products';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 import { hapticError, hapticSelect } from '@/utils/haptics';
@@ -40,6 +45,27 @@ import {
   volumeOptionPrice,
   weightOptionPrice,
 } from '@/utils/selling-units';
+
+function applyProductOptionDefaults(
+  next: Product,
+  setters: {
+    setPackOptionId: (id: string | null) => void;
+    setWeightGramsSel: (grams: number | null) => void;
+    setVolumeMlSel: (ml: number | null) => void;
+    setQuantity: (qty: number) => void;
+  },
+  resetQuantity: boolean,
+) {
+  const firstPack = (next.packs ?? []).find((pack) => pack.is_active);
+  setters.setPackOptionId(firstPack?.id ?? null);
+  setters.setWeightGramsSel(
+    (next.weightOptions ?? []).find((option) => option.is_active)?.weight_grams ?? null,
+  );
+  setters.setVolumeMlSel((next.volumeOptions ?? []).find((option) => option.is_active)?.volume_ml ?? null);
+  if (resetQuantity) {
+    setters.setQuantity(1);
+  }
+}
 
 function OptionCard({
   label,
@@ -102,7 +128,7 @@ export default function ProductDetailsScreen() {
   );
 
   const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } = useProductNotifyInterests();
-  const { isFavorite, onFavoritePress } = useProductFavorites();
+  const { isFavorite, favoriteBusyId, onFavoritePress } = useProductFavorites();
 
   useFocusEffect(
     useCallback(() => {
@@ -111,34 +137,51 @@ export default function ProductDetailsScreen() {
         return;
       }
       let active = true;
-      const needsFullScreenLoader = loadedIdRef.current !== id || fromAvailablePush;
-      if (needsFullScreenLoader) {
+      const optionSetters = {
+        setPackOptionId,
+        setWeightGramsSel,
+        setVolumeMlSel,
+        setQuantity,
+      };
+      const peeked = peekCachedProducts().find((row) => row.id === id) ?? null;
+      if (peeked && !fromAvailablePush) {
+        const resetQuantity = loadedIdRef.current !== id;
+        setProduct(peeked);
+        loadedIdRef.current = id;
+        applyProductOptionDefaults(peeked, optionSetters, resetQuantity);
+        setLoading(false);
+      } else if (loadedIdRef.current !== id || fromAvailablePush) {
         setLoading(true);
       }
+
       void (async () => {
         if (fromAvailablePush) {
           invalidateProductCatalogCache();
         }
-        await refreshNotifyInterests();
+        void refreshNotifyInterests(fromAvailablePush);
         try {
+          if (!peeked && !fromAvailablePush) {
+            const disk = await getCachedProducts();
+            const cached = disk.find((row) => row.id === id) ?? null;
+            if (active && cached) {
+              const resetQuantity = loadedIdRef.current !== id;
+              setProduct(cached);
+              loadedIdRef.current = id;
+              applyProductOptionDefaults(cached, optionSetters, resetQuantity);
+              setLoading(false);
+            }
+          }
           const next = await fetchProductByIdLive(id);
           if (active) {
             setProduct(next);
             if (next) {
+              const resetQuantity = loadedIdRef.current !== id;
               loadedIdRef.current = id;
-              const firstPack = (next.packs ?? []).find((pack) => pack.is_active);
-              setPackOptionId(firstPack?.id ?? null);
-              setWeightGramsSel(
-                (next.weightOptions ?? []).find((option) => option.is_active)?.weight_grams ?? null,
-              );
-              setVolumeMlSel(
-                (next.volumeOptions ?? []).find((option) => option.is_active)?.volume_ml ?? null,
-              );
-              setQuantity(1);
+              applyProductOptionDefaults(next, optionSetters, resetQuantity);
             }
           }
         } catch {
-          if (active) {
+          if (active && !peekCachedProducts().some((row) => row.id === id)) {
             setProduct(null);
           }
         } finally {
@@ -177,9 +220,10 @@ export default function ProductDetailsScreen() {
     );
   }
 
-  const comingSoon = product.available === false;
+  const resolved = product;
+  const comingSoon = resolved.available === false;
   const footerLoading = loading && fromAvailablePush;
-  const type = sellingTypeOf(product);
+  const type = sellingTypeOf(resolved);
   const isCountItem = type === 'quantity';
   const countUnit = product.selling_unit?.trim() || null;
   const description = product.description?.trim() || '';
@@ -207,9 +251,9 @@ export default function ProductDetailsScreen() {
           : product.price * quantity;
 
   function bumpQuantity(next: number) {
-    const size = unitSizeOf(product, { weightGrams: weightGramsSel, volumeMl: volumeMlSel });
-    const tracked = stockLimitOf(product.stock_qty) != null && size > 0;
-    const cap = tracked ? maxLineQty(product.stock_qty, 0, 0, size) : MAX_ITEM_QTY;
+    const size = unitSizeOf(resolved, { weightGrams: weightGramsSel, volumeMl: volumeMlSel });
+    const tracked = stockLimitOf(resolved.stock_qty) != null && size > 0;
+    const cap = tracked ? maxLineQty(resolved.stock_qty, 0, 0, size) : MAX_ITEM_QTY;
     if (next < 1) {
       if (router.canGoBack()) {
         router.back();
@@ -220,12 +264,12 @@ export default function ProductDetailsScreen() {
     }
     if (next > quantity && next > cap) {
       hapticError();
-      const stockCap = stockLimitOf(product.stock_qty);
+      const stockCap = stockLimitOf(resolved.stock_qty);
       showAppDialog({
         title: stockCap != null && cap < MAX_ITEM_QTY ? 'Not available' : 'Order limit',
         message:
           stockCap != null && cap < MAX_ITEM_QTY
-            ? stockMessage(stockCap, product.selling_type)
+            ? stockMessage(stockCap, resolved.selling_type)
             : CART_LIMIT_QTY,
         icon: 'alert-circle',
         tone: 'warning',
@@ -294,7 +338,12 @@ export default function ProductDetailsScreen() {
         options={{
           title: 'Product details',
           headerRight: () => (
-            <FavoriteHeart size="header" on={isFavorite(product.id)} onPress={() => void onFavoritePress(product.id)} />
+            <FavoriteHeart
+              size="header"
+              on={isFavorite(product.id)}
+              busy={favoriteBusyId === product.id}
+              onPress={() => void onFavoritePress(product.id)}
+            />
           ),
         }}
       />

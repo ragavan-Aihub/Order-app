@@ -2,14 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
+  FlatList,
+  Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,6 +21,7 @@ import { HomeHeader } from '@/components/HomeHeader';
 import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { HomeProductGridItem } from '@/components/HomeProductGridItem';
+import { ProductGridSkeleton } from '@/components/Skeleton';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
 import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, spacing } from '@/config/theme';
@@ -108,10 +110,48 @@ export default function BuyAgainScreen() {
     return map;
   }, [items]);
 
+  const renderProduct = useCallback<ListRenderItem<Product>>(
+    ({ item }) => (
+      <HomeProductGridItem
+        product={item}
+        quantity={quantityById[item.id] ?? 0}
+        highlighted={false}
+        highlightFromPush={false}
+        notifyNotified={isNotified(item.id)}
+        notifyBusy={busyId === item.id}
+        onAddToCart={addToCart}
+        onIncrease={increase}
+        onDecrease={decrease}
+        onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
+      />
+    ),
+    [addToCart, busyId, decrease, increase, isNotified, onNotifyPress, quantityById],
+  );
+
+  const listEmpty = useMemo(() => {
+    if (products.length === 0) {
+      return (
+        <Text style={styles.empty}>
+          {offline
+            ? 'Connect to the internet to load items from your recent orders.'
+            : 'No items from previous orders yet. Shop from Home, then they will show up here.'}
+        </Text>
+      );
+    }
+    return <Text style={styles.empty}>No bought items match this search.</Text>;
+  }, [offline, products.length]);
+
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.screen}>
+        <HomeHeader />
+        <View style={styles.searchBar}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+            <Text style={[styles.search, styles.searchPlaceholder]}>Search bought items</Text>
+          </View>
+        </View>
+        <ProductGridSkeleton rows={3} />
       </View>
     );
   }
@@ -159,46 +199,28 @@ export default function BuyAgainScreen() {
           ) : null}
         </View>
       </View>
-      <ScrollView
+      <FlatList
+        data={visibleProducts}
+        keyExtractor={(item) => item.id}
+        renderItem={renderProduct}
+        numColumns={2}
+        columnWrapperStyle={visibleProducts.length > 0 ? styles.gridRow : undefined}
+        ListHeaderComponent={offline ? <OfflineBanner /> : null}
+        ListEmptyComponent={listEmpty}
         contentContainerStyle={[
           styles.content,
           { paddingBottom: viewCartScrollPadding(insets.bottom, itemCount > 0) },
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
         }
-      >
-        {offline ? <OfflineBanner /> : null}
-        {products.length === 0 ? (
-          <Text style={styles.empty}>
-            {offline
-              ? 'Connect to the internet to load items from your recent orders.'
-              : 'No items from previous orders yet. Shop from Home, then they will show up here.'}
-          </Text>
-        ) : visibleProducts.length === 0 ? (
-          <Text style={styles.empty}>No bought items match this search.</Text>
-        ) : (
-          <View style={styles.grid}>
-            {visibleProducts.map((product) => (
-              <HomeProductGridItem
-                key={product.id}
-                product={product}
-                quantity={quantityById[product.id] ?? 0}
-                highlighted={false}
-                highlightFromPush={false}
-                notifyNotified={isNotified(product.id)}
-                notifyBusy={busyId === product.id}
-                onAddToCart={addToCart}
-                onIncrease={increase}
-                onDecrease={decrease}
-                onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+      />
       <ViewCartBar />
     </View>
   );
@@ -211,12 +233,6 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: colors.background,
   },
   searchBar: {
@@ -241,6 +257,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  searchPlaceholder: {
+    color: colors.textMuted,
+  },
   clearButton: {
     minWidth: 44,
     minHeight: 44,
@@ -251,16 +270,15 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
+    flexGrow: 1,
+  },
+  gridRow: {
+    marginHorizontal: -4,
   },
   empty: {
     fontSize: 16,
     lineHeight: 24,
     color: colors.textMuted,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'stretch',
-    marginHorizontal: -4,
+    paddingTop: spacing.sm,
   },
 });

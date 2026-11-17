@@ -91,6 +91,37 @@ export function HomeCatalogSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
+function SkeletonOrderCard() {
+  return (
+    <View style={styles.orderCard}>
+      <View style={styles.orderHeader}>
+        <View style={styles.orderHeaderLeft}>
+          <Skeleton width="55%" height={18} />
+          <Skeleton width="40%" height={12} />
+        </View>
+        <Skeleton width={64} height={18} />
+      </View>
+      <View style={styles.orderThumbs}>
+        <Skeleton width={52} height={52} borderRadius={10} style={styles.orderThumb} />
+        <Skeleton width={52} height={52} borderRadius={10} style={styles.orderThumb} />
+        <Skeleton width={52} height={52} borderRadius={10} style={styles.orderThumb} />
+      </View>
+    </View>
+  );
+}
+
+/** Placeholder cards for the Your Orders list. */
+export function OrdersListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <View style={styles.ordersList} accessibilityLabel="Loading orders" accessibilityRole="progressbar">
+      <Skeleton width={160} height={24} style={styles.ordersTitle} />
+      {Array.from({ length: rows }, (_, index) => (
+        <SkeletonOrderCard key={index} />
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
@@ -134,5 +165,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 4,
+  },
+  ordersList: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  ordersTitle: {
+    marginBottom: spacing.xs,
+  },
+  orderCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...shadow.sm,
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  orderHeaderLeft: {
+    flex: 1,
+    gap: 8,
+  },
+  orderThumbs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  orderThumb: {
+    overflow: 'hidden',
   },
 });

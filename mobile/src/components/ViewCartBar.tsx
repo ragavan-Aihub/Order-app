@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
 import { useCart } from '@/cart/CartContext';
 import { colors, radius, spacing } from '@/config/theme';
+import { usePendingNav } from '@/hooks/usePendingNav';
 import { formatPrice } from '@/utils/format';
 import { hapticTap } from '@/utils/haptics';
 
@@ -33,6 +34,7 @@ export function ViewCartBar({
 }) {
   const router = useRouter();
   const { itemCount, totalAmount } = useCart();
+  const { pending, runPendingNav } = usePendingNav();
 
   if (itemCount <= 0) {
     return null;
@@ -50,25 +52,38 @@ export function ViewCartBar({
     >
       <Pressable
         onPress={() => {
+          if (pending) {
+            return;
+          }
           hapticTap();
-          router.push('/cart');
+          runPendingNav(() => router.push('/cart'), 'cart');
         }}
-        style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+        disabled={pending}
+        style={({ pressed }) => [styles.pill, pressed && !pending && styles.pillPressed, pending && styles.pillBusy]}
         accessibilityRole="button"
+        accessibilityState={{ busy: pending }}
         accessibilityLabel={`View cart, ${amountLabel}, ${itemLabel}`}
       >
-        <View style={styles.iconWrap}>
-          <Ionicons name="bag-handle" size={18} color={colors.primaryText} />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{itemCount > 99 ? '99+' : itemCount}</Text>
+        {pending ? (
+          <ActivityIndicator size="small" color={colors.primaryText} />
+        ) : (
+          <View style={styles.iconWrap}>
+            <Ionicons name="bag-handle" size={18} color={colors.primaryText} />
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{itemCount > 99 ? '99+' : itemCount}</Text>
+            </View>
           </View>
-        </View>
-        <Text style={styles.itemLabel}>{itemLabel}</Text>
-        <View style={styles.dot} />
-        <Text style={styles.amount} numberOfLines={1}>
-          {amountLabel}
-        </Text>
-        <Ionicons name="chevron-forward" size={16} color={colors.primaryText} />
+        )}
+        <Text style={styles.itemLabel}>{pending ? 'Opening…' : itemLabel}</Text>
+        {pending ? null : (
+          <>
+            <View style={styles.dot} />
+            <Text style={styles.amount} numberOfLines={1}>
+              {amountLabel}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.primaryText} />
+          </>
+        )}
       </Pressable>
     </Animated.View>
   );
@@ -106,6 +121,11 @@ const styles = StyleSheet.create({
   pillPressed: {
     opacity: 0.92,
     backgroundColor: colors.primaryDark,
+  },
+  pillBusy: {
+    opacity: 0.92,
+    minWidth: 140,
+    justifyContent: 'center',
   },
   iconWrap: {
     width: 22,

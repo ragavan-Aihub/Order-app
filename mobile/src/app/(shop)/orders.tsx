@@ -1,7 +1,16 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+  type ListRenderItem,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTopInset } from '@/utils/safe-area';
@@ -10,8 +19,10 @@ import { EmptyState } from '@/components/EmptyState';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { ProductImage } from '@/components/ProductImage';
+import { OrdersListSkeleton } from '@/components/Skeleton';
 import { buildOrderDiffTableRows, orderDiffHasChanges } from '@/order-modifications/diff';
 import { colors, radius, shadow, spacing } from '@/config/theme';
+import { usePendingNav } from '@/hooks/usePendingNav';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import {
   getLatestAdminModificationsByOrderId,
@@ -49,10 +60,99 @@ function OrderListStatusIcon({ status }: { status: string }) {
   return <Ionicons name="time-outline" size={22} color={tone.fg} />;
 }
 
+function OrderCard({
+  order,
+  shopModified,
+  pending,
+  onOpen,
+}: {
+  order: OrderWithItems;
+  shopModified: boolean;
+  pending: boolean;
+  onOpen: () => void;
+}) {
+  const thumbs = order.order_items.slice(0, THUMB_VISIBLE);
+  const extraThumbCount = Math.max(0, order.order_items.length - THUMB_VISIBLE);
+  const paymentStatus = displayPaymentStatus({
+    status: order.status,
+    payment_method: order.payment_method,
+    refund_status: order.refund_status,
+  });
+  const showPaymentBadge =
+    paymentStatus === 'pending' || paymentStatus === 'refund_pending' || paymentStatus === 'refunded';
+
+  return (
+    <Pressable
+      onPress={onOpen}
+      disabled={pending}
+      style={({ pressed }) => [styles.card, pressed && !pending && styles.cardPressed, pending && styles.cardBusy]}
+      accessibilityRole="button"
+      accessibilityState={{ busy: pending }}
+    >
+      <View style={styles.cardHeader}>
+        <View style={styles.headerLeft}>
+          <View style={styles.headlineRow}>
+            <Text style={styles.headline} numberOfLines={1}>
+              {formatOrderListHeadline(order.status)}
+            </Text>
+            <OrderListStatusIcon status={order.status} />
+          </View>
+          <Text style={styles.placedAt}>{formatPlacedAtLine(order.created_at)}</Text>
+        </View>
+        <View style={styles.headerRight}>
+          {pending ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <>
+              <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
+              <View style={styles.menuCircle}>
+                <Ionicons name="ellipsis-vertical" size={16} color={colors.textMuted} />
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+
+      {shopModified ? <Text style={styles.shopModified}>Shop modified this order</Text> : null}
+
+      {thumbs.length > 0 ? (
+        <View style={styles.thumbStrip}>
+          {thumbs.map((item) => (
+            <ProductImage
+              key={item.id}
+              uri={item.image_url}
+              compact
+              style={styles.thumbCell}
+              recyclingKey={item.id}
+              accessibilityLabel={item.product_name}
+            />
+          ))}
+          {extraThumbCount > 0 ? (
+            <View style={[styles.thumbCell, styles.thumbMore]}>
+              <Text style={styles.thumbMoreText}>+{extraThumbCount}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {showPaymentBadge ? (
+        <View style={styles.paymentRow}>
+          <PaymentBadge
+            method={order.payment_method ?? 'pending'}
+            orderStatus={order.status}
+            refundStatus={order.refund_status}
+          />
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 export default function MyOrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topInset = useTopInset();
+  const { pending, pendingKey, runPendingNav } = usePendingNav();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,10 +206,30 @@ export default function MyOrdersScreen() {
     }, [load]),
   );
 
+  const renderOrder = useCallback<ListRenderItem<OrderWithItems>>(
+    ({ item }) => (
+      <OrderCard
+        order={item}
+        shopModified={shopModifiedOrderIds.has(item.id)}
+        pending={pending && pendingKey === item.id}
+        onOpen={() => {
+          if (pending) {
+            return;
+          }
+          runPendingNav(
+            () => router.push({ pathname: '/order/[id]', params: { id: item.id } }),
+            item.id,
+          );
+        }}
+      />
+    ),
+    [pending, pendingKey, router, runPendingNav, shopModifiedOrderIds],
+  );
+
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.screen, { paddingTop: topInset + spacing.sm }]}>
+        <OrdersListSkeleton />
       </View>
     );
   }
@@ -126,8 +246,11 @@ export default function MyOrdersScreen() {
   }
 
   return (
-    <ScrollView
+    <FlatList
       style={styles.screen}
+      data={orders}
+      keyExtractor={(item) => item.id}
+      renderItem={renderOrder}
       contentContainerStyle={[
         styles.content,
         {
@@ -135,13 +258,13 @@ export default function MyOrdersScreen() {
           paddingBottom: Math.max(insets.bottom, spacing.md) + TAB_BAR_CLEARANCE,
         },
       ]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+      ListHeaderComponent={
+        <View style={styles.listHeader}>
+          {offline ? <OfflineBanner /> : null}
+          <Text style={styles.screenTitle}>Your Orders</Text>
+        </View>
       }
-    >
-      {offline ? <OfflineBanner /> : null}
-      <Text style={styles.screenTitle}>Your Orders</Text>
-      {orders.length === 0 ? (
+      ListEmptyComponent={
         <View style={styles.emptyCard}>
           <Ionicons name="receipt-outline" size={28} color={colors.primary} />
           <Text style={styles.emptyTitle}>No orders yet</Text>
@@ -160,83 +283,15 @@ export default function MyOrdersScreen() {
             </Pressable>
           ) : null}
         </View>
-      ) : (
-        orders.map((order) => {
-          const thumbs = order.order_items.slice(0, THUMB_VISIBLE);
-          const extraThumbCount = Math.max(0, order.order_items.length - THUMB_VISIBLE);
-          const paymentStatus = displayPaymentStatus({
-            status: order.status,
-            payment_method: order.payment_method,
-            refund_status: order.refund_status,
-          });
-          const showPaymentBadge =
-            paymentStatus === 'pending' ||
-            paymentStatus === 'refund_pending' ||
-            paymentStatus === 'refunded';
-
-          return (
-            <Pressable
-              key={order.id}
-              onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
-              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-              accessibilityRole="button"
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.headerLeft}>
-                  <View style={styles.headlineRow}>
-                    <Text style={styles.headline} numberOfLines={1}>
-                      {formatOrderListHeadline(order.status)}
-                    </Text>
-                    <OrderListStatusIcon status={order.status} />
-                  </View>
-                  <Text style={styles.placedAt}>{formatPlacedAtLine(order.created_at)}</Text>
-                </View>
-                <View style={styles.headerRight}>
-                  <Text style={styles.total}>{formatPrice(order.total_amount)}</Text>
-                  <View style={styles.menuCircle}>
-                    <Ionicons name="ellipsis-vertical" size={16} color={colors.textMuted} />
-                  </View>
-                </View>
-              </View>
-
-              {shopModifiedOrderIds.has(order.id) ? (
-                <Text style={styles.shopModified}>Shop modified this order</Text>
-              ) : null}
-
-              {thumbs.length > 0 ? (
-                <View style={styles.thumbStrip}>
-                  {thumbs.map((item) => (
-                    <ProductImage
-                      key={item.id}
-                      uri={item.image_url}
-                      compact
-                      style={styles.thumbCell}
-                      recyclingKey={item.id}
-                      accessibilityLabel={item.product_name}
-                    />
-                  ))}
-                  {extraThumbCount > 0 ? (
-                    <View style={[styles.thumbCell, styles.thumbMore]}>
-                      <Text style={styles.thumbMoreText}>+{extraThumbCount}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {showPaymentBadge ? (
-                <View style={styles.paymentRow}>
-                  <PaymentBadge
-                    method={order.payment_method ?? 'pending'}
-                    orderStatus={order.status}
-                    refundStatus={order.refund_status}
-                  />
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })
-      )}
-    </ScrollView>
+      }
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+      }
+      initialNumToRender={8}
+      windowSize={7}
+      maxToRenderPerBatch={8}
+    />
   );
 }
 
@@ -245,24 +300,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
   content: {
     paddingHorizontal: spacing.md,
-    gap: spacing.sm,
     flexGrow: 1,
     backgroundColor: colors.background,
+  },
+  listHeader: {
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  separator: {
+    height: spacing.sm,
   },
   screenTitle: {
     fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.3,
     color: colors.text,
-    marginBottom: spacing.xs,
   },
   emptyCard: {
     backgroundColor: colors.surface,
@@ -310,6 +364,9 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.94,
   },
+  cardBusy: {
+    opacity: 0.88,
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -342,6 +399,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 8,
     flexShrink: 0,
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   total: {
     fontSize: 18,

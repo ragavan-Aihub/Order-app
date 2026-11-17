@@ -327,7 +327,8 @@ export default function AddressFormScreen() {
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.md }]}>
         <PrimaryButton
           label={saving ? 'Saving…' : 'Save Address'}
-          disabled={saving || !canSave}
+          busy={saving}
+          disabled={!canSave}
           onPress={onSave}
         />
       </View>

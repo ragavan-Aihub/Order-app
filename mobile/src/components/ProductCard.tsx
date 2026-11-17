@@ -24,6 +24,7 @@ type ProductCardProps = {
   notifyBusy?: boolean;
   onNotifyPress?: () => void;
   favorited?: boolean;
+  favoriteBusy?: boolean;
   onFavoritePress?: () => void;
 };
 
@@ -41,6 +42,7 @@ export const ProductCard = memo(function ProductCard({
   notifyBusy = false,
   onNotifyPress,
   favorited = false,
+  favoriteBusy = false,
   onFavoritePress,
 }: ProductCardProps) {
   const comingSoon = product.available === false;
@@ -74,7 +76,12 @@ export const ProductCard = memo(function ProductCard({
           </View>
         ) : null}
         {onFavoritePress ? (
-          <FavoriteHeart size={compact ? 'compact' : 'card'} on={favorited} onPress={onFavoritePress} />
+          <FavoriteHeart
+            size={compact ? 'compact' : 'card'}
+            on={favorited}
+            busy={favoriteBusy}
+            onPress={onFavoritePress}
+          />
         ) : null}
       </View>
       <View style={[styles.body, compact && styles.bodyCompact]}>
