@@ -10,6 +10,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -43,10 +44,11 @@ import { ViewCartBar, viewCartScrollPadding } from '@/components/ViewCartBar';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { notifyHomeCatalogReady } from '@/notifications/notification-permission-offer';
 import { useNetworkStatus } from '@/network/NetworkProvider';
-import { getShopBanners, refreshBusiness, type ShopBanner } from '@/services/business';
+import { getBusiness, getShopBanners, peekCachedBusiness, refreshBusiness, type ShopBanner } from '@/services/business';
 import type { Business } from '@/types/business';
 import {
   fetchProductByIdLive,
+  getAvailableProducts,
   getCachedProducts,
   invalidateProductCatalogCache,
   peekCachedProducts,
@@ -54,6 +56,10 @@ import {
 } from '@/services/products';
 import type { Product } from '@/types/product';
 import { productMatchesSearch, sortProductsForDisplay, sortProductsForSearch } from '@/utils/product-list-sort';
+
+/** Skip a full home network fan-out when the catalog was fetched recently. */
+const HOME_CATALOG_FOCUS_TTL_MS = 45_000;
+let lastHomeCatalogFetchAt = 0;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -75,7 +81,8 @@ export default function HomeScreen() {
   const addToCart = useAddToCart();
   const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } =
     useProductNotifyInterests();
-  const { favoriteIds, isFavorite, onFavoritePress } = useProductFavorites();
+  const { favoriteIds, isFavorite, favoriteBusyId, onFavoritePress } = useProductFavorites();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (resumeEdit) {
@@ -182,7 +189,7 @@ export default function HomeScreen() {
     }, [closeSearch, searchOpen]),
   );
 
-  const loadCatalog = useCallback(async () => {
+  const loadCatalog = useCallback(async (force = false) => {
     if (!painted.current) {
       const cached = await getCachedProducts();
       if (cached.length) {
@@ -190,7 +197,39 @@ export default function HomeScreen() {
         setLoading(false);
         painted.current = true;
       }
+      const peekShop = peekCachedBusiness();
+      if (peekShop) {
+        setShopNotice(peekShop);
+      }
     }
+
+    const now = Date.now();
+    const freshEnough =
+      !force && painted.current && now - lastHomeCatalogFetchAt < HOME_CATALOG_FOCUS_TTL_MS;
+
+    if (freshEnough) {
+      const catalog = await getAvailableProducts();
+      setProducts(catalog);
+      painted.current = true;
+      void refreshAvailableProducts().then((fresh) => {
+        setProducts(fresh);
+        lastHomeCatalogFetchAt = Date.now();
+      });
+      return;
+    }
+
+    if (!force) {
+      const [cachedCatalog, cachedShop] = await Promise.all([getAvailableProducts(), getBusiness()]);
+      if (cachedCatalog.length) {
+        setProducts(cachedCatalog);
+        setLoading(false);
+        painted.current = true;
+      }
+      if (cachedShop) {
+        setShopNotice(cachedShop);
+      }
+    }
+
     const [catalog, shop, posters] = await Promise.all([
       refreshAvailableProducts(),
       refreshBusiness(),
@@ -199,8 +238,19 @@ export default function HomeScreen() {
     setProducts(catalog);
     setBanners(posters);
     setShopNotice(shop);
+    lastHomeCatalogFetchAt = Date.now();
     painted.current = true;
   }, []);
+
+  const onPullRefresh = useCallback(() => {
+    setRefreshing(true);
+    void loadCatalog(true)
+      .catch(() => undefined)
+      .finally(() => {
+        setRefreshing(false);
+        setLoading(false);
+      });
+  }, [loadCatalog]);
 
   useFocusEffect(
     useCallback(() => {
@@ -211,7 +261,7 @@ export default function HomeScreen() {
       if (focusProductId) {
         return;
       }
-      void loadCatalog()
+      void loadCatalog(false)
         .catch(() => {
           if (!painted.current) {
             setProducts([]);
@@ -263,7 +313,7 @@ export default function HomeScreen() {
     void (async () => {
       if (fromPush) {
         try {
-          void refreshNotifyInterests();
+          void refreshNotifyInterests(true);
           invalidateProductCatalogCache();
           const applyAvailableSoonAsInStock = (list: Product[]) =>
             sortProductsForDisplay(
@@ -430,6 +480,7 @@ export default function HomeScreen() {
           quantityById={quantityById}
           isFavorite={isFavorite}
           onFavoritePress={(productId) => void onFavoritePress(productId)}
+          favoriteBusyId={favoriteBusyId}
           onAddToCart={addToCart}
           onIncrease={increase}
           onDecrease={decrease}
@@ -454,6 +505,7 @@ export default function HomeScreen() {
     busyId,
     decrease,
     favouriteProducts,
+    favoriteBusyId,
     increase,
     isFavorite,
     isNotified,
@@ -525,6 +577,7 @@ export default function HomeScreen() {
         onDecrease={decrease}
         onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
         favorited={isFavorite(item.id)}
+        favoriteBusy={favoriteBusyId === item.id}
         onFavoritePress={(productId) => void onFavoritePress(productId)}
         onLayout={
           highlightProductId === item.id ? () => tryScrollToHighlightedProduct(item.id) : undefined
@@ -535,6 +588,7 @@ export default function HomeScreen() {
       addToCart,
       busyId,
       decrease,
+      favoriteBusyId,
       highlightFromPush,
       highlightProductId,
       increase,
@@ -679,6 +733,9 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         nestedScrollEnabled
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor={colors.primary} />
+        }
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={7}

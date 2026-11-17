@@ -38,7 +38,7 @@ export function OfflineScreen({
         <Text style={styles.message}>{OFFLINE_MESSAGE}</Text>
         <PrimaryButton
           label={reloading ? 'Checking…' : 'Reload'}
-          disabled={reloading}
+          busy={reloading}
           onPress={onReload}
         />
       </View>

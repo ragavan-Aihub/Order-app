@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { showAppDialog } from '@/components/AppDialogHost';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -11,16 +11,25 @@ import {
 } from '@/services/favorites';
 import { getSignedInUser } from '@/services/supabase';
 
+const FAVORITES_FOCUS_TTL_MS = 30_000;
+
 export function useProductFavorites() {
   const router = useRouter();
   const { requireConnection } = useNetworkStatus();
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const loadedOnce = useRef(false);
+  const lastRefreshAt = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
+    if (!force && loadedOnce.current && Date.now() - lastRefreshAt.current < FAVORITES_FOCUS_TTL_MS) {
+      return;
+    }
     const user = await getSignedInUser();
     if (!user) {
       setFavoriteIds([]);
+      loadedOnce.current = true;
+      lastRefreshAt.current = Date.now();
       return;
     }
     const pending = await takePendingFavorite();
@@ -28,11 +37,13 @@ export function useProductFavorites() {
       await toggleProductFavorite(pending);
     }
     setFavoriteIds(await fetchMyFavoriteIds());
+    loadedOnce.current = true;
+    lastRefreshAt.current = Date.now();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
+      void refresh(false);
     }, [refresh]),
   );
 
@@ -68,6 +79,8 @@ export function useProductFavorites() {
             icon: 'cloud-offline',
             tone: 'warning',
           });
+        } else {
+          lastRefreshAt.current = Date.now();
         }
       } finally {
         setBusyId(null);

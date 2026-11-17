@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { showAppDialog } from '@/components/AppDialogHost';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { useNetworkStatus } from '@/network/NetworkProvider';
@@ -8,20 +8,29 @@ import { registerForOrderPush } from '@/notifications/order-push';
 import { fetchMyProductNotifyIds, upsertProductNotifyInterest } from '@/services/product-notify';
 import { getSignedInUser } from '@/services/supabase';
 
+const NOTIFY_FOCUS_TTL_MS = 30_000;
+
 export function useProductNotifyInterests() {
   const router = useRouter();
   const { requireConnection } = useNetworkStatus();
   const [notifiedIds, setNotifiedIds] = useState<Set<string>>(() => new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
+  const loadedOnce = useRef(false);
+  const lastRefreshAt = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
+    if (!force && loadedOnce.current && Date.now() - lastRefreshAt.current < NOTIFY_FOCUS_TTL_MS) {
+      return;
+    }
     const ids = await fetchMyProductNotifyIds();
     setNotifiedIds(new Set(ids));
+    loadedOnce.current = true;
+    lastRefreshAt.current = Date.now();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
+      void refresh(false);
     }, [refresh]),
   );
 
@@ -58,6 +67,7 @@ export function useProductNotifyInterests() {
           return;
         }
         setNotifiedIds((prev) => new Set(prev).add(productId));
+        lastRefreshAt.current = Date.now();
         void registerForOrderPush();
       } finally {
         setBusyId(null);

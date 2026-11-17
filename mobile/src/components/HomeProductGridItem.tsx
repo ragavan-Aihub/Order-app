@@ -1,9 +1,10 @@
 import { memo, useCallback } from 'react';
 import { useRouter } from 'expo-router';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { ProductCard } from '@/components/ProductCard';
 import { colors, radius } from '@/config/theme';
+import { usePendingNav } from '@/hooks/usePendingNav';
 import type { Product } from '@/types/product';
 import { sellingTypeOf } from '@/utils/selling-units';
 
@@ -19,6 +20,7 @@ type HomeProductGridItemProps = {
   onIncrease: (productId: string) => void;
   onNotifyPress?: (productId: string, productName: string) => void;
   favorited?: boolean;
+  favoriteBusy?: boolean;
   onFavoritePress?: (productId: string) => void;
   rail?: boolean;
   onLayout?: (layoutY: number) => void;
@@ -36,20 +38,28 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
   onIncrease,
   onNotifyPress,
   favorited = false,
+  favoriteBusy = false,
   onFavoritePress,
   rail = false,
   onLayout,
 }: HomeProductGridItemProps) {
   const router = useRouter();
+  const { pending, runPendingNav } = usePendingNav();
   const needsDetails = sellingTypeOf(product) !== 'quantity';
+
+  const openProduct = useCallback(() => {
+    runPendingNav(() => {
+      router.push({ pathname: '/product/[id]', params: { id: product.id } });
+    }, product.id);
+  }, [product.id, router, runPendingNav]);
 
   const handleAdd = useCallback(() => {
     if (needsDetails) {
-      router.push({ pathname: '/product/[id]', params: { id: product.id } });
+      openProduct();
       return;
     }
     onAddToCart(product, 1);
-  }, [needsDetails, onAddToCart, product, router]);
+  }, [needsDetails, onAddToCart, openProduct, product]);
 
   const handleIncrease = useCallback(() => {
     onIncrease(product.id);
@@ -83,7 +93,7 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
         product={product}
         quantity={needsDetails ? 0 : quantity}
         compact={rail}
-        onPress={() => router.push({ pathname: '/product/[id]', params: { id: product.id } })}
+        onPress={openProduct}
         onAddToCart={handleAdd}
         onIncrease={handleIncrease}
         onDecrease={handleDecrease}
@@ -91,8 +101,14 @@ export const HomeProductGridItem = memo(function HomeProductGridItem({
         notifyBusy={notifyBusy}
         onNotifyPress={product.available === false && onNotifyPress ? handleNotify : undefined}
         favorited={favorited}
+        favoriteBusy={favoriteBusy}
         onFavoritePress={onFavoritePress ? () => onFavoritePress(product.id) : undefined}
       />
+      {pending ? (
+        <View style={styles.pendingOverlay} pointerEvents="none" accessibilityLabel="Opening product">
+          <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+      ) : null}
     </View>
   );
 });
@@ -122,5 +138,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(234, 88, 12, 0.14)',
     borderWidth: 2,
     borderColor: colors.warning,
+  },
+  pendingOverlay: {
+    ...StyleSheet.absoluteFill,
+    margin: 4,
+    borderRadius: radius.xl,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
   },
 });

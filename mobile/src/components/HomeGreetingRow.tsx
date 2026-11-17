@@ -3,7 +3,10 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '@/config/theme';
-import { getCustomerProfile } from '@/services/orders';
+import {
+  getCustomerProfileCached,
+  peekCustomerProfileCached,
+} from '@/services/customer-profile';
 import { getSignedInUser } from '@/services/supabase';
 
 function greetingPhrase(hour: number) {
@@ -25,7 +28,9 @@ function firstNameOf(name: string | null | undefined) {
 }
 
 export function HomeGreetingRow() {
-  const [firstName, setFirstName] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState<string | null>(() =>
+    firstNameOf(peekCustomerProfileCached()?.name),
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -38,7 +43,7 @@ export function HomeGreetingRow() {
           }
           return;
         }
-        const profile = await getCustomerProfile();
+        const profile = await getCustomerProfileCached();
         if (active) {
           setFirstName(firstNameOf(profile?.name));
         }

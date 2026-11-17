@@ -27,6 +27,7 @@ export function HomeFavouritesRow({
   onDecrease,
   isNotified,
   busyId,
+  favoriteBusyId = null,
   onNotifyPress,
 }: {
   products: Product[];
@@ -38,6 +39,7 @@ export function HomeFavouritesRow({
   onDecrease: (productId: string) => void;
   isNotified: (productId: string) => boolean;
   busyId: string | null;
+  favoriteBusyId?: string | null;
   onNotifyPress: (productId: string, productName: string) => void;
 }) {
   const { width: windowWidth } = useWindowDimensions();
@@ -67,6 +69,7 @@ export function HomeFavouritesRow({
         onDecrease={onDecrease}
         onNotifyPress={onNotifyPress}
         favorited={isFavorite(product.id)}
+        favoriteBusy={favoriteBusyId === product.id}
         onFavoritePress={onFavoritePress}
         rail={rail}
       />

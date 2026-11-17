@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTopInset } from '@/utils/safe-area';
 
 import {
@@ -13,17 +13,27 @@ import {
 } from '@/cart/address-book';
 import { AddressPickerSheet } from '@/components/AddressPickerSheet';
 import { colors, spacing } from '@/config/theme';
+import { usePendingNav } from '@/hooks/usePendingNav';
+import {
+  getCustomerProfileCached,
+  peekCustomerProfileCached,
+} from '@/services/customer-profile';
 import { fetchInboxUnreadCount } from '@/services/inbox';
-import { getCustomerProfile } from '@/services/orders';
 import { getSignedInUser } from '@/services/supabase';
 
 export function HomeHeader() {
   const router = useRouter();
   const topInset = useTopInset();
+  const { pending, pendingKey, runPendingNav } = usePendingNav();
   const [hasAddress, setHasAddress] = useState(false);
   const [placeLabel, setPlaceLabel] = useState('Home');
   const [addressLine, setAddressLine] = useState('Add delivery address');
-  const [initial, setInitial] = useState<string | null>(null);
+  const peeked = peekCustomerProfileCached();
+  const peekedName = peeked?.name?.trim() || '';
+  const peekedGeneric = !peekedName || peekedName.toLowerCase() === 'customer';
+  const [initial, setInitial] = useState<string | null>(
+    peeked && !peekedGeneric ? peekedName.charAt(0).toUpperCase() : null,
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [unread, setUnread] = useState(0);
 
@@ -50,7 +60,7 @@ export function HomeHeader() {
       setUnread(0);
       return;
     }
-    const [profile, count] = await Promise.all([getCustomerProfile(), fetchInboxUnreadCount()]);
+    const [profile, count] = await Promise.all([getCustomerProfileCached(), fetchInboxUnreadCount()]);
     const name = profile?.name?.trim() || '';
     const generic = !name || name.toLowerCase() === 'customer';
     setInitial(generic ? null : name.charAt(0).toUpperCase());
@@ -88,25 +98,47 @@ export function HomeHeader() {
         </View>
       </Pressable>
       <Pressable
-        onPress={() => router.push('/notifications')}
-        style={({ pressed }) => [styles.bell, pressed && styles.pressed]}
+        onPress={() => {
+          if (pending) {
+            return;
+          }
+          runPendingNav(() => router.push('/notifications'), 'notifications');
+        }}
+        disabled={pending}
+        style={({ pressed }) => [styles.bell, pressed && !pending && styles.pressed]}
         accessibilityRole="button"
+        accessibilityState={{ busy: pending && pendingKey === 'notifications' }}
         accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
       >
-        <Ionicons name="notifications-outline" size={22} color={colors.primary} />
-        {unread > 0 ? (
-          <View style={styles.badge}>
-            <Text style={styles.badgeLabel}>{unread > 9 ? '9+' : String(unread)}</Text>
-          </View>
-        ) : null}
+        {pending && pendingKey === 'notifications' ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <>
+            <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+            {unread > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeLabel}>{unread > 9 ? '9+' : String(unread)}</Text>
+              </View>
+            ) : null}
+          </>
+        )}
       </Pressable>
       <Pressable
-        onPress={() => router.push('/account')}
-        style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
+        onPress={() => {
+          if (pending) {
+            return;
+          }
+          runPendingNav(() => router.push('/account'), 'account');
+        }}
+        disabled={pending}
+        style={({ pressed }) => [styles.avatar, pressed && !pending && styles.pressed]}
         accessibilityRole="button"
+        accessibilityState={{ busy: pending && pendingKey === 'account' }}
         accessibilityLabel="Account"
       >
-        {initial ? (
+        {pending && pendingKey === 'account' ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : initial ? (
           <Text style={styles.avatarLabel}>{initial}</Text>
         ) : (
           <Ionicons name="person-outline" size={20} color={colors.primary} />
