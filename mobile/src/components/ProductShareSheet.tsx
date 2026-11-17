@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -21,6 +21,11 @@ import {
   shareProductViaWhatsApp,
 } from '@/services/product-share';
 import { hapticTap } from '@/utils/haptics';
+
+/** Prefer system share — expo-clipboard needs a native rebuild not in current APKs. */
+async function copyShareUrl(url: string) {
+  await Share.share({ message: url });
+}
 
 type Props = {
   visible: boolean;
@@ -107,7 +112,7 @@ export function ProductShareSheet({
 
           <View style={styles.actions}>
             <ShareAction
-              label="Copy Link"
+              label="Share Link"
               color="#2563EB"
               icon="link"
               busy={busy === 'copy'}
@@ -115,12 +120,7 @@ export function ProductShareSheet({
               onPress={() => {
                 hapticTap();
                 void withShareUrl(async (url) => {
-                  await Clipboard.setStringAsync(url);
-                  showAppDialog({
-                    title: 'Link copied',
-                    message: 'Paste it in WhatsApp, SMS, or email.',
-                    icon: 'checkmark-circle',
-                  });
+                  await copyShareUrl(url);
                   onClose();
                 }, 'copy');
               }}
