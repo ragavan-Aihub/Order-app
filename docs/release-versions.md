@@ -7,11 +7,11 @@ How to ship a **bug fix** or a **new feature**. The customer and delivery apps u
 | | Customer app (`mobile/app.json`) | Delivery app (`delivery/app.json`) |
 |--|----------------------------------|-------------------------------------|
 | **Version** (people see this) | `expo.version` — today **1.0.1** | `expo.version` — today **1.1.0** |
-| **Version code** (Play Store only) | `android.versionCode` — today **24** | `android.versionCode` — today **4** |
+| **Version code** (Play Store only) | `android.versionCode` — today **26** | `android.versionCode` — today **6** |
 
 Rules:
 
-- **Bug fix** — add 1 to the last part of the version: `1.0.1` → `1.0.2`. Always add 1 to the version code (`24` → `25`).
+- **Bug fix** — add 1 to the last part of the version: `1.0.1` → `1.0.2`. Always add 1 to the version code (`26` → `27`).
 - **New feature** — add 1 to the middle part and reset the last part: `1.0.1` → `1.1.0`. Always add 1 to the version code.
 - **Big rewrite** — `2.0.0` and add 1 to the version code.
 - Never reuse a version code. Play Store rejects an upload that is not higher than the last one.
@@ -64,9 +64,11 @@ Add a row each time you ship. Copy the “What’s new” line into Play Console
 
 | Date | App | Kind | Version | Version code | What’s new |
 |------|-----|------|---------|--------------|------------|
-| — | Customer | — | 1.0.0 | 23 | Current build in the repo (not yet a Play production release). |
-| — | Delivery | Feature | 1.1.0 | 4 | Delivery invoice PDF (unit price, shop profile, WhatsApp share after delivered) and cream loading screen. Needs a new APK. |
-| — | Admin panel | — | 1.0.0 | — | Website version. Not a Play Store build. |
+| Nov 2026 | Customer | Feature | 1.0.1 | 26 | Product share HTTPS (`EXPO_PUBLIC_SHARE_BASE_URL` → `order-app-eta-eight.vercel.app`), App Links intent filters, share sheet without requiring expo-clipboard native module. Preview APK for testers. |
+| Nov 2026 | Delivery | Feature | 1.1.0 | 6 | Light-green invoice PDF; preview APK for testers. |
+| — | Customer | — | 1.0.0 | 23 | Older build (not Play production). |
+| — | Delivery | Feature | 1.1.0 | 4 | Delivery invoice PDF (unit price, shop profile, WhatsApp share after delivered) and cream loading screen. |
+| — | Admin panel | — | 1.0.0 | — | Website version. Not a Play Store build. Visit: `https://order-app-eta-eight.vercel.app`. |
 
 ## Related
 

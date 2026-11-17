@@ -94,7 +94,7 @@ Last updated: 17 Nov 2026 (quality / regression testing deferred). Operator pend
 ### Delivery app (staff) and UPI QR
 
 - **Status:** Done (code). **Pending:** run UPI + audit migrations on hosted Supabase if not applied; install delivery preview APK when EAS quota allows.
-- **What:** `delivery/` Expo app (1.1.0 / versionCode 4) with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. After mark-delivered, staff can share an invoice PDF (shop profile, unit price) through the phone share sheet. If admin already marked **Delivered**, the app refreshes and offers **record payment only** (no duplicate deliver, no bill prompt). Conflicts with admin updates show an in-app notice instead of a generic error alert. Actions appear in admin **Audit log** with `[Delivery]`. Admin **Profile** stores the logo, phone, email, and address used on that bill.
+- **What:** `delivery/` Expo app (1.1.0 / versionCode **6**) with admin login, To deliver / Delivered today queues, swipe status, payment on deliver, UPI QR upload to `businesses.upi_qr_url`. After mark-delivered, staff can share an invoice PDF (shop profile, unit price, light-green layout) through the phone share sheet. If admin already marked **Delivered**, the app refreshes and offers **record payment only** (no duplicate deliver, no bill prompt). Conflicts with admin updates show an in-app notice instead of a generic error alert. Actions appear in admin **Audit log** with `[Delivery]`. Admin **Profile** stores the logo, phone, email, and address used on that bill.
 - **Docs:** Business Guide §3.11; Technical Guide §7.4 and §11.1.
 
 ### Customer app — Your Orders and Home polish

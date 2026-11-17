@@ -12,8 +12,8 @@ Work is in the repo (selling units, min order, Home polish, in-app inbox, Announ
 
 - [ ] Commit and push to GitHub (`Order-app`)
 - [ ] Confirm **Vercel** admin rebuilds (Announcements menu, inbox send, service role for Expo phone alerts)
-- [ ] New **customer preview/production APK** (repo `android.versionCode` is **24**). Expo Go is not enough for Play or for a store-style smoke test
-- [ ] Delivery APK only if staff will use the delivery app on day one (still APK-only, not Play)
+- [ ] New **customer preview/production APK** (repo `android.versionCode` is **26**). Expo Go is not enough for Play or for a store-style smoke test
+- [ ] Delivery APK only if staff will use the delivery app on day one (still APK-only, not Play; repo `android.versionCode` **6**)
 
 ### 2. Hosted database
 
@@ -21,9 +21,11 @@ Confirm every file in [supabase-migration-checklist.md](supabase-migration-check
 
 - Shop status + home posters (`20261105*`)
 - Google customer profile (`20261106010000`)
+- Google customers without phone + default address / receiver (`20261118010000`, `20261118020000`)
 - Selling units / kg / liter / stock (`20261109*`, `20261111*`, `20261112*`)
 - Min order (`20261112020000`)
 - Customer inbox + service-role grants + keep latest **20** (`20261115140000` … `20261115170000`)
+- Product share web bucket if using share HTML (`20261117100000`)
 
 Inbox grants and keep-20 were applied on the linked project on 15 Nov 2026. Still confirm on the **go-live** project if it is a different one.
 
@@ -107,21 +109,21 @@ notify pgrst, 'reload schema';
 2. Deploy to **Vercel** — step-by-step: [vercel-admin-deploy.md](vercel-admin-deploy.md). Import GitHub repo **`Order-app`**, **Root Directory `admin`**, env vars:
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY` (server-only; order/product push from admin)
-   - `ANDROID_APP_LINK_SHA256` (EAS keystore SHA256 — product share App Links)
-3. Use the **Visit** URL from the Vercel project (Domains tab). Do not assume `order-app.vercel.app` unless that hostname is listed on your project.
-4. Smoke-test: login, place/update order, **push to customer device**, Reports, **Audit log** (after audit migration). Confirm `/.well-known/assetlinks.json` and `/p/{productId}` (phone opens Farm2Flavour).
+   - `ANDROID_APP_LINK_SHA256` (EAS keystore SHA256 — product share App Links; set on Production)
+3. **Visit URL (current):** `https://order-app-eta-eight.vercel.app` (Domains tab). Do not use a hostname that is not listed there.
+4. Smoke-test: login, place/update order, **push to customer device**, Reports, **Audit log** (after audit migration). Confirm https://order-app-eta-eight.vercel.app/.well-known/assetlinks.json shows `com.farm2flavour.app`, and `/p/{productId}` on a phone.
 
 ## D. Preview APKs
 
 **Customer** (`mobile/`):
 
-- `android.versionCode` in repo (currently **25** — bump before each store-style release)
-- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, **`EXPO_PUBLIC_SHARE_BASE_URL`** (admin Visit HTTPS origin). Do not add a microphone permission. Google Cloud needs an **Android** OAuth client (`com.farm2flavour.app` + the EAS keystore SHA-1) as well as the Web client.
+- `android.versionCode` in repo (currently **26** — bump before each store-style release)
+- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, **`EXPO_PUBLIC_SHARE_BASE_URL`**=`https://order-app-eta-eight.vercel.app` (set Nov 2026). Do not add a microphone permission. Google Cloud needs an **Android** OAuth client (`com.farm2flavour.app` + the EAS keystore SHA-1) as well as the Web client.
 - `cd mobile && npx eas-cli build -p android --profile preview`
 
 **Delivery** (`delivery/`):
 
-- `android.versionCode` in repo (currently **4**, app version **1.1.0** — bill PDF and loading screen)
+- `android.versionCode` in repo (currently **6**, app version **1.1.0** — bill PDF and loading screen)
 - EAS project: [farm2flavour-delivery](https://expo.dev/accounts/ragavananthan/projects/farm2flavour-delivery) — set **preview** env vars (`EXPO_PUBLIC_SUPABASE_*`) before first cloud build
 - Admin email/password on device (same as web admin)
 - `cd delivery && npx eas-cli build -p android --profile preview`
