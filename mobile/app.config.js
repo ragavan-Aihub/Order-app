@@ -213,6 +213,14 @@ module.exports = ({ config }) => {
   if (samApiUrl) {
     process.env.EXPO_PUBLIC_SAM_API_URL = samApiUrl;
   }
+  const shareBaseUrl = (
+    process.env.EXPO_PUBLIC_SHARE_BASE_URL ||
+    fileEnv.EXPO_PUBLIC_SHARE_BASE_URL ||
+    ''
+  ).trim();
+  if (shareBaseUrl) {
+    process.env.EXPO_PUBLIC_SHARE_BASE_URL = shareBaseUrl;
+  }
   const android = { ...config.android };
   let plugins = config.plugins ?? [];
   android.permissions = (android.permissions ?? []).filter((permission) => !/RECORD_AUDIO$/.test(permission));
@@ -290,6 +298,7 @@ module.exports = ({ config }) => {
     extra: {
       ...config.extra,
       samApiUrl,
+      shareBaseUrl,
     },
   };
 };

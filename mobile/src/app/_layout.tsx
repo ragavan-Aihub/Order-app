@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -21,6 +21,7 @@ import { configureOrderNotificationHandler } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
 import { consumeAuthUrl, watchAuthDeepLinks } from '@/services/auth-deeplink';
 import { isNetworkFailure } from '@/services/network';
+import { watchProductDeepLinks } from '@/services/product-deeplink';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   if (isNetworkFailure(error)) {
@@ -71,6 +72,7 @@ const errorStyles = StyleSheet.create({
 });
 
 export default function RootLayout() {
+  const router = useRouter();
   useEffect(() => {
     loadAddressBook().catch(() => undefined);
     loadCart().catch(() => undefined);
@@ -78,10 +80,17 @@ export default function RootLayout() {
       configureOrderNotificationHandler();
       void captureNotificationLaunchTarget();
     }
-    return watchAuthDeepLinks((url) => {
+    const stopAuth = watchAuthDeepLinks((url) => {
       void consumeAuthUrl(url);
     });
-  }, []);
+    const stopProduct = watchProductDeepLinks((productId) => {
+      router.push({ pathname: '/product/[id]', params: { id: productId } });
+    });
+    return () => {
+      stopAuth();
+      stopProduct();
+    };
+  }, [router]);
   return (
     <SafeAreaProvider>
       <CartProvider>

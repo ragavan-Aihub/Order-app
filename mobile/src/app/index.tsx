@@ -12,6 +12,10 @@ import {
   takePendingPushLaunch,
 } from '@/notifications/pending-push-deeplink';
 import { hasEnteredShop } from '@/nav/shop-entry';
+import {
+  captureInitialProductDeepLink,
+  takePendingProductDeepLink,
+} from '@/services/product-deeplink';
 import { hasStoredSession } from '@/services/supabase';
 
 function hideSplash() {
@@ -29,6 +33,14 @@ async function decideOpening(): Promise<Opening> {
   if (launch) {
     void markPushLaunchHandled(launch.responseId);
     return { kind: 'redirect', href: routeForPushLaunch(launch) };
+  }
+  await captureInitialProductDeepLink();
+  const sharedProductId = takePendingProductDeepLink();
+  if (sharedProductId) {
+    return {
+      kind: 'redirect',
+      href: { pathname: '/product/[id]', params: { id: sharedProductId } },
+    };
   }
   if ((await hasEnteredShop()) || (await hasStoredSession())) {
     return { kind: 'home' };
