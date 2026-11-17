@@ -24,7 +24,7 @@ function ItemNameCell({ name, item }: { name: string; item?: OrderItem }) {
   return (
     <div>
       <p className="font-medium text-stone-900">{name}</p>
-      {pack ? <p className="text-xs font-normal text-stone-500">{pack}</p> : null}
+      {pack ? <p className="text-sm font-normal text-stone-500">{pack}</p> : null}
     </div>
   );
 }
@@ -130,7 +130,7 @@ function DiffItemsTable({
   return (
     <>
       <div
-        className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600"
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-600"
         role="note"
         aria-label="Change legend"
       >
@@ -155,14 +155,14 @@ function DiffItemsTable({
       </div>
 
       <TableScroll>
-        <table className="w-full min-w-[32rem] text-left text-sm">
-          <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+        <table className="w-full min-w-[32rem] text-left text-base">
+          <thead className="bg-stone-50 text-sm uppercase tracking-wide text-stone-500">
             <tr>
-              <th className="w-28 px-3 py-2 font-medium">Change</th>
-              <th className="px-3 py-2 font-medium">Item</th>
-              <th className="px-3 py-2 font-medium">Ordered qty</th>
-              <th className="px-3 py-2 font-medium">Invoiced qty</th>
-              <th className="px-3 py-2 font-medium">Amount</th>
+              <th className="w-28 px-3 py-2.5 font-medium">Change</th>
+              <th className="px-3 py-2.5 font-medium">Item</th>
+              <th className="px-3 py-2.5 font-medium">Ordered qty</th>
+              <th className="px-3 py-2.5 font-medium">Invoiced qty</th>
+              <th className="px-3 py-2.5 font-medium">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -177,30 +177,30 @@ function DiffItemsTable({
                   key={row.rowKey}
                   className={`border-t border-stone-200 ${rowTone(row.kind)} ${removed ? removedRowClass : ''}`}
                 >
-                  <td className={`px-3 py-2 ${cellClass}`}>
+                  <td className={`px-3 py-2.5 ${cellClass}`}>
                     {row.kind === 'unchanged' ? (
                       <span className="text-stone-400">—</span>
                     ) : (
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${statusBadgeClass(row.kind)}`}
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide ring-1 ring-inset ${statusBadgeClass(row.kind)}`}
                       >
                         {STATUS_LABEL[row.kind]}
                       </span>
                     )}
                   </td>
-                  <td className={`px-3 py-2 ${cellClass}`}>
+                  <td className={`px-3 py-2.5 ${cellClass}`}>
                     <ItemNameCell name={row.productName} item={live} />
                   </td>
-                  <td className={`px-3 py-2 tabular-nums ${cellClass}`}>
+                  <td className={`px-3 py-2.5 tabular-nums ${cellClass}`}>
                     {qtyWithUnit(
                       row.kind === 'added' ? null : (row.placedQuantity ?? row.displayQty),
                       live,
                     )}
                   </td>
-                  <td className={`px-3 py-2 tabular-nums font-semibold ${cellClass}`}>
+                  <td className={`px-3 py-2.5 tabular-nums font-semibold ${cellClass}`}>
                     {row.kind === 'removed' ? '—' : qtyWithUnit(row.displayQty, live)}
                   </td>
-                  <td className={`px-3 py-2 tabular-nums font-medium ${cellClass}`}>
+                  <td className={`px-3 py-2.5 tabular-nums font-medium ${cellClass}`}>
                     {formatPrice(row.displaySubtotal)}
                   </td>
                 </tr>
@@ -209,12 +209,12 @@ function DiffItemsTable({
           </tbody>
         </table>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-3">
-          <span className="font-semibold text-stone-900">Total</span>
+          <span className="text-base font-semibold text-stone-900">Total</span>
           <div className="text-right">
             {typeof compareTotal === 'number' && compareTotal !== total ? (
-              <p className="text-xs text-stone-500 line-through">{formatPrice(compareTotal)}</p>
+              <p className="text-sm text-stone-500 line-through">{formatPrice(compareTotal)}</p>
             ) : null}
-            <p className="text-base font-semibold tabular-nums">{formatPrice(total)}</p>
+            <p className="text-lg font-semibold tabular-nums">{formatPrice(total)}</p>
           </div>
         </div>
       </TableScroll>
@@ -301,13 +301,13 @@ export function AdminOrderItemsTable({
 
       {showPlain ? (
         <TableScroll>
-          <table className="w-full min-w-[32rem] text-left text-sm">
-            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+          <table className="w-full min-w-[32rem] text-left text-base">
+            <thead className="bg-stone-50 text-sm uppercase tracking-wide text-stone-500">
               <tr>
-                <th className="px-3 py-2 font-medium">Item</th>
-                <th className="px-3 py-2 font-medium">Ordered qty</th>
-                <th className="px-3 py-2 font-medium">Invoiced qty</th>
-                <th className="px-3 py-2 font-medium">Amount</th>
+                <th className="px-3 py-2.5 font-medium">Item</th>
+                <th className="px-3 py-2.5 font-medium">Ordered qty</th>
+                <th className="px-3 py-2.5 font-medium">Invoiced qty</th>
+                <th className="px-3 py-2.5 font-medium">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -320,20 +320,20 @@ export function AdminOrderItemsTable({
                 const orderedQty = ordered?.quantity ?? item.quantity;
                 return (
                   <tr key={item.id} className="border-t border-stone-200">
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5">
                       <ItemNameCell name={item.product_name} item={item} />
                     </td>
-                    <td className="px-3 py-2 tabular-nums">{qtyWithUnit(orderedQty, item)}</td>
-                    <td className="px-3 py-2 tabular-nums font-semibold">{qtyWithUnit(item.quantity, item)}</td>
-                    <td className="px-3 py-2 tabular-nums">{formatPrice(item.subtotal)}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{qtyWithUnit(orderedQty, item)}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-semibold">{qtyWithUnit(item.quantity, item)}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{formatPrice(item.subtotal)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 px-3 py-3">
-            <span className="font-semibold text-stone-900">Total</span>
-            <p className="text-base font-semibold tabular-nums">{formatPrice(total)}</p>
+            <span className="text-base font-semibold text-stone-900">Total</span>
+            <p className="text-lg font-semibold tabular-nums">{formatPrice(total)}</p>
           </div>
         </TableScroll>
       ) : null}

@@ -19,8 +19,16 @@ Add in **Settings → Environment Variables** before or during first deploy:
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://wskzdjpjmxhulgoevaim.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project **Orderhub** → Settings → API → anon public |
 | `SUPABASE_SERVICE_ROLE_KEY` | Same page → service_role (server-only; enables order/product push) |
+| `ANDROID_APP_LINK_SHA256` | EAS Android keystore **SHA256 Fingerprint** (colon-separated). Enables WhatsApp/`https` share links to open the APK directly. Get it: `cd mobile && npx eas-cli credentials -p android` → preview/production → SHA256 Fingerprint. |
 
 Copy from local `admin/.env` if already working locally. Never commit `.env`.
+
+## Product share links (customer APK)
+
+1. After deploy, copy the **Visit** HTTPS origin (no trailing slash), e.g. `https://your-project.vercel.app`.
+2. Set the same value as EAS env **`EXPO_PUBLIC_SHARE_BASE_URL`** for **preview** and **production** (Expo dashboard or `eas env:create`).
+3. Set Vercel **`ANDROID_APP_LINK_SHA256`** as above, then confirm `https://YOUR-DOMAIN/.well-known/assetlinks.json` returns JSON with `com.farm2flavour.app`.
+4. Rebuild the customer APK so App Links (`/p/...`) are baked in. Until verification succeeds, phones still get the green “Opening Farm2Flavour…” jump page (same as local).
 
 ## 3. Deploy
 

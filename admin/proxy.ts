@@ -8,7 +8,12 @@ function isPublicPath(pathname: string) {
     return true;
   }
   // Shared product open links (Play Store / Coming soon / app deep link).
-  return pathname === '/p' || pathname.startsWith('/p/');
+  // Digital Asset Links for Android App Links.
+  return (
+    pathname === '/p' ||
+    pathname.startsWith('/p/') ||
+    pathname.startsWith('/.well-known/')
+  );
 }
 
 function isSupabaseConfigured() {

@@ -107,15 +107,16 @@ notify pgrst, 'reload schema';
 2. Deploy to **Vercel** — step-by-step: [vercel-admin-deploy.md](vercel-admin-deploy.md). Import GitHub repo **`Order-app`**, **Root Directory `admin`**, env vars:
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY` (server-only; order/product push from admin)
+   - `ANDROID_APP_LINK_SHA256` (EAS keystore SHA256 — product share App Links)
 3. Use the **Visit** URL from the Vercel project (Domains tab). Do not assume `order-app.vercel.app` unless that hostname is listed on your project.
-4. Smoke-test: login, place/update order, **push to customer device**, Reports, **Audit log** (after audit migration).
+4. Smoke-test: login, place/update order, **push to customer device**, Reports, **Audit log** (after audit migration). Confirm `/.well-known/assetlinks.json` and `/p/{productId}` (phone opens Farm2Flavour).
 
 ## D. Preview APKs
 
 **Customer** (`mobile/`):
 
-- `android.versionCode` in repo (currently **23** — bump before each store-style release)
-- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Do not add a microphone permission. Google Cloud needs an **Android** OAuth client (`com.farm2flavour.app` + the EAS keystore SHA-1) as well as the Web client.
+- `android.versionCode` in repo (currently **25** — bump before each store-style release)
+- EAS **preview** env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_BUSINESS_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, **`EXPO_PUBLIC_SHARE_BASE_URL`** (admin Visit HTTPS origin). Do not add a microphone permission. Google Cloud needs an **Android** OAuth client (`com.farm2flavour.app` + the EAS keystore SHA-1) as well as the Web client.
 - `cd mobile && npx eas-cli build -p android --profile preview`
 
 **Delivery** (`delivery/`):

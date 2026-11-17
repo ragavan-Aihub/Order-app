@@ -4,6 +4,7 @@ import { ChevronDown, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { AdminOrderItemsTable } from '@/components/AdminOrderItemsTable';
 import { AdminQtyStepper } from '@/components/AdminQtyStepper';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -141,6 +142,7 @@ export function AdminOrderModifyPanel({
   invoicePrepared?: boolean;
 }) {
   const router = useRouter();
+  const { complete, refreshing } = useActionComplete();
   const canInvoice = status === 'confirmed' || status === 'out_for_delivery';
   const invoiceActionLabel = invoicePrepared || adminModifiedFromPlaced ? 'Update invoice' : 'Prepare invoice';
   const baseline = useMemo(() => linesFromOrderItems(originalItems), [originalItems]);
@@ -154,6 +156,7 @@ export function AdminOrderModifyPanel({
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(itemsRevision);
   const [variantRowId, setVariantRowId] = useState<string | null>(null);
+  const working = busy || refreshing;
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const orderItemByProductId = useMemo(() => {
@@ -408,8 +411,8 @@ export function AdminOrderModifyPanel({
           { reason, expectedRevision: revision, relaxedValidation: relaxProductValidation },
         )
       : await markAdminInvoicePrepared(orderId, revision);
-    setBusy(false);
     if (result.error) {
+      setBusy(false);
       setError(result.error);
       if (result.conflict) {
         setConfirmOpen(false);
@@ -418,19 +421,24 @@ export function AdminOrderModifyPanel({
       }
       return;
     }
-    setConfirmOpen(false);
     setReason('');
     setRevision((value) => value + 1);
     setEditing(false);
-    router.refresh();
+    setConfirmOpen(false);
+    setBusy(false);
+    complete(
+      hasChanges
+        ? `Invoice saved · ${formatPrice(previewTotal)}`
+        : 'Invoice prepared — ready for out for delivery',
+    );
   }
 
   async function applyRevert() {
     setBusy(true);
     setError(null);
     const result = await revertAdminOrderToPlaced(orderId, revision);
-    setBusy(false);
     if (result.error) {
+      setBusy(false);
       setError(result.error);
       if (result.conflict) {
         setRevertOpen(false);
@@ -440,32 +448,30 @@ export function AdminOrderModifyPanel({
     }
     setRevertOpen(false);
     setRevision((value) => value + 1);
-    router.refresh();
+    setBusy(false);
+    complete('Invoice reset to the original order');
   }
 
   const panelClass = adminModifiedFromPlaced
-    ? 'rounded-xl border border-amber-300 bg-amber-50/40 p-4 ring-1 ring-amber-100'
+    ? 'rounded-xl border border-amber-300 bg-amber-50/40 p-4 shadow-sm ring-1 ring-amber-100'
     : customerModifiedAfterConfirm
-      ? 'rounded-xl border border-sky-300 bg-sky-50/40 p-4 ring-1 ring-sky-100'
-      : 'rounded-xl border border-stone-200 bg-white p-4';
+      ? 'rounded-xl border border-sky-300 bg-sky-50/40 p-4 shadow-sm ring-1 ring-sky-100'
+      : 'rounded-xl border border-stone-200 bg-white p-4 shadow-sm';
 
   if (!editing || !canInvoice) {
     return (
       <div className={panelClass}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-stone-900">Invoice</h2>
-            <p className="mt-0.5 text-sm text-stone-600">
-              Ordered lines stay on record. Invoice qty is what you bill and deliver.
-            </p>
+            <h2 className="text-lg font-semibold text-stone-900">Invoice</h2>
             {adminModifiedFromPlaced ? (
-              <p className="mt-0.5 text-sm text-amber-900">
+              <p className="mt-1 text-base text-amber-900">
                 Invoice differs from the original order
                 {typeof placedTotal === 'number' ? ` · Ordered total ${formatPrice(placedTotal)}` : ''}
               </p>
             ) : null}
             {!adminModifiedFromPlaced && customerModifiedAfterConfirm ? (
-              <p className="mt-0.5 text-sm text-sky-900">
+              <p className="mt-1 text-base text-sky-900">
                 Customer changed this order after you confirmed it
                 {typeof confirmBaselineTotal === 'number'
                   ? ` · At confirm ${formatPrice(confirmBaselineTotal)}`
@@ -473,16 +479,16 @@ export function AdminOrderModifyPanel({
               </p>
             ) : null}
             {adminModifiedFromPlaced && customerModifiedAfterConfirm ? (
-              <p className="mt-0.5 text-sm text-sky-900">Customer also changed lines after confirm — see below.</p>
+              <p className="mt-1 text-base text-sky-900">Customer also changed lines after confirm — see below.</p>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {canInvoice && canRevertToPlaced ? (
               <button
                 type="button"
-                disabled={busy}
+                disabled={working}
                 onClick={() => setRevertOpen(true)}
-                className="min-h-10 rounded-lg border border-amber-400 bg-white px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50"
+                className="min-h-11 rounded-lg border border-amber-400 bg-white px-4 text-base font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50"
               >
                 Reset to original order
               </button>
@@ -491,12 +497,12 @@ export function AdminOrderModifyPanel({
               <button
                 type="button"
                 onClick={startEditing}
-                className="min-h-10 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
+                className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
               >
                 {invoiceActionLabel}
               </button>
             ) : status === 'new' ? (
-              <p className="text-sm font-medium text-amber-900">Confirm the order before preparing the invoice.</p>
+              <p className="text-base font-medium text-amber-900">Confirm the order before preparing the invoice.</p>
             ) : null}
           </div>
         </div>
@@ -522,9 +528,9 @@ export function AdminOrderModifyPanel({
             title="Reset to original order?"
             body="Restores invoice lines to the original order (including any customer edits from before the shop invoice). The original order stays on record."
             confirmLabel="Reset to original order"
-            busy={busy}
+            busy={working}
             onCancel={() => {
-              if (!busy) {
+              if (!working) {
                 setRevertOpen(false);
               }
             }}
@@ -549,33 +555,34 @@ export function AdminOrderModifyPanel({
   }
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-white p-4 ring-1 ring-emerald-100">
+    <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm ring-1 ring-emerald-100">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-stone-900">{invoiceActionLabel}</h2>
-          <p className="mt-0.5 text-sm text-stone-600">
-            Change invoice qty, add or remove lines. Original order stays on record. Invoice total{' '}
-            {formatPrice(originalTotal)} · Preview {formatPrice(previewTotal)}
+          <h2 className="text-lg font-semibold text-stone-900">{invoiceActionLabel}</h2>
+          <p className="mt-1 text-base text-stone-600">
+            Invoice total {formatPrice(originalTotal)} · Preview {formatPrice(previewTotal)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={busy}
+            disabled={working}
             onClick={cancelEditing}
-            className="min-h-10 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+            className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
             disabled={
-              (!hasChanges && invoicePrepared) || resolved.some((line) => !line.available) || busy
+              (!hasChanges && invoicePrepared) || resolved.some((line) => !line.available) || working
             }
             onClick={() => setConfirmOpen(true)}
-            className="min-h-10 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            aria-busy={working}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            Review invoice
+            {working ? <Spinner size={18} /> : null}
+            {working ? 'Saving…' : 'Save invoice'}
           </button>
         </div>
       </div>
@@ -586,7 +593,7 @@ export function AdminOrderModifyPanel({
         </p>
       ) : null}
 
-      <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem] gap-x-2 px-3 text-xs font-medium uppercase tracking-wide text-stone-500 sm:grid">
+      <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem] gap-x-2 px-3 text-sm font-medium uppercase tracking-wide text-stone-500 sm:grid">
         <span>Item</span>
         <span className="text-center">Ordered qty</span>
         <span className="text-center">Invoiced qty</span>
@@ -819,10 +826,10 @@ export function AdminOrderModifyPanel({
               : 'Quantities match the order. Saving marks this invoice as prepared so the order can go out for delivery.'
           }
           confirmLabel="Save invoice"
-          busy={busy}
+          busy={working}
           confirmDisabled={resolved.length === 0 || resolved.some((line) => !line.available)}
           onCancel={() => {
-            if (!busy) {
+            if (!working) {
               setConfirmOpen(false);
             }
           }}

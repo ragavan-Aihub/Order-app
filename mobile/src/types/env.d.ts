@@ -3,6 +3,7 @@ declare namespace NodeJS {
     EXPO_PUBLIC_SUPABASE_URL?: string;
     EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
     EXPO_PUBLIC_BUSINESS_ID?: string;
+    EXPO_PUBLIC_SHARE_BASE_URL?: string;
   }
 }
 

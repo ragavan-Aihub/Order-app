@@ -57,7 +57,7 @@ export function StepTrack({
               ) : null}
             </span>
             <span
-              className={`mt-1.5 px-0.5 leading-tight ${size === 'sm' ? 'text-[11px]' : 'text-xs'} ${
+              className={`mt-1.5 px-0.5 text-xs leading-tight ${
                 active
                   ? 'font-semibold text-emerald-800'
                   : done
@@ -69,7 +69,13 @@ export function StepTrack({
               {active ? <span className="sr-only"> (current)</span> : null}
             </span>
             {time ? (
-              <span className="mt-0.5 px-0.5 text-[11px] leading-tight text-stone-500 tabular-nums">{time}</span>
+              <span
+                className={`mt-0.5 px-0.5 leading-tight text-stone-500 tabular-nums ${
+                  size === 'sm' ? 'text-xs' : 'text-[11px]'
+                }`}
+              >
+                {time}
+              </span>
             ) : null}
           </li>
         );

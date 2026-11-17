@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminOrderModifyPanel } from '@/components/AdminOrderModifyPanel';
-import { OrderPaymentForm } from '@/components/OrderPaymentForm';
 import { OrderWorkflow } from '@/components/OrderWorkflow';
 import { StatusBadge } from '@/components/OrderBadges';
 import { getCustomerById } from '@/services/customers';
@@ -32,104 +31,78 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
   const showCommunityType = await isCommunitiesEnabled();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <Link
-          href="/orders"
-          className="inline-flex min-h-11 items-center text-sm font-medium text-emerald-800"
-        >
+        <Link href="/orders" className="inline-flex items-center py-1 text-base font-medium text-emerald-800">
           ← Orders
         </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-bold sm:text-2xl">Order {formatOrderNumber(order.order_number)}</h1>
           <StatusBadge status={order.status} size="lg" />
           {order.modification_summary?.modifiedFromPlaced ? (
-            <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-950">
+            <span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-bold uppercase tracking-wide text-amber-950">
               Invoice updated
             </span>
           ) : null}
           {order.modification_summary?.customerModifiedAfterConfirm ? (
-            <span className="rounded-full bg-sky-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-sky-950">
+            <span className="rounded-full bg-sky-200 px-3 py-1 text-sm font-bold uppercase tracking-wide text-sky-950">
               Customer modified
             </span>
           ) : null}
           {order.latest_delivery_attempt?.outcome === 'not_delivered' && order.status !== 'cancelled' ? (
-            <span className="rounded-full bg-orange-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-950">
+            <span className="rounded-full bg-orange-200 px-3 py-1 text-sm font-bold uppercase tracking-wide text-orange-950">
               Not delivered
             </span>
           ) : null}
         </div>
-        <p className="mt-1 text-sm font-medium text-stone-800">
-          {order.customer_name} · {order.order_items.length}{' '}
-          {order.order_items.length === 1 ? 'item' : 'items'} · {formatPrice(order.total_amount)}
+        <p className="mt-1 text-base text-stone-700">
+          <span className="font-medium text-stone-900">{order.customer_name}</span>
+          {' · '}
+          {order.order_items.length} {order.order_items.length === 1 ? 'item' : 'items'}
+          {' · '}
+          {formatPrice(order.total_amount)}
+          {' · '}
+          Placed {formatDateTime(order.created_at)}
+          {' · '}
+          Channel {orderChannelLabel(order.channel)}
+          {showCommunityType ? (
+            <>
+              {' · '}
+              {deliveryTypeLabel(order)}
+              {order.community_name ? ` · ${order.community_name}` : ''}
+            </>
+          ) : null}
         </p>
         {order.latest_delivery_attempt?.outcome === 'not_delivered' ? (
-          <p className="mt-1 text-sm font-medium text-orange-950">
+          <p className="mt-1 text-base font-medium text-orange-950">
             Last delivery attempt: {order.latest_delivery_attempt.reason_text}
             {order.latest_delivery_attempt.next_action === 'reschedule' ? ' · Try again' : ''}
             {order.latest_delivery_attempt.next_action === 'cancel' ? ' · Cancelled' : ''}
           </p>
         ) : null}
-        <p className="mt-0.5 text-sm text-stone-600">
-          Placed {formatDateTime(order.created_at)} · Channel {orderChannelLabel(order.channel)}
-          {showCommunityType ? (
-            <>
-              {' '}
-              · {deliveryTypeLabel(order)}
-              {order.community_name ? ` · ${order.community_name}` : ''}
-            </>
-          ) : null}
-        </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 max-lg:order-1">
-          <OrderWorkflow
-            orderId={order.id}
-            orderNumber={`#${formatOrderNumber(order.order_number)}`}
-            status={order.status}
-            cancelReason={order.cancel_reason}
-            paymentMethod={order.payment_method ?? 'pending'}
-            allowCorrection
-            statusEvents={order.status_events}
-            placedAt={order.created_at}
-            invoicePrepared={Boolean(order.invoice_prepared_at)}
-          />
-        </div>
-        <div className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 max-lg:order-2">
-          <OrderPaymentForm
-            orderId={order.id}
-            orderNumber={`#${formatOrderNumber(order.order_number)}`}
-            amount={order.total_amount}
-            status={order.status}
-            paymentMethod={order.payment_method ?? 'pending'}
-            refundStatus={order.refund_status ?? null}
-          />
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-stone-200 bg-white p-4">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div>
-            <h2 className="mb-2 text-base font-semibold">Customer</h2>
-            <p className="font-medium">{order.customer_name}</p>
-            <p className="text-sm text-stone-600">{order.mobile}</p>
-            {customer ? (
-              <p className="mt-1 text-sm text-stone-500">Source {customerSourceLabel(customer.source)}</p>
-            ) : null}
-            {order.customer_id ? (
-              <Link href={`/customers/${order.customer_id}`} className="mt-2 inline-block text-sm font-medium text-emerald-800">
-                Customer history
-              </Link>
-            ) : null}
-          </div>
-          <div>
-            <h2 className="mb-2 text-base font-semibold">Delivery</h2>
-            <p className="whitespace-pre-wrap text-sm text-stone-800">{delivery.address}</p>
-            <p className="mt-1 text-sm text-stone-600">Pincode {order.pincode}</p>
-            {delivery.notes ? <p className="mt-2 text-sm text-stone-600">Notes: {delivery.notes}</p> : null}
-          </div>
-        </div>
+      <div className="rounded-xl border border-stone-200 bg-white p-3">
+        <OrderWorkflow
+          orderId={order.id}
+          orderNumber={`#${formatOrderNumber(order.order_number)}`}
+          status={order.status}
+          cancelReason={order.cancel_reason}
+          paymentMethod={order.payment_method ?? 'pending'}
+          allowCorrection
+          statusEvents={order.status_events}
+          placedAt={order.created_at}
+          invoicePrepared={Boolean(order.invoice_prepared_at)}
+          amount={order.total_amount}
+          refundStatus={order.refund_status ?? null}
+          customerName={order.customer_name}
+          mobile={order.mobile}
+          customerId={order.customer_id}
+          customerSourceLabel={customer ? customerSourceLabel(customer.source) : null}
+          deliveryAddress={delivery.address}
+          pincode={order.pincode}
+          deliveryNotes={delivery.notes}
+        />
       </div>
 
       <AdminOrderModifyPanel

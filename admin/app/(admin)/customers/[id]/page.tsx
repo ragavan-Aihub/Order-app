@@ -24,8 +24,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           ← All customers
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{customer.name || 'Customer'}</h1>
-        <p className="text-stone-600">
-          {customer.mobile || 'No mobile'} · {customerSourceLabel(customer.source)}
+        <p className="text-sm text-stone-500">{customer.email || '—'}</p>
+        <p className="mt-1 text-stone-600">
+          {customer.addresses.find((item) => item.is_default)?.mobile ||
+            customer.addresses[0]?.mobile ||
+            customer.mobile ||
+            'No phone'}{' '}
+          · {customerSourceLabel(customer.source)}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
@@ -48,7 +53,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         customerId={customer.id}
         addresses={customer.addresses}
         receiverName={customer.name ?? ''}
-        receiverPhone={customer.mobile ?? ''}
+        receiverPhone={
+          customer.addresses.find((item) => item.is_default)?.mobile ||
+          customer.addresses[0]?.mobile ||
+          customer.mobile ||
+          ''
+        }
       />
 
       {customer.orders.length > 0 ? (

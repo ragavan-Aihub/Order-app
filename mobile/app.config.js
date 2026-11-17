@@ -203,6 +203,54 @@ function loadNotificationIcon(fileEnv) {
   return notificationIconCache;
 }
 
+function httpsShareOrigin(fileEnv) {
+  const raw = (
+    process.env.EXPO_PUBLIC_SHARE_BASE_URL ||
+    fileEnv.EXPO_PUBLIC_SHARE_BASE_URL ||
+    ''
+  ).trim();
+  if (!raw) {
+    return '';
+  }
+  try {
+    const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    if (parsed.protocol !== 'https:') {
+      return '';
+    }
+    return parsed.origin;
+  } catch {
+    return '';
+  }
+}
+
+function productShareIntentFilters(shareOrigin) {
+  if (!shareOrigin) {
+    return [];
+  }
+  try {
+    const host = new URL(shareOrigin).hostname;
+    if (!host) {
+      return [];
+    }
+    return [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        category: ['BROWSABLE', 'DEFAULT'],
+        data: [
+          {
+            scheme: 'https',
+            host,
+            pathPrefix: '/p',
+          },
+        ],
+      },
+    ];
+  } catch {
+    return [];
+  }
+}
+
 module.exports = ({ config }) => {
   const fileEnv = readDotEnv();
   const samApiUrl = (
@@ -213,11 +261,7 @@ module.exports = ({ config }) => {
   if (samApiUrl) {
     process.env.EXPO_PUBLIC_SAM_API_URL = samApiUrl;
   }
-  const shareBaseUrl = (
-    process.env.EXPO_PUBLIC_SHARE_BASE_URL ||
-    fileEnv.EXPO_PUBLIC_SHARE_BASE_URL ||
-    ''
-  ).trim();
+  const shareBaseUrl = httpsShareOrigin(fileEnv);
   if (shareBaseUrl) {
     process.env.EXPO_PUBLIC_SHARE_BASE_URL = shareBaseUrl;
   }
@@ -287,6 +331,8 @@ module.exports = ({ config }) => {
       ];
     });
   }
+
+  android.intentFilters = productShareIntentFilters(shareBaseUrl);
 
   return {
     ...config,

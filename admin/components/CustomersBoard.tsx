@@ -16,7 +16,14 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
       return customers;
     }
     return customers.filter((customer) =>
-      [customer.name ?? '', customer.mobile ?? '', customer.defaultAddress ?? '', customer.source ?? '']
+      [
+        customer.name ?? '',
+        customer.mobile ?? '',
+        customer.phone ?? '',
+        customer.email ?? '',
+        customer.defaultAddress ?? '',
+        customer.source ?? '',
+      ]
         .join(' ')
         .toLowerCase()
         .includes(needle),
@@ -28,7 +35,7 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
       <input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search name or phone"
+        placeholder="Search name, phone, or email"
         className="min-h-11 w-full max-w-md rounded-lg border border-stone-300 bg-white px-3 py-2"
       />
       {filtered.length === 0 ? (
@@ -43,12 +50,24 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                 className="block rounded-xl border border-stone-200 bg-white p-4"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium">{customer.name || 'No name'}</p>
+                  <div>
+                    <p className="font-medium">{customer.name || 'No name'}</p>
+                    <p className="text-sm text-stone-500">{customer.email || '—'}</p>
+                  </div>
                   <p className="text-sm font-medium text-emerald-800">View</p>
                 </div>
-                <p className="text-sm text-stone-500">{customer.mobile || '—'}</p>
+                <p className="mt-2 text-sm text-stone-700">Phone: {customer.phone || '—'}</p>
                 <p className="mt-1 text-sm text-emerald-800">{customerSourceLabel(customer.source)}</p>
-                <p className="mt-2 text-sm text-stone-700">{customer.defaultAddress || 'No saved address'}</p>
+                <p className="mt-2 text-sm text-stone-700">
+                  {customer.defaultAddress ? (
+                    <>
+                      <span className="font-medium text-emerald-800">Default · </span>
+                      {customer.defaultAddress}
+                    </>
+                  ) : (
+                    'No saved address'
+                  )}
+                </p>
                 <p className="mt-1 text-sm text-stone-500">
                   {customer.addressCount}/3 addresses · {customer.orderCount} orders
                   {customer.lastOrderAt ? ` · ${formatDateTime(customer.lastOrderAt)}` : ''}
@@ -58,10 +77,11 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
           </div>
           <div className="hidden md:block">
             <TableScroll>
-              <table className="w-full min-w-[48rem] text-left text-base">
+              <table className="w-full min-w-[52rem] text-left text-base">
                 <thead className="bg-stone-50 text-stone-600">
                   <tr>
                     <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium">Phone</th>
                     <th className="px-4 py-3 font-medium">Source</th>
                     <th className="px-4 py-3 font-medium">Default address</th>
                     <th className="px-4 py-3 font-medium">Saved</th>
@@ -75,11 +95,21 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                     <tr key={customer.id} className="border-t border-stone-200 align-top">
                       <td className="px-4 py-3">
                         <p className="font-medium">{customer.name || 'No name'}</p>
-                        <p className="text-sm text-stone-500">{customer.mobile || '—'}</p>
+                        <p className="text-sm text-stone-500">{customer.email || '—'}</p>
                       </td>
+                      <td className="px-4 py-3 text-stone-700">{customer.phone || '—'}</td>
                       <td className="px-4 py-3 text-stone-700">{customerSourceLabel(customer.source)}</td>
                       <td className="max-w-xs px-4 py-3 text-stone-700">
-                        {customer.defaultAddress || 'No saved address'}
+                        {customer.defaultAddress ? (
+                          <>
+                            <span className="mb-0.5 block text-xs font-medium uppercase tracking-wide text-emerald-800">
+                              Default
+                            </span>
+                            {customer.defaultAddress}
+                          </>
+                        ) : (
+                          'No saved address'
+                        )}
                       </td>
                       <td className="px-4 py-3">{customer.addressCount}/3</td>
                       <td className="px-4 py-3">{customer.orderCount}</td>

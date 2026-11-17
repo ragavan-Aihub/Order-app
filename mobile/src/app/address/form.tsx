@@ -116,29 +116,37 @@ export default function AddressFormScreen() {
       };
     }
 
-    loadAddressBook().then((list) => {
-      if (list.length >= MAX_SAVED_ADDRESSES) {
-        if (returnBack && router.canGoBack()) {
-          router.back();
-        } else {
-          router.replace(nextPath);
-        }
-      }
-    });
-
-    getCustomerProfile()
-      .then((profile) => {
-        if (!profile) {
+    loadAddressBook()
+      .then(async (list) => {
+        if (list.length >= MAX_SAVED_ADDRESSES) {
+          if (returnBack && router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace(nextPath);
+          }
           return;
         }
-        const profileName = profile.name?.trim() || '';
-        const generic = !profileName || profileName.toLowerCase() === 'customer';
-        if (!generic) {
-          setName((current) => current || profileName);
-        }
-        if (profile.mobile) {
-          const digits = profile.mobile.replace(/\D/g, '').slice(-10);
-          setMobile((current) => current || digits);
+
+        // Prefill receiver name only for the first address. Extra addresses start blank.
+        const isFirstAddress = list.length === 0;
+        try {
+          const profile = await getCustomerProfile();
+          if (!profile) {
+            return;
+          }
+          if (isFirstAddress) {
+            const profileName = profile.name?.trim() || '';
+            const generic = !profileName || profileName.toLowerCase() === 'customer';
+            if (!generic) {
+              setName((current) => current || profileName);
+            }
+          }
+          if (profile.mobile) {
+            const digits = profile.mobile.replace(/\D/g, '').slice(-10);
+            setMobile((current) => current || digits);
+          }
+        } catch {
+          // Profile is optional for the blank form.
         }
       })
       .catch(() => undefined);

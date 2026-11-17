@@ -11,6 +11,12 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
       params.has('access_token') ||
       (params.has('code') && (params.has('type') || withQuery.includes('callback')));
     if (!looksLikeAuth) {
+      const productMatch = withQuery.match(
+        /(?:p|product)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
+      );
+      if (productMatch) {
+        return `/product/${productMatch[1]}`;
+      }
       return withQuery;
     }
     return query ? `/auth/callback?${query}` : '/auth/callback';

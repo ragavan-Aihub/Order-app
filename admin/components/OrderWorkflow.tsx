@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Check, CheckCircle2, ExternalLink, Undo2, XCircle } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, ExternalLink, RefreshCw, Undo2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -10,20 +10,24 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
 import { OrderStepper } from '@/components/OrderStepper';
 import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
-import { updateOrderPayment, updateOrderStatus } from '@/services/order-actions';
+import { updateOrderPayment, updateOrderRefund, updateOrderStatus } from '@/services/order-actions';
 import {
   CANCEL_REASON_PRESETS,
   ORDER_STATUSES,
+  displayPaymentStatus,
   isPaymentCollected,
   orderStatusLabel,
   paymentModeLabel,
   type OrderStatus,
   type OrderStatusEvent,
+  type PaymentMethod,
+  type RefundStatus,
 } from '@/types/order';
 import { canCancel, nextAction, normalizeStatus } from '@/types/order-workflow';
+import { formatPrice } from '@/utils/format';
 
 type Variant = 'panel' | 'card' | 'row';
-type Dialog = 'advance' | 'cancel' | 'correct' | null;
+type Dialog = 'advance' | 'cancel' | 'correct' | 'collect' | 'change' | 'refund' | null;
 
 function buildCancelReason(preset: string, other: string) {
   if (preset === 'Other') {
@@ -90,6 +94,15 @@ export function OrderWorkflow({
   statusEvents,
   placedAt,
   invoicePrepared = false,
+  amount,
+  refundStatus = null,
+  customerName,
+  mobile,
+  customerId,
+  customerSourceLabel,
+  deliveryAddress,
+  pincode,
+  deliveryNotes,
 }: {
   orderId: string;
   orderNumber: string;
@@ -102,6 +115,15 @@ export function OrderWorkflow({
   statusEvents?: OrderStatusEvent[];
   placedAt?: string | null;
   invoicePrepared?: boolean;
+  amount?: number;
+  refundStatus?: RefundStatus | null;
+  customerName?: string | null;
+  mobile?: string | null;
+  customerId?: string | null;
+  customerSourceLabel?: string | null;
+  deliveryAddress?: string | null;
+  pincode?: string | null;
+  deliveryNotes?: string | null;
 }) {
   const router = useRouter();
   const { complete, refreshing } = useActionComplete();
@@ -116,10 +138,18 @@ export function OrderWorkflow({
   const current = normalizeStatus(status);
   const reason = cancelReason ?? null;
   const action = nextAction(current);
+  const method = (paymentMethod ?? 'pending') as PaymentMethod;
   const askPayment = action?.target === 'delivered' && paymentMethod !== undefined && !isPaymentCollected(paymentMethod);
+  const payState =
+    typeof amount === 'number'
+      ? displayPaymentStatus({ status: current, payment_method: method, refund_status: refundStatus })
+      : null;
+  const price = typeof amount === 'number' ? formatPrice(amount) : null;
+  const methodLabel = paymentModeLabel(method);
+  const showCustomerBlock = Boolean(customerName || deliveryAddress);
   const closeDialog = useCallback(() => setDialog(null), []);
 
-  async function commit(
+  async function commitStatus(
     target: OrderStatus,
     options: { mode?: 'normal' | 'correct'; cancelReason?: string | null },
     done: string,
@@ -137,12 +167,25 @@ export function OrderWorkflow({
       const paid = await updateOrderPayment(orderId, collect);
       if (paid.error) {
         setBusy(false);
-        setError(`Order saved, but the payment was not recorded: ${paid.error} Use Collect on the payment card.`);
+        setError(`Order saved, but the payment was not recorded: ${paid.error} Use Collect payment.`);
         router.refresh();
         return;
       }
     }
     setBusy(false);
+    complete(done);
+  }
+
+  async function commitPayment(next: { method: PaymentMethod; refund: RefundStatus | null }, done: string) {
+    setError(null);
+    setBusy(true);
+    const result =
+      next.refund === 'refunded' ? await updateOrderRefund(orderId) : await updateOrderPayment(orderId, next.method);
+    setBusy(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
     complete(done);
   }
 
@@ -163,7 +206,7 @@ export function OrderWorkflow({
         ? `${base} · payment outstanding`
         : base;
     setDialog(null);
-    void commit(action.target, { mode: 'normal' }, done, collect);
+    void commitStatus(action.target, { mode: 'normal' }, done, collect);
   }
 
   function confirmCancel() {
@@ -172,7 +215,7 @@ export function OrderWorkflow({
       return;
     }
     setDialog(null);
-    void commit('cancelled', { mode: 'normal', cancelReason: text }, `Order ${orderNumber} cancelled`);
+    void commitStatus('cancelled', { mode: 'normal', cancelReason: text }, `Order ${orderNumber} cancelled`);
   }
 
   function confirmCorrection() {
@@ -181,7 +224,7 @@ export function OrderWorkflow({
       return;
     }
     setDialog(null);
-    void commit(correctTo, { mode: 'correct', cancelReason: text }, `Status changed to ${orderStatusLabel(correctTo)}`);
+    void commitStatus(correctTo, { mode: 'correct', cancelReason: text }, `Status changed to ${orderStatusLabel(correctTo)}`);
   }
 
   function openCancel() {
@@ -197,8 +240,46 @@ export function OrderWorkflow({
     setDialog('correct');
   }
 
+  function openCollect() {
+    setPayChoice(null);
+    setDialog('collect');
+  }
+
+  function openChange() {
+    setPayChoice(method === 'upi' ? 'cash' : 'upi');
+    setDialog('change');
+  }
+
+  function confirmMethod() {
+    if (!payChoice || !price) {
+      return;
+    }
+    const changing = dialog === 'change';
+    setDialog(null);
+    if (payChoice === 'later') {
+      void commitPayment({ method: 'pending', refund: null }, `${price} marked as not yet paid`);
+      return;
+    }
+    void commitPayment(
+      { method: payChoice, refund: null },
+      changing
+        ? `Payment method changed to ${paymentModeLabel(payChoice)}`
+        : `${price} marked paid by ${paymentModeLabel(payChoice)}`,
+    );
+  }
+
+  function confirmRefund() {
+    if (!price) {
+      return;
+    }
+    setDialog(null);
+    void commitPayment({ method, refund: 'refunded' }, `Refund of ${price} recorded`);
+  }
+
   const cancellable = canCancel(current);
-  const hasMenu = Boolean(detailsHref || cancellable || allowCorrection);
+  const canChangePayment = payState === 'paid';
+  const canMarkRefunded = payState === 'refund_pending';
+  const hasMenu = Boolean(detailsHref || cancellable || allowCorrection || canChangePayment || canMarkRefunded);
 
   const menu = hasMenu ? (
     <MoreMenu label={`More actions for order ${orderNumber}`}>
@@ -220,6 +301,32 @@ export function OrderWorkflow({
               }}
             >
               <Undo2 size={16} aria-hidden /> Fix a status mistake
+            </button>
+          ) : null}
+          {canChangePayment ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => {
+                close();
+                openChange();
+              }}
+            >
+              <RefreshCw size={16} aria-hidden /> Change payment method
+            </button>
+          ) : null}
+          {canMarkRefunded && price ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => {
+                close();
+                setDialog('refund');
+              }}
+            >
+              <Undo2 size={16} aria-hidden /> Mark {price} refunded
             </button>
           ) : null}
           {cancellable ? (
@@ -275,6 +382,35 @@ export function OrderWorkflow({
     <span className="flex-1" />
   );
 
+  const collectButton =
+    variant === 'panel' && price && (payState === 'pending' || payState === 'outstanding') ? (
+      <button
+        type="button"
+        onClick={openCollect}
+        disabled={working}
+        aria-busy={working}
+        className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-white px-5 text-base font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50 disabled:opacity-60"
+      >
+        {working ? <Spinner size={18} /> : null}
+        {working ? 'Saving…' : `Collect ${price}`}
+      </button>
+    ) : null;
+
+  const paidLine =
+    variant === 'panel' && price && payState === 'paid' ? (
+      <p className="text-base font-semibold text-emerald-800">
+        Paid {price} by {methodLabel}
+      </p>
+    ) : variant === 'panel' && price && payState === 'refunded' ? (
+      <p className="text-base font-semibold text-violet-800">
+        Refunded {price} (paid by {methodLabel})
+      </p>
+    ) : variant === 'panel' && price && payState === 'outstanding' ? (
+      <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">
+        Delivered but not paid yet. {price} is outstanding.
+      </p>
+    ) : null;
+
   const feedback = (
     <>
       {needsInvoice && variant !== 'row' ? (
@@ -285,6 +421,37 @@ export function OrderWorkflow({
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </>
   );
+
+  const customerColumn =
+    variant === 'panel' && showCustomerBlock ? (
+      <div className="space-y-3 border-t border-stone-200 pt-3 md:border-t-0 md:border-l md:pl-3 md:pt-0">
+        {customerName ? (
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Customer</h3>
+            <p className="mt-1 text-base font-medium text-stone-900">{customerName}</p>
+            {mobile ? <p className="text-base text-stone-600">{mobile}</p> : null}
+            {customerSourceLabel ? (
+              <p className="mt-0.5 text-sm text-stone-500">Source {customerSourceLabel}</p>
+            ) : null}
+            {customerId ? (
+              <Link href={`/customers/${customerId}`} className="mt-1 inline-block text-sm font-medium text-emerald-800">
+                Customer history
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+        {deliveryAddress || pincode ? (
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Delivery</h3>
+            {deliveryAddress ? (
+              <p className="mt-1 whitespace-pre-wrap text-base text-stone-800">{deliveryAddress}</p>
+            ) : null}
+            {pincode ? <p className="mt-0.5 text-base text-stone-600">Pincode {pincode}</p> : null}
+            {deliveryNotes ? <p className="mt-1 text-sm text-stone-600">Notes: {deliveryNotes}</p> : null}
+          </div>
+        ) : null}
+      </div>
+    ) : null;
 
   const dialogs = (
     <>
@@ -356,6 +523,31 @@ export function OrderWorkflow({
           ) : null}
         </ConfirmDialog>
       ) : null}
+      {(dialog === 'collect' || dialog === 'change') && price ? (
+        <ConfirmDialog
+          title={dialog === 'collect' ? `Collect ${price} for order ${orderNumber}?` : 'Change payment method'}
+          body={
+            dialog === 'collect'
+              ? 'Choose how the customer paid.'
+              : `Currently recorded as ${methodLabel}. Use this only if the payment was saved by mistake.`
+          }
+          confirmLabel={dialog === 'collect' ? 'Mark paid' : 'Save method'}
+          confirmDisabled={!payChoice || (dialog === 'change' && payChoice === method)}
+          onConfirm={confirmMethod}
+          onCancel={closeDialog}
+        >
+          <PaymentMethodPicker value={payChoice} onChange={setPayChoice} allowLater={dialog === 'change'} />
+        </ConfirmDialog>
+      ) : null}
+      {dialog === 'refund' && price ? (
+        <ConfirmDialog
+          title={`Refund ${price} for order ${orderNumber}?`}
+          body={`The customer paid by ${methodLabel}. Only mark this after the money has been returned.`}
+          confirmLabel="Mark refunded"
+          onConfirm={confirmRefund}
+          onCancel={closeDialog}
+        />
+      ) : null}
     </>
   );
 
@@ -387,14 +579,31 @@ export function OrderWorkflow({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div className="flex min-h-10 items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Order status</h2>
+        <h2 className="text-lg font-semibold">Order status</h2>
         {menu}
       </div>
-      <OrderStepper status={current} cancelReason={reason} events={statusEvents} placedAt={placedAt} />
-      {primary && (action || current === 'delivered') ? <div className="mt-auto flex">{primary}</div> : null}
-      {feedback}
+      <div className={showCustomerBlock ? 'grid gap-3 md:grid-cols-2' : undefined}>
+        <div className="flex flex-col gap-3">
+          <OrderStepper
+            status={current}
+            cancelReason={reason}
+            size="sm"
+            events={statusEvents}
+            placedAt={placedAt}
+          />
+          {paidLine}
+          {primary || collectButton ? (
+            <div className="flex flex-wrap gap-2">
+              {primary && (action || current === 'delivered') ? primary : null}
+              {collectButton}
+            </div>
+          ) : null}
+          {feedback}
+        </div>
+        {customerColumn}
+      </div>
       {dialogs}
     </div>
   );

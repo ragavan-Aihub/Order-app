@@ -395,15 +395,18 @@ export async function saveCustomerAddress(
     .select('id, name, mobile')
     .eq('business_id', ctx.businessId)
     .eq('customer_id', customerId);
-  const duplicate = (book ?? []).find(
-    (row) =>
-      row.id !== input.id && receiverKey(row.name ?? '', row.mobile ?? '') === receiverKey(receiverName, receiverMobile),
+  const others = (book ?? []).filter((row) => row.id !== input.id);
+  const duplicate = others.find(
+    (row) => receiverKey(row.name ?? '', row.mobile ?? '') === receiverKey(receiverName, receiverMobile),
   );
   if (duplicate) {
     return {
       error: 'This receiver name and mobile already have an address. Edit that one instead of adding a duplicate.',
     };
   }
+
+  // First address is always the default; receiver phone lives on the address row.
+  const isDefault = others.length === 0 ? true : Boolean(input.isDefault);
 
   const row = {
     customer_id: customerId,
@@ -418,7 +421,7 @@ export async function saveCustomerAddress(
     city: input.city?.trim() || null,
     pincode,
     instructions: input.instructions?.trim() || null,
-    is_default: Boolean(input.isDefault),
+    is_default: isDefault,
   };
 
   const result = input.id

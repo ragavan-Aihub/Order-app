@@ -137,38 +137,38 @@ function billHtml(
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; width: 595px; background: #fff; }
     body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; }
-    .sheet { border: 1px solid #e5e7eb; border-radius: 18px; overflow: hidden; margin: 12px; }
+    .sheet { border: 1px solid #d7e8d4; border-radius: 18px; overflow: hidden; margin: 12px; }
     .banner {
-      background-color: #1c8c36;
-      background-image: linear-gradient(180deg, #1c8c36 0%, #3cb54a 100%);
-      color: #fff;
+      background-color: #eef9ea;
+      background-image: linear-gradient(180deg, #f4fbf1 0%, #e2f5dc 100%);
+      color: #166534;
     }
     .banner-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 18px 8px; }
     .brand { display: flex; gap: 12px; align-items: center; }
     .logo { width: 72px; height: 72px; border-radius: 36px; object-fit: cover; border: 3px solid #fff; background: #fff; }
-    .logo-fallback { display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #1c8c36; }
-    .shop-name { font-size: 26px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.3px; }
-    .shop-line { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 16px; margin-top: 2px; }
-    .shop-line svg { flex: none; margin-top: 1px; }
-    .leaves { flex: none; opacity: 0.9; }
+    .logo-fallback { display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #3d9a45; background: #fff; }
+    .shop-name { font-size: 26px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.3px; color: #166534; }
+    .shop-line { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 16px; margin-top: 2px; color: #3f6b47; }
+    .shop-line svg { flex: none; margin-top: 1px; color: #3d9a45; }
+    .leaves { flex: none; opacity: 0.95; }
     .wave { display: block; width: 100%; height: 16px; margin-bottom: -1px; }
     .body { padding: 8px 16px 0; }
     .title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
     h1 { margin: 0; font-size: 28px; color: #166534; letter-spacing: -0.4px; }
     .date { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #52525b; font-size: 13px; }
-    .pill { background: #d9f5d0; color: #166534; font-weight: 800; font-size: 16px; padding: 8px 14px; border-radius: 10px; }
-    .customer { margin-top: 14px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; }
+    .pill { background: #e8f8e4; color: #166534; font-weight: 800; font-size: 16px; padding: 8px 14px; border-radius: 10px; }
+    .customer { margin-top: 14px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; background: #fbfefb; }
     .customer-line { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; font-size: 13px; color: #3f3f46; }
     .customer-line strong { color: #18181b; }
     .customer-line svg { flex: none; margin-top: 1px; color: #3f3f46; }
     table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th { background: #d9f5d0; color: #166534; font-size: 13px; text-align: left; padding: 8px 10px; }
+    th { background: #e8f8e4; color: #166534; font-size: 13px; text-align: left; padding: 8px 10px; }
     th.num, td.num { text-align: right; }
     td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
-    .paybar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; background: #e8f8e4; border-radius: 10px; padding: 12px 14px; color: #166534; font-weight: 800; font-size: 18px; }
+    .paybar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; background: #eef9ea; border-radius: 10px; padding: 12px 14px; color: #166534; font-weight: 800; font-size: 18px; }
     .paybar strong { font-size: 22px; }
     .method { display: flex; align-items: center; gap: 8px; margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
-    .thanks { text-align: center; color: #166534; font-weight: 800; font-size: 16px; margin: 16px 0 4px; }
+    .thanks { text-align: center; color: #3d9a45; font-weight: 800; font-size: 16px; margin: 16px 0 4px; }
     .scene { display: block; width: 100%; height: 78px; }
   </style>
 </head>
@@ -184,9 +184,9 @@ function billHtml(
           </div>
         </div>
         <svg class="leaves" width="72" height="56" viewBox="0 0 72 56" aria-hidden="true">
-          <path fill="#b7f0a8" d="M58 8c8 6 12 16 8 24-8-2-16-8-20-16 6-2 10-6 12-8z"/>
-          <path fill="#8ee07a" d="M40 18c10 2 18 10 20 18-10 0-18-6-22-14 2-2 2-4 2-4z"/>
-          <path fill="#d9f5d0" d="M62 28c6 8 4 16-2 20-4-8-6-16-4-22 2 0 4 1 6 2z"/>
+          <path fill="#c8ebc0" d="M58 8c8 6 12 16 8 24-8-2-16-8-20-16 6-2 10-6 12-8z"/>
+          <path fill="#b7e7a8" d="M40 18c10 2 18 10 20 18-10 0-18-6-22-14 2-2 2-4 2-4z"/>
+          <path fill="#dff6d8" d="M62 28c6 8 4 16-2 20-4-8-6-16-4-22 2 0 4 1 6 2z"/>
         </svg>
       </div>
       <svg class="wave" viewBox="0 0 595 16" preserveAspectRatio="none" aria-hidden="true">
@@ -216,20 +216,20 @@ function billHtml(
       <div class="method">${ICON_CAL}<span>Payment Method: ${escapeHtml(paymentLabel(paymentMethod))}</span></div>
       <div class="thanks">Thank you for your order!</div>
       <svg class="scene" viewBox="0 0 600 90" aria-hidden="true">
-        <path fill="#b7e7a8" d="M0 50c40-20 80-8 120-18s80-6 120 8 90 10 140-8 90-4 140 10 60 8 80 6v42H0z"/>
-        <path fill="#8fd184" d="M0 64c50-12 90 4 140-6s100 2 150-10 110 6 160-4 90 8 150 2v44H0z"/>
-        <path fill="#6fbf62" d="M0 76c60-8 100 6 160-2s120 4 180-8 140 10 260 0v24H0z"/>
-        <circle cx="70" cy="58" r="10" fill="#3d9a45"/>
-        <rect x="66" y="66" width="8" height="10" fill="#2f7d34"/>
-        <circle cx="150" cy="62" r="8" fill="#3d9a45"/>
-        <rect x="147" y="68" width="6" height="8" fill="#2f7d34"/>
+        <path fill="#dff6d8" d="M0 50c40-20 80-8 120-18s80-6 120 8 90 10 140-8 90-4 140 10 60 8 80 6v42H0z"/>
+        <path fill="#c8ebc0" d="M0 64c50-12 90 4 140-6s100 2 150-10 110 6 160-4 90 8 150 2v44H0z"/>
+        <path fill="#b7e7a8" d="M0 76c60-8 100 6 160-2s120 4 180-8 140 10 260 0v24H0z"/>
+        <circle cx="70" cy="58" r="10" fill="#8fd184"/>
+        <rect x="66" y="66" width="8" height="10" fill="#6fbf62"/>
+        <circle cx="150" cy="62" r="8" fill="#8fd184"/>
+        <rect x="147" y="68" width="6" height="8" fill="#6fbf62"/>
         <path fill="#f3f0e4" d="M250 58h28v16h-28z"/>
         <path fill="#d7d0b8" d="M248 58l16-12 16 12z"/>
         <rect x="260" y="64" width="6" height="10" fill="#8d6e4c"/>
-        <circle cx="500" cy="60" r="9" fill="#3d9a45"/>
-        <rect x="497" y="67" width="6" height="8" fill="#2f7d34"/>
-        <path fill="#e8f8e4" d="M430 48h4v22h-4z"/>
-        <path fill="#d9f5d0" d="M418 50h28v4H418z"/>
+        <circle cx="500" cy="60" r="9" fill="#8fd184"/>
+        <rect x="497" y="67" width="6" height="8" fill="#6fbf62"/>
+        <path fill="#eef9ea" d="M430 48h4v22h-4z"/>
+        <path fill="#e2f5dc" d="M418 50h28v4H418z"/>
       </svg>
     </div>
   </div>

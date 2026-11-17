@@ -8,6 +8,7 @@ import {
   BackHandler,
   FlatList,
   Keyboard,
+  LayoutAnimation,
   Platform,
   Pressable,
   RefreshControl,
@@ -15,10 +16,30 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
   type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function animateSearchChrome() {
+  LayoutAnimation.configureNext({
+    duration: 220,
+    create: {
+      type: LayoutAnimation.Types.easeInEaseOut,
+      property: LayoutAnimation.Properties.opacity,
+    },
+    update: { type: LayoutAnimation.Types.easeInEaseOut },
+    delete: {
+      type: LayoutAnimation.Types.easeInEaseOut,
+      property: LayoutAnimation.Properties.opacity,
+    },
+  });
+}
 
 import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
@@ -123,8 +144,13 @@ export default function HomeScreen() {
   }, [focusProductId, openingFromAvailablePush, pushOpenKey]);
 
   const onSearchChange = (text: string) => {
+    const wasFiltering = query.trim().length > 0;
+    const willFilter = text.trim().length > 0;
+    if (wasFiltering !== willFilter) {
+      animateSearchChrome();
+    }
     setQuery(text);
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
     const term = text.trim().toLowerCase();
     if (!term || !categoriesEnabled || !categoryId) {
       return;
@@ -157,13 +183,24 @@ export default function HomeScreen() {
   const keyboardOpen = keyboardHeight > 0;
 
   const closeSearch = useCallback(() => {
+    animateSearchChrome();
     setSearchOpen(false);
     setSearchFocused(false);
     setQuery('');
     Keyboard.dismiss();
     searchInputRef.current?.blur();
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
+
+  const openSearch = useCallback(() => {
+    if (searchOpen) {
+      setSearchFocused(true);
+      return;
+    }
+    animateSearchChrome();
+    setSearchFocused(true);
+    setSearchOpen(true);
+  }, [searchOpen]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', (event) => {
@@ -408,6 +445,18 @@ export default function HomeScreen() {
     return term ? sortProductsForSearch(filtered, term) : filtered;
   }, [categoriesEnabled, categoryId, sortedProducts, query]);
 
+  const favouriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+
+  const searchFiltering = query.trim().length > 0;
+
+  /** Home grid under favourites: skip favourited items so this section is the remaining catalog. */
+  const exploreProducts = useMemo(() => {
+    if (searchOpen || searchFiltering || categoryId || favouriteIdSet.size === 0) {
+      return visibleProducts;
+    }
+    return visibleProducts.filter((product) => !favouriteIdSet.has(product.id));
+  }, [categoryId, favouriteIdSet, searchFiltering, searchOpen, visibleProducts]);
+
   const selectCategory = useCallback(
     (id: string) => {
       if (id === categoryId) {
@@ -446,7 +495,7 @@ export default function HomeScreen() {
       ) {
         return;
       }
-      const index = visibleProducts.findIndex((row) => row.id === productId);
+      const index = exploreProducts.findIndex((row) => row.id === productId);
       if (index < 0) {
         return;
       }
@@ -456,11 +505,11 @@ export default function HomeScreen() {
         listRef.current?.scrollToIndex({ index, animated: true, viewOffset: 100 });
       });
     },
-    [highlightProductId, visibleProducts],
+    [exploreProducts, highlightProductId],
   );
 
   const favouriteProducts = useMemo(() => {
-    if (searchOpen || favoriteIds.length === 0) {
+    if (searchFiltering || favoriteIds.length === 0) {
       return [];
     }
     const byId = new Map(products.map((product) => [product.id, product]));
@@ -468,13 +517,16 @@ export default function HomeScreen() {
       const product = byId.get(id);
       return product ? [product] : [];
     });
-  }, [favoriteIds, products, searchOpen]);
+  }, [favoriteIds, products, searchFiltering]);
 
   const listHeader = useMemo(() => {
     const notice = shopClosedMessage(shopNotice) ? <ShopHomeNotice shop={shopNotice} /> : null;
-    const poster = searchOpen || banners.length === 0 ? null : <ShopBannerCarousel banners={banners} />;
+    const poster =
+      searchOpen || searchFiltering || banners.length === 0 ? null : (
+        <ShopBannerCarousel banners={banners} />
+      );
     const favourites =
-      !searchOpen && favouriteProducts.length > 0 ? (
+      !searchOpen && !searchFiltering && favouriteProducts.length > 0 ? (
         <HomeFavouritesRow
           products={favouriteProducts}
           quantityById={quantityById}
@@ -489,7 +541,16 @@ export default function HomeScreen() {
           onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
         />
       ) : null;
-    if (!notice && !poster && !favourites) {
+    const exploreTitle =
+      !searchOpen &&
+      !searchFiltering &&
+      favouriteProducts.length > 0 &&
+      exploreProducts.length > 0 ? (
+        <View style={styles.exploreTitleRow}>
+          <Text style={styles.exploreTitle}>Explore All Products</Text>
+        </View>
+      ) : null;
+    if (!notice && !poster && !favourites && !exploreTitle) {
       return null;
     }
     return (
@@ -497,6 +558,7 @@ export default function HomeScreen() {
         {notice}
         {poster}
         {favourites}
+        {exploreTitle}
       </View>
     );
   }, [
@@ -504,6 +566,7 @@ export default function HomeScreen() {
     banners,
     busyId,
     decrease,
+    exploreProducts.length,
     favouriteProducts,
     favoriteBusyId,
     increase,
@@ -512,6 +575,7 @@ export default function HomeScreen() {
     onFavoritePress,
     onNotifyPress,
     quantityById,
+    searchFiltering,
     searchOpen,
     shopNotice,
   ]);
@@ -523,6 +587,9 @@ export default function HomeScreen() {
           <ActivityIndicator size="small" color={colors.primary} />
         </View>
       );
+    }
+    if (favouriteProducts.length > 0 && !query.trim() && !categoryId) {
+      return null;
     }
     const filtered = Boolean(query.trim() || categoryId);
     return (
@@ -561,7 +628,14 @@ export default function HomeScreen() {
         ) : null}
       </View>
     );
-  }, [categoryId, offline, openingFromAvailablePush, products.length, query]);
+  }, [
+    categoryId,
+    favouriteProducts.length,
+    offline,
+    openingFromAvailablePush,
+    products.length,
+    query,
+  ]);
 
   const renderProduct = useCallback<ListRenderItem<Product>>(
     ({ item }) => (
@@ -652,10 +726,7 @@ export default function HomeScreen() {
               ref={searchInputRef}
               value={query}
               onChangeText={onSearchChange}
-              onFocus={() => {
-                setSearchFocused(true);
-                setSearchOpen(true);
-              }}
+              onFocus={openSearch}
               onBlur={() => setSearchFocused(false)}
               onSubmitEditing={() => Keyboard.dismiss()}
               placeholder="Search products"
@@ -721,11 +792,11 @@ export default function HomeScreen() {
       </View>
       <FlatList
         ref={listRef}
-        data={visibleProducts}
+        data={exploreProducts}
         keyExtractor={(item) => item.id}
         renderItem={renderProduct}
         numColumns={2}
-        columnWrapperStyle={visibleProducts.length > 0 ? styles.gridRow : undefined}
+        columnWrapperStyle={exploreProducts.length > 0 ? styles.gridRow : undefined}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
         style={[styles.productScroll, keyboardOpen && { marginBottom: keyboardHeight }]}
@@ -921,6 +992,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     marginHorizontal: -4,
+  },
+  exploreTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+    paddingHorizontal: 4,
+  },
+  exploreTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
   },
   centered: {
     flex: 1,

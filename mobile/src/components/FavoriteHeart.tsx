@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
-    width: 44,
+    width: 40,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',

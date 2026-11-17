@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open in Farm2Flavour</title>
+    <meta name="description" content="Open this product in the Farm2Flavour app." />
+    <meta property="og:title" content="Farm2Flavour" />
+    <meta property="og:description" content="Open this product in the Farm2Flavour app." />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f4eee3;
+        margin: 0;
+        padding: 24px;
+        color: #1b4d2e;
+      }
+      main {
+        max-width: 28rem;
+        margin: 12vh auto 0;
+        background: #fcfaf5;
+        border: 1px solid #d7e3c8;
+        border-radius: 24px;
+        padding: 24px;
+        text-align: center;
+      }
+      a {
+        display: block;
+        min-height: 48px;
+        line-height: 48px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        margin-top: 12px;
+      }
+      .app {
+        background: #1b4d2e;
+        color: #fcfaf5;
+      }
+      p {
+        color: #57534e;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Farm2Flavour</h1>
+      <p>Tap Open in Farm2Flavour. This works with the installed app, including the dev build — not Play Store.</p>
+      <a id="open" class="app" href="#">Open in Farm2Flavour</a>
+    </main>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var pathId = (window.location.pathname.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i) || [])[0];
+        var id = params.get('id') || pathId || '';
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+          return;
+        }
+        var custom = 'farm2flavour://product/' + id;
+        var intent = 'intent://product/' + id + '#Intent;scheme=farm2flavour;end';
+        var href = /Android/i.test(navigator.userAgent) ? intent : custom;
+        document.getElementById('open').setAttribute('href', href);
+      })();
+    </script>
+  </body>
+</html>

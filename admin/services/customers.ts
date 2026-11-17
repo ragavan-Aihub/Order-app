@@ -24,6 +24,8 @@ export type CustomerListItem = {
   id: string;
   name: string | null;
   mobile: string | null;
+  email: string | null;
+  phone: string | null;
   source: CustomerSource | string;
   created_at: string;
   addressCount: number;
@@ -36,6 +38,7 @@ export type CustomerDetail = {
   id: string;
   name: string | null;
   mobile: string | null;
+  email: string | null;
   source: CustomerSource | string;
   notes: string | null;
   auth_user_id: string | null;
@@ -70,13 +73,14 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
   const [{ data: people }, { data: addresses }, { data: orders }] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, name, mobile, source, auth_user_id, created_at')
+      .select('id, name, mobile, email, source, auth_user_id, created_at')
       .eq('business_id', businessId)
       .order('created_at', { ascending: false }),
     supabase
       .from('customer_addresses')
-      .select('customer_id, user_id, address, house, locality, city, pincode, is_default')
-      .eq('business_id', businessId),
+      .select('customer_id, user_id, name, mobile, address, house, locality, city, pincode, is_default, created_at')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: true }),
     supabase.from('orders').select('customer_id, user_id, created_at').eq('business_id', businessId),
   ]);
 
@@ -91,7 +95,14 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
     }
   }
 
-  const addressByCustomer = new Map<string, { count: number; defaultLine: string | null }>();
+  type AddressBook = {
+    count: number;
+    defaultLine: string | null;
+    receiverPhone: string | null;
+    hasExplicitDefault: boolean;
+  };
+
+  const addressByCustomer = new Map<string, AddressBook>();
   for (const row of addresses ?? []) {
     const key =
       (row.customer_id as string | null) ??
@@ -99,10 +110,23 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
     if (!key) {
       continue;
     }
-    const current = addressByCustomer.get(key) ?? { count: 0, defaultLine: null };
+    const line = [row.house, row.locality, row.address, row.city, row.pincode].filter(Boolean).join(', ');
+    const phone = typeof row.mobile === 'string' && row.mobile.trim() ? row.mobile.trim() : null;
+    const current = addressByCustomer.get(key) ?? {
+      count: 0,
+      defaultLine: null,
+      receiverPhone: null,
+      hasExplicitDefault: false,
+    };
     current.count += 1;
-    if (row.is_default || !current.defaultLine) {
-      current.defaultLine = [row.house, row.locality, row.address, row.city, row.pincode].filter(Boolean).join(', ');
+    // Prefer explicit default; otherwise keep the first saved address (ordered by created_at).
+    if (row.is_default) {
+      current.defaultLine = line || current.defaultLine;
+      current.receiverPhone = phone ?? current.receiverPhone;
+      current.hasExplicitDefault = true;
+    } else if (!current.hasExplicitDefault && current.count === 1) {
+      current.defaultLine = line;
+      current.receiverPhone = phone;
     }
     addressByCustomer.set(key, current);
   }
@@ -126,10 +150,13 @@ export async function getCustomers(): Promise<CustomerListItem[]> {
   return people.map((person) => {
     const book = addressByCustomer.get(person.id);
     const order = orderByCustomer.get(person.id);
+    const accountMobile = typeof person.mobile === 'string' && person.mobile.trim() ? person.mobile.trim() : null;
     return {
       id: person.id,
       name: person.name,
-      mobile: person.mobile,
+      mobile: accountMobile,
+      email: (person.email as string | null) ?? null,
+      phone: book?.receiverPhone ?? accountMobile,
       source: person.source,
       created_at: person.created_at,
       addressCount: book?.count ?? 0,
@@ -155,7 +182,7 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
 
   const { data: person } = await supabase
     .from('customers')
-    .select('id, name, mobile, source, notes, auth_user_id, created_at')
+    .select('id, name, mobile, email, source, notes, auth_user_id, created_at')
     .eq('id', id)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -212,6 +239,7 @@ export async function getCustomerById(id: string): Promise<CustomerDetail | null
     id: person.id,
     name: person.name,
     mobile: person.mobile,
+    email: (person.email as string | null) ?? null,
     source: person.source,
     notes: person.notes,
     auth_user_id: person.auth_user_id,

@@ -2,6 +2,8 @@
 
 import { useEffect, type ReactNode } from 'react';
 
+import { Spinner } from '@/components/ActionNotice';
+
 export function ConfirmDialog({
   title,
   body,
@@ -65,11 +67,13 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy || confirmDisabled}
+            aria-busy={busy}
             autoFocus
-            className={`min-h-11 flex-1 rounded-lg px-4 font-semibold text-white disabled:opacity-50 ${
+            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 font-semibold text-white disabled:opacity-50 ${
               tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
             }`}
           >
+            {busy ? <Spinner size={18} /> : null}
             {busy ? 'Saving…' : confirmLabel}
           </button>
         </div>

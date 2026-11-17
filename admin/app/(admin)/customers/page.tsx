@@ -13,7 +13,7 @@ export default async function CustomersPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">Customers ({customers.length})</h1>
-          <p className="mt-1 text-stone-600">App sign-ups and customers you add (saved as Phone / Offline).</p>
+          <p className="mt-1 text-stone-600">App sign-ups (Google or phone) and customers you add.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -32,7 +32,7 @@ export default async function CustomersPage() {
       </div>
       {customers.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white p-6 text-stone-600">
-          No customers yet. Add someone from WhatsApp or a walk-in, or they will appear after they order in the app.
+          No customers yet. Add someone from WhatsApp or a walk-in, or they will appear after they sign in to the app.
         </div>
       ) : (
         <CustomersBoard customers={customers} />

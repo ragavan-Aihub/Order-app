@@ -64,7 +64,8 @@
       "router": {},
       "eas": {
         "projectId": "2dafb597-0027-47eb-a089-43944f29749c"
-      }
+      },
+      "shareBaseUrl": ""
     },
     "owner": "ragavananthan"
   }
