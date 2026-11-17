@@ -18,6 +18,7 @@ import { showAppDialog } from '@/components/AppDialogHost';
 import { FavoriteHeart } from '@/components/FavoriteHeart';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
+import { ProductShareSheet } from '@/components/ProductShareSheet';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { Skeleton } from '@/components/Skeleton';
 import { ViewCartBar } from '@/components/ViewCartBar';
@@ -116,6 +117,7 @@ export default function ProductDetailsScreen() {
   const [packOptionId, setPackOptionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedIdRef = useRef<string | null>(null);
   useEffect(
@@ -338,14 +340,32 @@ export default function ProductDetailsScreen() {
         options={{
           title: 'Product details',
           headerRight: () => (
-            <FavoriteHeart
-              size="header"
-              on={isFavorite(product.id)}
-              busy={favoriteBusyId === product.id}
-              onPress={() => void onFavoritePress(product.id)}
-            />
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => setShareOpen(true)}
+                style={({ pressed }) => [styles.headerIconBtn, pressed && styles.headerIconPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Share product"
+              >
+                <Ionicons name="share-social-outline" size={22} color={colors.text} />
+              </Pressable>
+              <FavoriteHeart
+                size="header"
+                on={isFavorite(product.id)}
+                busy={favoriteBusyId === product.id}
+                onPress={() => void onFavoritePress(product.id)}
+              />
+            </View>
           ),
         }}
+      />
+      <ProductShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        productId={product.id}
+        productName={product.name}
+        imageUrl={product.image_url}
+        description={product.description}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.imageWrap, isCountItem && styles.imageWrapCount]}>
@@ -517,6 +537,20 @@ const styles = StyleSheet.create({
   },
   screenCount: {
     backgroundColor: colors.surface,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIconPressed: {
+    opacity: 0.75,
   },
   content: {
     paddingBottom: spacing.lg,

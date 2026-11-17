@@ -3,6 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = new Set(['/login', '/unauthorized']);
 
+function isPublicPath(pathname: string) {
+  if (PUBLIC_PATHS.has(pathname)) {
+    return true;
+  }
+  // Shared product open links (Play Store / Coming soon / app deep link).
+  return pathname === '/p' || pathname.startsWith('/p/');
+}
+
 function isSupabaseConfigured() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? '';
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
@@ -54,7 +62,7 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublic = PUBLIC_PATHS.has(pathname);
+  const isPublic = isPublicPath(pathname);
 
   if (!user && !isPublic) {
     const loginUrl = request.nextUrl.clone();
