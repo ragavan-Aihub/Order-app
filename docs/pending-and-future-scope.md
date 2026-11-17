@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 15 Nov 2026 (inbox + Announcements tabs, selling units, min order, privacy review). Operator pending list: [go-live-checklist.md](go-live-checklist.md) **Current pending**.
+Last updated: 17 Nov 2026 (quality / regression testing deferred). Operator pending list: [go-live-checklist.md](go-live-checklist.md) **Current pending**.
 
 ## Must do before go-live
 
@@ -161,6 +161,7 @@ Last updated: 15 Nov 2026 (inbox + Announcements tabs, selling units, min order,
 
 ## Known issues and tech debt
 
+- **Application quality, regression testing, and future maintenance (do later).** There are no automated tests and no GitHub Actions CI yet. Quality today is local lint/typecheck/build (see [technical-guide.md](technical-guide.md) §12) plus the manual workbook [qa-test-cases.xlsx](qa-test-cases.xlsx) (113 cases, 34 P0). When picked up, prefer this order: (1) CI gates on PRs for `mobile`/`delivery` lint + `tsc`, and `admin` lint + `tsc` + `build`; (2) automated order-flow / RPC regression tests in Supabase (place, modify limits, cancel rules, shop-closed, pricing); (3) optional app unit tests and Maestro (or similar) for P0 customer flows mapped from the QA sheet; (4) keep the Excel P0 list as the human release gate until automated coverage replaces those rows. Not a go-live blocker — stay on the manual QA process until then.
 - **Development timing logs.** `mobile/src/services/supabase.ts` logs every request as `[supabase] METHOD path status ms`. These logs only appear in development builds, but can be removed once performance is settled.
 - **Older admin type errors.** Two are in `admin/services/reports.ts` (a possibly undefined string) and one in `admin/services/storage.ts` (a `File` cast to `Buffer`). They do not stop the dev server, but `next build` may fail on them.
 - **Admin lint error.** `admin/components/OrdersBoard.tsx` resets the page number inside an effect (`react-hooks/set-state-in-effect`).
