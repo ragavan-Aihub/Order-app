@@ -46,7 +46,7 @@ export function productShareUrl(productId: string): string | null {
 }
 
 export function productShareMessage(productName: string, shareUrl: string) {
-  return `${productName}\n${shareUrl}\n\nOpen in Farm2Flavour (Android). iPhone app coming soon.`;
+  return `${productName}\n${shareUrl}\n\nOpen in Farm2Flavours (Android). iPhone app coming soon.`;
 }
 
 export async function shareProductViaSystem(productName: string, shareUrl: string) {

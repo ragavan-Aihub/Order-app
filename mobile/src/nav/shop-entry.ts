@@ -6,10 +6,10 @@ let enteredThisSession = false;
 
 AsyncStorage.removeItem(KEY).catch(() => undefined);
 
-export async function hasEnteredShop() {
+export function hasEnteredShop() {
   return enteredThisSession;
 }
 
-export async function markEnteredShop() {
+export function markEnteredShop() {
   enteredThisSession = true;
 }

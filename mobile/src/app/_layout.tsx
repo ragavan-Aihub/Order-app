@@ -16,12 +16,14 @@ import { OfflineScreen } from '@/components/OfflineScreen';
 import { colors, spacing } from '@/config/theme';
 import { NetworkProvider } from '@/network/NetworkProvider';
 import { NotificationPermissionProvider } from '@/notifications/NotificationPermissionProvider';
+import { hasEnteredShop } from '@/nav/shop-entry';
 import { captureNotificationLaunchTarget } from '@/notifications/pending-push-deeplink';
 import { configureOrderNotificationHandler } from '@/notifications/order-push';
 import { isPushAvailable } from '@/notifications/push-runtime';
 import { consumeAuthUrl, watchAuthDeepLinks } from '@/services/auth-deeplink';
 import { isNetworkFailure } from '@/services/network';
-import { watchProductDeepLinks } from '@/services/product-deeplink';
+import { queueProductDeepLink, watchProductDeepLinks } from '@/services/product-deeplink';
+import { hasStoredSession } from '@/services/supabase';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   if (isNetworkFailure(error)) {
@@ -84,7 +86,35 @@ export default function RootLayout() {
       void consumeAuthUrl(url);
     });
     const stopProduct = watchProductDeepLinks((productId) => {
-      router.push({ pathname: '/product/[id]', params: { id: productId } });
+      void (async () => {
+        if (hasEnteredShop()) {
+          router.push({
+            pathname: '/product/[id]',
+            params: { id: productId, fromShare: '1' },
+          });
+          return;
+        }
+        let session = false;
+        try {
+          session = await Promise.race([
+            hasStoredSession(),
+            new Promise<boolean>((resolve) => {
+              setTimeout(() => resolve(false), 2500);
+            }),
+          ]);
+        } catch {
+          session = false;
+        }
+        if (session) {
+          router.push({
+            pathname: '/product/[id]',
+            params: { id: productId, fromShare: '1' },
+          });
+          return;
+        }
+        queueProductDeepLink(productId);
+        router.replace('/');
+      })();
     });
     return () => {
       stopAuth();

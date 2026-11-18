@@ -11,7 +11,7 @@ export default function ProductOpenNotFound() {
         href="https://play.google.com/store/apps/details?id=com.farm2flavour.app"
         className="rounded-xl bg-teal-800 px-4 py-3 text-center text-base font-bold text-white"
       >
-        Get Farm2Flavour on Google Play
+        Get Farm2Flavours on Google Play
       </a>
       <Link href="/login" className="text-center text-sm font-semibold text-teal-900 underline">
         Admin sign in

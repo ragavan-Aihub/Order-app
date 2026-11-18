@@ -3,6 +3,7 @@ import type * as Notifications from 'expo-notifications';
 
 import { queueAvailableProductOrder } from '@/notifications/available-product-order';
 import { getPushNavigationTarget } from '@/notifications/order-push';
+import { queuePendingOrderOpen } from '@/notifications/pending-order-open';
 import { isPushAvailable } from '@/notifications/push-runtime';
 
 const HANDLED_LAUNCH_RESPONSE_KEY = '@push/handled_launch_response_id';
@@ -85,5 +86,7 @@ export function routeForPushLaunch(
   if (launch.target.kind === 'home' || launch.target.kind === 'product') {
     return { pathname: '/home' };
   }
-  return { pathname: '/order/[id]', params: { id: launch.target.orderId } };
+  // Land on Home first so back / tabs work, then shop shell pushes the order.
+  queuePendingOrderOpen(launch.target.orderId);
+  return { pathname: '/home' };
 }

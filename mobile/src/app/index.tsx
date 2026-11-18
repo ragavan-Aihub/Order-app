@@ -14,6 +14,7 @@ import {
 import { hasEnteredShop } from '@/nav/shop-entry';
 import {
   captureInitialProductDeepLink,
+  peekPendingProductDeepLink,
   takePendingProductDeepLink,
 } from '@/services/product-deeplink';
 import { hasStoredSession } from '@/services/supabase';
@@ -35,14 +36,29 @@ async function decideOpening(): Promise<Opening> {
     return { kind: 'redirect', href: routeForPushLaunch(launch) };
   }
   await captureInitialProductDeepLink();
-  const sharedProductId = takePendingProductDeepLink();
-  if (sharedProductId) {
+  const sharedProductId = peekPendingProductDeepLink();
+  const entered = hasEnteredShop();
+  let session = false;
+  try {
+    session = await Promise.race([
+      hasStoredSession(),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), 2500);
+      }),
+    ]);
+  } catch {
+    session = false;
+  }
+  const canBrowse = entered || session;
+  if (sharedProductId && canBrowse) {
+    takePendingProductDeepLink();
     return {
       kind: 'redirect',
-      href: { pathname: '/product/[id]', params: { id: sharedProductId } },
+      href: { pathname: '/product/[id]', params: { id: sharedProductId, fromShare: '1' } },
     };
   }
-  if ((await hasEnteredShop()) || (await hasStoredSession())) {
+  // Not signed in / never entered shop: keep product queued and show welcome first.
+  if (canBrowse) {
     return { kind: 'home' };
   }
   return { kind: 'welcome' };
@@ -99,7 +115,7 @@ export default function WelcomeScreen() {
   }
 
   if (opening?.kind !== 'welcome') {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: '#DDF1E3' }} onLayout={hideSplash} />;
   }
 
   return (

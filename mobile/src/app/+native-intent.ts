@@ -15,7 +15,7 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
         /(?:p|product)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
       );
       if (productMatch) {
-        return `/product/${productMatch[1]}`;
+        return `/product/${productMatch[1]}?fromShare=1`;
       }
       return withQuery;
     }

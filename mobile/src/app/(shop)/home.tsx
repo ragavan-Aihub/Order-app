@@ -192,6 +192,24 @@ export default function HomeScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
 
+  const clearCategoryBrowse = useCallback(() => {
+    if (!categoryId) {
+      return;
+    }
+    animateSearchChrome();
+    assignHomeCategoryId('');
+    startTransition(() => setCategoryId(''));
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [categoryId]);
+
+  const leaveFocusedBrowse = useCallback(() => {
+    if (searchOpen) {
+      closeSearch();
+      return;
+    }
+    clearCategoryBrowse();
+  }, [clearCategoryBrowse, closeSearch, searchOpen]);
+
   const openSearch = useCallback(() => {
     if (searchOpen) {
       setSearchFocused(true);
@@ -202,28 +220,31 @@ export default function HomeScreen() {
     setSearchOpen(true);
   }, [searchOpen]);
 
+  const categoryBrowse = Boolean(categoryId);
+  const focusedBrowse = searchOpen || categoryBrowse;
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', (event) => {
-      if (!searchOpen) {
+      if (!focusedBrowse) {
         return;
       }
       event.preventDefault();
-      closeSearch();
+      leaveFocusedBrowse();
     });
     return unsubscribe;
-  }, [closeSearch, navigation, searchOpen]);
+  }, [focusedBrowse, leaveFocusedBrowse, navigation]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!searchOpen) {
+      if (!focusedBrowse) {
         return;
       }
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        closeSearch();
+        leaveFocusedBrowse();
         return true;
       });
       return () => subscription.remove();
-    }, [closeSearch, searchOpen]),
+    }, [focusedBrowse, leaveFocusedBrowse]),
   );
 
   const loadCatalog = useCallback(async (force = false) => {
@@ -462,6 +483,11 @@ export default function HomeScreen() {
       if (id === categoryId) {
         return;
       }
+      const enteringBrowse = Boolean(id) && !categoryId;
+      const leavingBrowse = !id && Boolean(categoryId);
+      if (enteringBrowse || leavingBrowse) {
+        animateSearchChrome();
+      }
       assignHomeCategoryId(id);
       startTransition(() => {
         setCategoryId(id);
@@ -509,7 +535,7 @@ export default function HomeScreen() {
   );
 
   const favouriteProducts = useMemo(() => {
-    if (searchFiltering || favoriteIds.length === 0) {
+    if (searchFiltering || categoryBrowse || favoriteIds.length === 0) {
       return [];
     }
     const byId = new Map(products.map((product) => [product.id, product]));
@@ -517,16 +543,16 @@ export default function HomeScreen() {
       const product = byId.get(id);
       return product ? [product] : [];
     });
-  }, [favoriteIds, products, searchFiltering]);
+  }, [categoryBrowse, favoriteIds, products, searchFiltering]);
 
   const listHeader = useMemo(() => {
     const notice = shopClosedMessage(shopNotice) ? <ShopHomeNotice shop={shopNotice} /> : null;
     const poster =
-      searchOpen || searchFiltering || banners.length === 0 ? null : (
+      searchOpen || searchFiltering || categoryBrowse || banners.length === 0 ? null : (
         <ShopBannerCarousel banners={banners} />
       );
     const favourites =
-      !searchOpen && !searchFiltering && favouriteProducts.length > 0 ? (
+      !searchOpen && !searchFiltering && !categoryBrowse && favouriteProducts.length > 0 ? (
         <HomeFavouritesRow
           products={favouriteProducts}
           quantityById={quantityById}
@@ -544,6 +570,7 @@ export default function HomeScreen() {
     const exploreTitle =
       !searchOpen &&
       !searchFiltering &&
+      !categoryBrowse &&
       favouriteProducts.length > 0 &&
       exploreProducts.length > 0 ? (
         <View style={styles.exploreTitleRow}>
@@ -565,6 +592,7 @@ export default function HomeScreen() {
     addToCart,
     banners,
     busyId,
+    categoryBrowse,
     decrease,
     exploreProducts.length,
     favouriteProducts,
@@ -700,9 +728,9 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.screen, searchOpen && { paddingTop: insets.top }]}>
+    <View style={[styles.screen, focusedBrowse && { paddingTop: insets.top }]}>
       <View style={styles.chrome}>
-        {searchOpen ? null : <HomeHeader />}
+        {focusedBrowse ? null : <HomeHeader />}
         <ModifyOrderBar variant="shop" style={styles.modifyBar} />
         {offline ? (
           <View style={styles.offlineWrap}>
@@ -710,9 +738,9 @@ export default function HomeScreen() {
           </View>
         ) : null}
         <View style={[styles.searchBar, styles.searchBarTop]}>
-          {searchOpen ? (
+          {focusedBrowse ? (
             <Pressable
-              onPress={closeSearch}
+              onPress={leaveFocusedBrowse}
               style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
               accessibilityRole="button"
               accessibilityLabel="Back"
@@ -751,7 +779,7 @@ export default function HomeScreen() {
             ) : null}
           </View>
         </View>
-        {searchOpen ? null : <HomeGreetingRow />}
+        {focusedBrowse ? null : <HomeGreetingRow />}
         {categoriesEnabled && categories.length > 0 ? (
           <View style={styles.chipsBar}>
             <ScrollView

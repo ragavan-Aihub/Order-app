@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { loadAddressBook } from '@/cart/address-book';
 import { spacing } from '@/config/theme';
+import { openPendingProductOr } from '@/nav/open-pending-product';
 import { markEnteredShop } from '@/nav/shop-entry';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { requestEmailOtp, requestOtp, verifyOtp } from '@/services/auth';
@@ -165,7 +166,7 @@ export default function VerifyScreen() {
   async function goToApp() {
     await markEnteredShop();
     await loadAddressBook();
-    router.replace(destination);
+    await openPendingProductOr(router, destination);
   }
 
   async function onVerify() {

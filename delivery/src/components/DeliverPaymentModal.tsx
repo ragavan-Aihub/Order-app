@@ -159,6 +159,7 @@ export function DeliverPaymentModal({
       onDelivered();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not share the bill.');
+    } finally {
       setSharing(false);
     }
   }
@@ -263,7 +264,6 @@ export function DeliverPaymentModal({
             <>
               <Pressable
                 onPress={onDelivered}
-                disabled={sharing}
                 style={({ pressed }) => [styles.cancelBtn, pressed && styles.btnPressed]}
                 accessibilityRole="button"
               >

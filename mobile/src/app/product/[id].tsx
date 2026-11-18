@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,6 +11,10 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+function hideSplash() {
+  SplashScreen.hideAsync().catch(() => undefined);
+}
 
 import { useCart } from '@/cart/CartContext';
 import { useAddToCart } from '@/cart/useAddToCart';
@@ -24,14 +29,19 @@ import { Skeleton } from '@/components/Skeleton';
 import { ViewCartBar } from '@/components/ViewCartBar';
 import { productNotifyCopy } from '@/copy/product-notify';
 import { colors, radius, shadow, spacing } from '@/config/theme';
+import { leaveScreen } from '@/nav/leave-screen';
+import { hasEnteredShop } from '@/nav/shop-entry';
+import { useLeaveOnHardwareBack } from '@/nav/useLeaveOnHardwareBack';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductNotifyInterests } from '@/hooks/useProductNotifyInterests';
+import { queueProductDeepLink } from '@/services/product-deeplink';
 import {
   fetchProductByIdLive,
   getCachedProducts,
   invalidateProductCatalogCache,
   peekCachedProducts,
 } from '@/services/products';
+import { hasStoredSession } from '@/services/supabase';
 import type { Product } from '@/types/product';
 import { formatPrice } from '@/utils/format';
 import { hapticError, hapticSelect } from '@/utils/haptics';
@@ -103,13 +113,26 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const { itemCount } = useCart();
   const addToCart = useAddToCart();
-  const { id: idParam, fromAvailablePush: fromPushParam } = useLocalSearchParams<{
-    id: string;
-    fromAvailablePush?: string;
-  }>();
+  const { id: idParam, fromAvailablePush: fromPushParam, fromShare: fromShareParam } =
+    useLocalSearchParams<{
+      id: string;
+      fromAvailablePush?: string;
+      fromShare?: string;
+    }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const fromAvailablePush =
     (Array.isArray(fromPushParam) ? fromPushParam[0] : fromPushParam) === '1';
+  const fromShare = (Array.isArray(fromShareParam) ? fromShareParam[0] : fromShareParam) === '1';
+  const leaveProduct = useCallback(() => {
+    // Header back and Android system back use the same path.
+    // Share / notification deep links often sit on a useless stack (welcome/index).
+    if (fromShare || fromAvailablePush || !router.canGoBack()) {
+      router.replace('/home');
+      return;
+    }
+    leaveScreen(router, '/home');
+  }, [fromAvailablePush, fromShare, router]);
+  useLeaveOnHardwareBack(leaveProduct);
   const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [weightGramsSel, setWeightGramsSel] = useState<number | null>(null);
@@ -128,6 +151,44 @@ export default function ProductDetailsScreen() {
     },
     [],
   );
+
+  const [entryAllowed, setEntryAllowed] = useState<boolean | null>(null);
+
+  // App Links can open this screen first — hide splash and send first-time guests to welcome.
+  useEffect(() => {
+    let active = true;
+    hideSplash();
+    // Already skipped / signed in this session — don't wait on network.
+    if (hasEnteredShop()) {
+      setEntryAllowed(true);
+      return;
+    }
+    void (async () => {
+      let session = false;
+      try {
+        session = await Promise.race([
+          hasStoredSession(),
+          new Promise<boolean>((resolve) => {
+            setTimeout(() => resolve(false), 2500);
+          }),
+        ]);
+      } catch {
+        session = false;
+      }
+      if (!active) {
+        return;
+      }
+      if (!session && id) {
+        queueProductDeepLink(id);
+        router.replace('/');
+        return;
+      }
+      setEntryAllowed(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [id, router]);
 
   const { isNotified, busyId, onNotifyPress, refresh: refreshNotifyInterests } = useProductNotifyInterests();
   const { isFavorite, favoriteBusyId, onFavoritePress } = useProductFavorites();
@@ -198,9 +259,14 @@ export default function ProductDetailsScreen() {
     }, [fromAvailablePush, id, refreshNotifyInterests]),
   );
 
-  if (loading) {
+  if (entryAllowed !== true || loading) {
     return (
-      <View style={styles.screen} accessibilityRole="progressbar" accessibilityLabel="Loading product">
+      <View
+        style={styles.screen}
+        onLayout={hideSplash}
+        accessibilityRole="progressbar"
+        accessibilityLabel="Loading product"
+      >
         <Skeleton height={280} borderRadius={0} />
         <View style={styles.body}>
           <Skeleton width="70%" height={26} />
@@ -214,10 +280,13 @@ export default function ProductDetailsScreen() {
 
   if (!product) {
     return (
-      <View style={styles.centered}>
+      <View style={styles.centered} onLayout={hideSplash}>
         <Ionicons name="alert-circle-outline" size={44} color={colors.textMuted} />
         <Text style={styles.emptyTitle}>Product not found</Text>
         <Text style={styles.empty}>It may have been removed. Go back and pick another item.</Text>
+        <Pressable onPress={leaveProduct} style={styles.backLink} accessibilityRole="button">
+          <Text style={styles.backLinkLabel}>Back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -339,6 +408,18 @@ export default function ProductDetailsScreen() {
       <Stack.Screen
         options={{
           title: 'Product details',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={leaveProduct}
+              hitSlop={10}
+              style={styles.headerBack}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
+          ),
           headerRight: () => (
             <View style={styles.headerActions}>
               <Pressable
@@ -537,6 +618,10 @@ const styles = StyleSheet.create({
   },
   screenCount: {
     backgroundColor: colors.surface,
+  },
+  headerBack: {
+    marginLeft: 4,
+    padding: 4,
   },
   headerActions: {
     flexDirection: 'row',
@@ -809,5 +894,15 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  backLink: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  backLinkLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primaryDark,
   },
 });

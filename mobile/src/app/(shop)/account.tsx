@@ -16,6 +16,7 @@ import {
   type SavedAddress,
 } from '@/cart/address-book';
 import { useCart } from '@/cart/CartContext';
+import { showAppDialog } from '@/components/AppDialogHost';
 import { LABEL_ICONS } from '@/components/AddressPickerSheet';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, shadow, spacing } from '@/config/theme';
@@ -104,7 +105,7 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.screen}>
-      {focused ? <StatusBar style="light" /> : null}
+      {focused ? <StatusBar style="dark" /> : null}
       <ScrollView
         style={styles.screen}
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg }}
@@ -124,7 +125,7 @@ export default function AccountScreen() {
             </Text>
             {signedIn && formatMobile(mobile) ? (
               <View style={styles.phoneRow}>
-                <Ionicons name="call" size={13} color="rgba(255,255,255,0.9)" />
+                <Ionicons name="call" size={13} color="#3F6B47" />
                 <Text style={styles.phone} numberOfLines={1}>
                   {formatMobile(mobile)}
                 </Text>
@@ -143,7 +144,7 @@ export default function AccountScreen() {
               accessibilityLabel="Edit delivery details"
               hitSlop={8}
             >
-              <Ionicons name="pencil" size={18} color={colors.primaryText} />
+              <Ionicons name="pencil" size={18} color="#166534" />
             </Pressable>
           ) : null}
         </View>
@@ -239,6 +240,11 @@ export default function AccountScreen() {
                 clearCart();
                 refreshOpenOrder();
                 await load();
+                showAppDialog({
+                  title: 'Signed out',
+                  message: 'You can sign in again anytime from this page.',
+                  icon: 'log-out-outline',
+                });
               }}
               style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
               accessibilityRole="button"
@@ -305,7 +311,9 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    backgroundColor: '#128A3E',
+    backgroundColor: '#E8F8E4',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#C8EBC0',
     overflow: 'hidden',
   },
   headerGlow: {
@@ -315,15 +323,15 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#FFFFFF',
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.85)',
+    borderColor: '#C8EBC0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -341,7 +349,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '800',
-    color: colors.primaryText,
+    color: '#166534',
   },
   phoneRow: {
     flexDirection: 'row',
@@ -351,12 +359,13 @@ const styles = StyleSheet.create({
   phone: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.92)',
+    color: '#3F6B47',
   },
   editBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
   },

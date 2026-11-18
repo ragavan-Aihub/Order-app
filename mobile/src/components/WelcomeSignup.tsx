@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/config/theme';
+import { openPendingProductOr } from '@/nav/open-pending-product';
 import { markEnteredShop } from '@/nav/shop-entry';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { requestOtp } from '@/services/auth';
@@ -168,7 +169,7 @@ export function WelcomeSignup({
             <Pressable
               onPress={async () => {
                 await markEnteredShop();
-                router.replace('/home');
+                await openPendingProductOr(router, '/home');
               }}
               style={styles.skip}
               accessibilityRole="button"

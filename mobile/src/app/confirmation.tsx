@@ -21,6 +21,8 @@ import { OrderProgress } from '@/components/OrderProgress';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProductImage } from '@/components/ProductImage';
 import { colors, radius, shadow, spacing } from '@/config/theme';
+import { leaveScreen } from '@/nav/leave-screen';
+import { useLeaveOnHardwareBack } from '@/nav/useLeaveOnHardwareBack';
 import { offerNotificationsAfterPlacingOrder } from '@/notifications/ensure-push-permission';
 import { cancelMyOrder, getMyOrderById } from '@/services/orders';
 import { recordSuccessfulPlacementAndMaybeAskForReview } from '@/services/store-review';
@@ -88,6 +90,11 @@ export default function OrderStatusScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [showAddress, setShowAddress] = useState(false);
+
+  const leaveStatus = useCallback(() => {
+    leaveScreen(router, '/home');
+  }, [router]);
+  useLeaveOnHardwareBack(leaveStatus);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -217,11 +224,11 @@ export default function OrderStatusScreen() {
           headerBackVisible: false,
           headerLeft: () => (
             <Pressable
-              onPress={() => router.replace('/home')}
+              onPress={leaveStatus}
               hitSlop={10}
               style={styles.headerBack}
               accessibilityRole="button"
-              accessibilityLabel="Back to home"
+              accessibilityLabel="Back"
             >
               <Ionicons name="chevron-back" size={24} color={colors.text} />
             </Pressable>
@@ -418,7 +425,7 @@ export default function OrderStatusScreen() {
           { paddingBottom: Math.max(insets.bottom, spacing.sm) + spacing.sm, backgroundColor: canvasColor },
         ]}
       >
-        <PrimaryButton label="Back to home" onPress={() => router.replace('/home')} style={styles.footerButton} />
+        <PrimaryButton label="Back to home" onPress={leaveStatus} style={styles.footerButton} />
       </View>
       {order ? (
         <CancelOrderDialog

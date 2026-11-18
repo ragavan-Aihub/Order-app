@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +13,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+function hideSplash() {
+  SplashScreen.hideAsync().catch(() => undefined);
+}
+
 import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { showAppDialog } from '@/components/AppDialogHost';
@@ -19,14 +24,14 @@ import { CancelOrderDialog } from '@/components/CancelOrderDialog';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { ProductImage } from '@/components/ProductImage';
-import { UpiPayBlock, UpiPayBlockLoading } from '@/components/UpiPayBlock';
 import { colors, radius, shadow, spacing } from '@/config/theme';
 import { OrderItemsWithPlacedDiff } from '@/components/OrderItemsWithPlacedDiff';
+import { leaveScreen } from '@/nav/leave-screen';
+import { useLeaveOnHardwareBack } from '@/nav/useLeaveOnHardwareBack';
 import {
   pickCustomerAdminOrderDiff,
   type CustomerAdminOrderDiff,
 } from '@/order-modifications/shop-modified';
-import { refreshBusiness } from '@/services/business';
 import { cancelMyOrder, getMyOrderById, getOrderModifications } from '@/services/orders';
 import {
   canCancelOrder,
@@ -48,6 +53,7 @@ function fullDeliveryAddress(order: OrderWithItems): string {
 }
 
 export default function OrderDetailScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { beginEditOrder, forgetOpenOrder } = useCart();
   const { id: idParam } = useLocalSearchParams<{ id: string }>();
@@ -56,10 +62,17 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [adminOrderDiff, setAdminOrderDiff] = useState<CustomerAdminOrderDiff | null>(null);
-  const [upiQrUrl, setUpiQrUrl] = useState<string | null>(null);
-  const [upiQrLoading, setUpiQrLoading] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+
+  const leaveOrder = useCallback(() => {
+    leaveScreen(router, '/home');
+  }, [router]);
+  useLeaveOnHardwareBack(leaveOrder);
+
+  useEffect(() => {
+    hideSplash();
+  }, []);
 
   const refreshAdminModNotice = useCallback(async (orderId: string, items: OrderWithItems['order_items']) => {
     try {
@@ -85,24 +98,6 @@ export default function OrderDetailScreen() {
         setOrder(row);
         if (row) {
           await refreshAdminModNotice(row.id, row.order_items);
-          const needsUpi =
-            row.status === 'out_for_delivery' &&
-            row.payment_method !== 'cash' &&
-            row.payment_method !== 'upi';
-          if (needsUpi) {
-            setUpiQrLoading(true);
-            try {
-              const shop = await refreshBusiness();
-              const url = shop?.upi_qr_url?.trim();
-              setUpiQrUrl(url || null);
-            } catch {
-              setUpiQrUrl(null);
-            } finally {
-              setUpiQrLoading(false);
-            }
-          } else {
-            setUpiQrUrl(null);
-          }
         }
       } catch {
         if (!isRefresh) {
@@ -122,25 +117,59 @@ export default function OrderDetailScreen() {
     }, [load]),
   );
 
+  const orderTitle = order ? `Order #${formatOrderNumber(order.order_number)}` : 'Order';
+
+  const screenHeader = (
+    <Stack.Screen
+      options={{
+        title: orderTitle,
+        headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontSize: 20, fontWeight: '800', color: colors.text },
+        contentStyle: { backgroundColor: colors.background },
+        headerBackVisible: false,
+        headerLeft: () => (
+          <Pressable
+            onPress={leaveOrder}
+            hitSlop={10}
+            style={styles.headerBack}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
+          </Pressable>
+        ),
+      }}
+    />
+  );
+
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <>
+        {screenHeader}
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </>
     );
   }
 
   if (!order) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.empty}>Order not found.</Text>
-      </View>
+      <>
+        {screenHeader}
+        <View style={styles.centered}>
+          <Text style={styles.empty}>Order not found.</Text>
+          <Pressable onPress={leaveOrder} style={styles.backLink} accessibilityRole="button">
+            <Text style={styles.backLinkLabel}>Back</Text>
+          </Pressable>
+        </View>
+      </>
     );
   }
 
   const cancelledAt = order.status === 'cancelled' ? latestStatusTime(order.status_events, 'cancelled') : null;
   const current = order;
-  const orderTitle = `Order #${formatOrderNumber(order.order_number)}`;
 
   function confirmCancel() {
     setCancelOpen(true);
@@ -182,15 +211,7 @@ export default function OrderDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: orderTitle,
-          headerStyle: { backgroundColor: colors.background },
-          headerShadowVisible: false,
-          headerTitleStyle: { fontSize: 20, fontWeight: '800', color: colors.text },
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      />
+      {screenHeader}
       <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
@@ -288,16 +309,6 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
-        {order.status === 'out_for_delivery' &&
-        order.payment_method !== 'cash' &&
-        order.payment_method !== 'upi' ? (
-          upiQrLoading ? (
-            <UpiPayBlockLoading />
-          ) : upiQrUrl ? (
-            <UpiPayBlock qrUrl={upiQrUrl} amount={order.total_amount} />
-          ) : null
-        ) : null}
-
         <View style={styles.sectionCard}>
           <Text style={styles.blockTitle}>
             Items ({itemCount} {itemCount === 1 ? 'item' : 'items'})
@@ -363,10 +374,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.background,
     padding: spacing.md,
+    gap: spacing.md,
   },
   empty: {
     fontSize: 16,
     color: colors.textMuted,
+  },
+  headerBack: {
+    marginLeft: 4,
+    padding: 4,
+  },
+  backLink: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  backLinkLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primaryDark,
   },
   screen: {
     flex: 1,

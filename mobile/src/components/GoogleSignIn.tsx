@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { loadAddressBook } from '@/cart/address-book';
 import { colors, spacing } from '@/config/theme';
+import { openPendingProductOr } from '@/nav/open-pending-product';
 import { markEnteredShop } from '@/nav/shop-entry';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { requestEmailOtp } from '@/services/auth';
@@ -77,7 +78,7 @@ export function GoogleSignIn({ allowSkip, next = 'home' }: GoogleSignInProps) {
     leaving.current = true;
     await markEnteredShop();
     await loadAddressBook();
-    router.replace(destinationFor(next));
+    await openPendingProductOr(router, destinationFor(next));
   }
 
   useEffect(() => {
@@ -164,7 +165,7 @@ export function GoogleSignIn({ allowSkip, next = 'home' }: GoogleSignInProps) {
             <Pressable
               onPress={async () => {
                 await markEnteredShop();
-                router.replace('/home');
+                await openPendingProductOr(router, '/home');
               }}
               style={styles.skip}
               accessibilityRole="button"

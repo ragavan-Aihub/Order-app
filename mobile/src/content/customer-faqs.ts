@@ -7,7 +7,7 @@ export const CUSTOMER_FAQS: CustomerFaq[] = [
   {
     question: 'When do I get a notification?',
     answer:
-      'After you allow notifications, the phone alerts you when the shop confirms the order, sends it out, or marks it delivered. You also get an alert when a Coming soon item you tapped Notify me on is ready. If nothing arrives, turn notifications on for Farm2Flavour in your phone Settings. Tap the alert to open that order.',
+      'After you allow notifications, the phone alerts you when the shop confirms the order, sends it out, or marks it delivered. You also get an alert when a Coming soon item you tapped Notify me on is ready. If nothing arrives, turn notifications on for Farm2Flavours in your phone Settings. Tap the alert to open that order.',
   },
   {
     question: 'I placed the order and then remembered a change. Can I still update it?',

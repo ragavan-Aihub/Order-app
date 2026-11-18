@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/config/theme';
+import { leaveScreen } from '@/nav/leave-screen';
+import { useLeaveOnHardwareBack } from '@/nav/useLeaveOnHardwareBack';
 import { getBusiness, peekCachedBusiness } from '@/services/business';
 import { fetchInboxItem, markInboxRead, type InboxItem } from '@/services/inbox';
 
@@ -60,13 +62,10 @@ export default function NotificationDetailScreen() {
 
   const orderId = typeof item?.data.order_id === 'string' ? item.data.order_id : null;
 
-  function goBackToList() {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace('/notifications');
-  }
+  const goBackToList = useCallback(() => {
+    leaveScreen(router, '/notifications');
+  }, [router]);
+  useLeaveOnHardwareBack(goBackToList);
 
   return (
     <View style={[styles.screen, { paddingBottom: insets.bottom + spacing.md }]}>

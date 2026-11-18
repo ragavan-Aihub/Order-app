@@ -46,7 +46,7 @@ export function ProductShareSheet({
 }: Props) {
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'copy' | 'whatsapp' | 'more' | null>(null);
-  const blurb = (description?.trim() || 'Fresh from Farm2Flavour').slice(0, 90);
+  const blurb = (description?.trim() || 'Fresh from Farm2Flavours').slice(0, 90);
 
   async function withShareUrl(action: (url: string) => Promise<void>, kind: typeof busy) {
     const url = productShareUrl(productId);

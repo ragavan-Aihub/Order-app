@@ -38,7 +38,7 @@ export async function getPublicProductForShare(id: string): Promise<PublicProduc
 
   return {
     id: data.id as string,
-    name: (data.name as string) || 'Farm2Flavour product',
+    name: (data.name as string) || 'Farm2Flavours product',
     description: (data.description as string | null) ?? null,
     imageUrl: (data.image_url as string | null) ?? null,
   };

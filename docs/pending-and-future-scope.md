@@ -9,7 +9,7 @@ Status values:
 - **Idea**: worth discussing, not yet agreed.
 - **Tech debt**: works today, but should be cleaned up.
 
-Last updated: 17 Nov 2026 (quality / regression testing deferred). Operator pending list: [go-live-checklist.md](go-live-checklist.md) **Current pending**.
+Last updated: 18 Nov 2026. Operator pending list: [go-live-checklist.md](go-live-checklist.md) **Current pending**.
 
 ## Must do before go-live
 
@@ -168,7 +168,7 @@ Last updated: 17 Nov 2026 (quality / regression testing deferred). Operator pend
 - **Unused component.** `admin/components/OrderTimeline.tsx` is no longer used after the order workflow redesign.
 - **Old SQL that mentions Preparing.** Older functions and indexes in `supabase/migrations/` still list `'preparing'`. This is harmless once the removal migration has run, because no order can have that status.
 - **Boilerplate admin README.** `admin/README.md` is still the default create-next-app text.
-- **Shop name fixed in code.** The app name, package, logos and voice replies still name the current shop (see "Setting up for a new business" in `docs/technical-guide.md`). Move them to environment variables or the `businesses` table before offering the product to another business.
+- **Shop / brand name fixed in code (multi-business).** Today several customer-facing strings hardcode **Farm2Flavours** (product share landing `/p/[id]`, share message, FAQs, delivery boot screen, bill fallback, app display names). In future we may support another business — **do not hardcode the brand in product UI**. Always take the display name (and related branding) from the **business profile** (`businesses.business_name` / logo), with env or build config only for package ids and schemes. See "Setting up for a new business" in `docs/technical-guide.md`.
 - **Customer order prices come from the app.** Placing an order and `customer_replace_order_items` store the prices the app sends. Move both to a database function that reads prices from `products`.
 - **Mobile eslint packages.** `mobile/package.json` gained `eslint` and `eslint-config-expo` as dev dependencies. Keep them to enable `npx expo lint`, or remove them.
 

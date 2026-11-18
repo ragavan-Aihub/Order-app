@@ -11,9 +11,9 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const product = await getPublicProductForShare(id);
-  const title = product?.name ? `${product.name} · Farm2Flavour` : 'Farm2Flavour';
+  const title = product?.name ? `${product.name} · Farm2Flavours` : 'Farm2Flavours';
   const description =
-    product?.description?.trim() || 'Open this product in the Farm2Flavour app.';
+    product?.description?.trim() || 'Open this product in the Farm2Flavours app.';
   return {
     title,
     description,
@@ -35,7 +35,7 @@ export default async function PublicProductOpenPage({ params }: PageProps) {
   return (
     <div className="min-h-dvh bg-[#f7f4ef] text-stone-900">
       <header className="border-b border-stone-200 bg-white px-5 py-3">
-        <p className="text-sm font-extrabold tracking-tight text-teal-900">Farm2Flavour</p>
+        <p className="text-sm font-extrabold tracking-tight text-teal-900">Farm2Flavours</p>
       </header>
       <ProductOpenClient
         productId={product.id}

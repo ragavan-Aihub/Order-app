@@ -28,6 +28,15 @@ export async function toggleProductFavorite(productId: string): Promise<{ ok: tr
   return { ok: true, on: Boolean(data) };
 }
 
+/** Pending login intent is "save this favourite", never toggle-off. */
+export async function ensureProductFavorite(productId: string): Promise<{ ok: true; on: boolean } | { ok: false }> {
+  const ids = await fetchMyFavoriteIds();
+  if (ids.includes(productId)) {
+    return { ok: true, on: true };
+  }
+  return toggleProductFavorite(productId);
+}
+
 export async function rememberPendingFavorite(productId: string) {
   await AsyncStorage.setItem(PENDING_KEY, productId);
 }
@@ -36,4 +45,12 @@ export async function takePendingFavorite(): Promise<string | null> {
   const id = await AsyncStorage.getItem(PENDING_KEY);
   await AsyncStorage.removeItem(PENDING_KEY);
   return id?.trim() || null;
+}
+
+/** Drop pending save if the user explicitly removed that product from favourites. */
+export async function clearPendingFavoriteIf(productId: string) {
+  const id = (await AsyncStorage.getItem(PENDING_KEY))?.trim();
+  if (id && id === productId.trim()) {
+    await AsyncStorage.removeItem(PENDING_KEY);
+  }
 }

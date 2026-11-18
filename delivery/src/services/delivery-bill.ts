@@ -25,6 +25,9 @@ function paymentLabel(method: PaymentMethod): string {
   return 'Not yet paid';
 }
 
+const LOGO_FETCH_MS = 3000;
+const LOGO_MAX_BYTES = 200_000;
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   const chunk = 0x8000;
@@ -38,16 +41,27 @@ async function logoDataUri(url: string | null): Promise<string | null> {
   if (!url) {
     return null;
   }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LOGO_FETCH_MS);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
       return null;
     }
+    const declared = Number(response.headers.get('content-length') || 0);
+    if (declared > LOGO_MAX_BYTES) {
+      return null;
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > LOGO_MAX_BYTES) {
+      return null;
+    }
     const type = response.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg';
     return `data:${type};base64,${bytesToBase64(bytes)}`;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -260,30 +274,36 @@ export async function shareDeliveryBill(
   } catch {
     // The bill can still go out with the shop name fallback.
   }
+  // Skip oversized / slow logos so PDF generation cannot hang the share sheet.
   const logoSrc = await logoDataUri(shop.logoUrl);
 
   const pageHeight = 760 + order.order_items.length * 36;
-  const { base64 } = await Print.printToFileAsync({
+  const { uri } = await Print.printToFileAsync({
     html: billHtml(order, shop, paymentMethod, logoSrc),
-    base64: true,
     width: 595,
     height: pageHeight,
     textZoom: 100,
   });
-  if (!base64) {
+  if (!uri) {
     throw new Error('Could not create the bill.');
   }
 
   const safeName = shop.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Farm2Flavours';
-  const named = new File(Paths.cache, `${safeName}-${formatOrderNumber(order.order_number)}.pdf`);
-  if (named.exists) {
-    named.delete();
+  let shareUri = uri;
+  try {
+    const printed = new File(uri);
+    const named = new File(Paths.cache, `${safeName}-${formatOrderNumber(order.order_number)}.pdf`);
+    if (named.exists) {
+      named.delete();
+    }
+    await printed.copy(named);
+    shareUri = named.uri;
+  } catch {
+    // Temp print URI is still shareable if rename/copy fails.
   }
-  named.create();
-  await named.write(base64, { encoding: 'base64' });
 
   try {
-    await Sharing.shareAsync(named.uri, {
+    await Sharing.shareAsync(shareUri, {
       mimeType: 'application/pdf',
       dialogTitle: 'Share bill',
       UTI: 'com.adobe.pdf',

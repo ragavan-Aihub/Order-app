@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { loadAddressBook } from '@/cart/address-book';
 import { colors, spacing } from '@/config/theme';
+import { openPendingProductOr } from '@/nav/open-pending-product';
 import { markEnteredShop } from '@/nav/shop-entry';
 import { consumeAuthUrl, isAuthCallbackUrl, watchAuthDeepLinks } from '@/services/auth-deeplink';
 import { takeAuthNext } from '@/services/google-auth';
@@ -34,7 +35,7 @@ export default function AuthCallbackScreen() {
       if (outcome.status === 'success') {
         await markEnteredShop();
         await loadAddressBook();
-        router.replace(await takeAuthNext());
+        await openPendingProductOr(router, await takeAuthNext());
         return;
       }
       if (outcome.status === 'cancelled') {

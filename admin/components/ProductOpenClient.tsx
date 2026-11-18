@@ -44,7 +44,7 @@ export function ProductOpenClient({ productId, name, description, imageUrl }: Pr
   const blurb = useMemo(() => {
     const text = description?.trim();
     if (!text) {
-      return 'Open this item in the Farm2Flavour app.';
+      return 'Open this item in the Farm2Flavours app.';
     }
     return text.length > 140 ? `${text.slice(0, 137)}…` : text;
   }, [description]);
@@ -61,7 +61,7 @@ export function ProductOpenClient({ productId, name, description, imageUrl }: Pr
     return (
       <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-6 px-5 py-10">
         <ProductPreview name={name} blurb={blurb} imageUrl={imageUrl} />
-        <p className="text-center text-sm text-stone-600">Opening Farm2Flavour…</p>
+        <p className="text-center text-sm text-stone-600">Opening Farm2Flavours…</p>
         <a
           href={androidIntentUrl(productId)}
           className="rounded-xl bg-teal-800 px-4 py-3 text-center text-base font-bold text-white"
@@ -85,15 +85,8 @@ export function ProductOpenClient({ productId, name, description, imageUrl }: Pr
         <p className="text-xs font-bold uppercase tracking-wide text-teal-800">iPhone / iPad</p>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-stone-900">Coming soon</h1>
         <p className="mt-2 text-sm leading-6 text-stone-600">
-          Farm2Flavour for iOS is on the way. This shared product link works on Android today — install
-          the app from Google Play, then open the link again.
+          Farm2Flavours for iOS is on the way. Open this link again once the iPhone app is available.
         </p>
-        <a
-          href={PLAY_STORE_URL}
-          className="mt-5 block rounded-xl bg-teal-800 px-4 py-3 text-center text-base font-bold text-white"
-        >
-          Google Play (Android)
-        </a>
       </div>
     </main>
   );

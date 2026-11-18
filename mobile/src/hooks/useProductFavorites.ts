@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from 'react';
 import { showAppDialog } from '@/components/AppDialogHost';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import {
+  clearPendingFavoriteIf,
+  ensureProductFavorite,
   fetchMyFavoriteIds,
   rememberPendingFavorite,
   takePendingFavorite,
@@ -22,9 +24,6 @@ export function useProductFavorites() {
   const lastRefreshAt = useRef(0);
 
   const refresh = useCallback(async (force = false) => {
-    if (!force && loadedOnce.current && Date.now() - lastRefreshAt.current < FAVORITES_FOCUS_TTL_MS) {
-      return;
-    }
     const user = await getSignedInUser();
     if (!user) {
       setFavoriteIds([]);
@@ -32,10 +31,15 @@ export function useProductFavorites() {
       lastRefreshAt.current = Date.now();
       return;
     }
+
+    // Always apply post-login pending save, even inside the focus TTL.
     const pending = await takePendingFavorite();
     if (pending) {
-      await toggleProductFavorite(pending);
+      await ensureProductFavorite(pending);
+    } else if (!force && loadedOnce.current && Date.now() - lastRefreshAt.current < FAVORITES_FOCUS_TTL_MS) {
+      return;
     }
+
     setFavoriteIds(await fetchMyFavoriteIds());
     loadedOnce.current = true;
     lastRefreshAt.current = Date.now();
@@ -65,6 +69,10 @@ export function useProductFavorites() {
       }
       setBusyId(productId);
       const wasOn = favoriteIds.includes(productId);
+      if (wasOn) {
+        // Don't let a stale post-login pending re-add this product later.
+        await clearPendingFavoriteIf(productId);
+      }
       setFavoriteIds((current) =>
         wasOn ? current.filter((id) => id !== productId) : [productId, ...current.filter((id) => id !== productId)],
       );

@@ -23,7 +23,8 @@ export function useOrderPushRegistration() {
   const pushHandlers = useCallback(
     () => ({
       onOpenOrder: (orderId: string) => {
-        router.replace({ pathname: '/order/[id]', params: { id: orderId } });
+        // Push keeps the previous shop screen so Android/header back can leave the order.
+        router.push({ pathname: '/order/[id]', params: { id: orderId } });
       },
       onOpenProduct: (productId: string) => {
         invalidateProductCatalogCache();
@@ -33,7 +34,7 @@ export function useOrderPushRegistration() {
         router.replace('/home');
       },
       onOpenNotifications: () => {
-        router.replace('/notifications');
+        router.push('/notifications');
       },
       onOpenInbox: (inboxId, broadcastId) => {
         void (async () => {
@@ -42,10 +43,10 @@ export function useOrderPushRegistration() {
             id = await fetchInboxIdByBroadcast(broadcastId);
           }
           if (id) {
-            router.replace({ pathname: '/notification/[id]', params: { id } });
+            router.push({ pathname: '/notification/[id]', params: { id } });
             return;
           }
-          router.replace('/notifications');
+          router.push('/notifications');
         })();
       },
     }),

@@ -13,7 +13,7 @@ export function DeliveryBootScreen() {
         resizeMode="contain"
         accessibilityIgnoresInvertColors
       />
-      <Text style={styles.title}>Farm2Flavour</Text>
+      <Text style={styles.title}>Farm2Flavours</Text>
       <Text style={styles.subtitle}>Delivery</Text>
       <ActivityIndicator color={colors.primary} style={styles.spinner} />
     </View>
