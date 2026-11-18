@@ -48,7 +48,7 @@ export function unitSizeOf(product: { selling_type?: string | null }, extras?: {
 
 export function stockMessage(left: number, _sellingType?: string | null): string {
   if (left <= 0) {
-    return 'This item is sold out.';
+    return 'This item is coming soon.';
   }
   return 'That quantity is not available.';
 }
@@ -62,7 +62,7 @@ export function stockLeftLabel(
     return null;
   }
   if (stock <= 0) {
-    return 'Sold out';
+    return 'Coming soon';
   }
   if (sellingType === 'kg') {
     return `${formatWeight(stock)} left`;
@@ -88,9 +88,8 @@ export function maxLineQty(
     return MAX_ITEM_QTY;
   }
   const remaining = stock + Math.max(0, reservedUnits) - Math.max(0, otherLineUnits);
-  const size = Math.max(0, unitSize);
-  if (size <= 0) {
+  if (remaining <= 0 || unitSize <= 0) {
     return 0;
   }
-  return Math.max(0, Math.min(MAX_ITEM_QTY, Math.floor(remaining / size)));
+  return Math.max(0, Math.floor(remaining / unitSize));
 }

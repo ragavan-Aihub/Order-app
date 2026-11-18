@@ -56,7 +56,14 @@ async function attachTransacted(
   }));
 }
 
-export async function getAllProducts(): Promise<Product[]> {
+type GetAllProductsOptions = {
+  /** Scan order_items for each product. Slow; only needed on Products admin. Default true. */
+  includeTransacted?: boolean;
+};
+
+export async function getAllProducts(options?: GetAllProductsOptions): Promise<Product[]> {
+  const includeTransacted = options?.includeTransacted !== false;
+
   if (!isSupabaseConfigured) {
     return MOCK_PRODUCTS;
   }
@@ -87,10 +94,11 @@ export async function getAllProducts(): Promise<Product[]> {
           ? row.selling_type
           : 'quantity',
     })));
-    return attachTransacted(
+    const withOptions = await attachVolumeOptions(
       supabase,
-      await attachVolumeOptions(supabase, await attachWeightOptions(supabase, await attachPacks(supabase, named))),
+      await attachWeightOptions(supabase, await attachPacks(supabase, named)),
     );
+    return includeTransacted ? attachTransacted(supabase, withOptions) : withOptions;
   }
 
   const fallback = await supabase
@@ -103,10 +111,8 @@ export async function getAllProducts(): Promise<Product[]> {
     return [];
   }
 
-  return attachTransacted(
-    supabase,
-    (fallback.data as Product[]).map((row) => ({ ...row, active: row.active !== false })),
-  );
+  const mapped = (fallback.data as Product[]).map((row) => ({ ...row, active: row.active !== false }));
+  return includeTransacted ? attachTransacted(supabase, mapped) : mapped;
 }
 
 async function attachPacks(

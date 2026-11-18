@@ -1,19 +1,49 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { AdminOrderModifyPanel } from '@/components/AdminOrderModifyPanel';
 import { OrderWorkflow } from '@/components/OrderWorkflow';
 import { StatusBadge } from '@/components/OrderBadges';
+import { PageSkeleton } from '@/components/PageSkeleton';
 import { getCustomerById } from '@/services/customers';
 import { getOrderById } from '@/services/orders';
 import { getAllProducts } from '@/services/products';
 import { isCommunitiesEnabled } from '@/services/business';
 import { deliveryTypeLabel } from '@/types/community';
 import { customerSourceLabel } from '@/types/customer';
-import { orderChannelLabel } from '@/types/order';
+import { orderChannelLabel, type OrderWithItems } from '@/types/order';
 import { formatDateTime, formatOrderNumber, formatPrice, splitDeliveryNotes } from '@/utils/format';
 
 export const dynamic = 'force-dynamic';
+
+async function OrderInvoicePanel({ order }: { order: OrderWithItems }) {
+  const products = await getAllProducts({ includeTransacted: false });
+  return (
+    <AdminOrderModifyPanel
+      key={`${order.id}-${order.items_revision ?? 0}-${order.order_items.length}-${order.total_amount}`}
+      orderId={order.id}
+      status={order.status}
+      paymentMethod={order.payment_method ?? 'pending'}
+      originalTotal={order.total_amount}
+      originalItems={order.order_items}
+      itemsRevision={order.items_revision ?? 0}
+      products={products}
+      adminModifiedFromPlaced={Boolean(order.modification_summary?.modifiedFromPlaced)}
+      customerModifiedAfterConfirm={Boolean(order.modification_summary?.customerModifiedAfterConfirm)}
+      canRevertToPlaced={Boolean(order.modification_summary?.canRevertToPlaced)}
+      placedTotal={order.modification_summary?.placedTotal}
+      placedItems={order.modification_summary?.placedItems ?? []}
+      shopDiffBaselineItems={order.modification_summary?.revertTargetItems ?? []}
+      adminCompareItems={order.modification_summary?.adminCompareItems ?? []}
+      customerDiffBaselineItems={order.modification_summary?.confirmBaselineItems ?? []}
+      confirmBaselineTotal={order.modification_summary?.confirmBaselineTotal ?? undefined}
+      revertTargetTotal={order.modification_summary?.revertTargetTotal ?? undefined}
+      relaxProductValidation={Boolean(order.modification_summary?.hasAdminModification)}
+      invoicePrepared={Boolean(order.invoice_prepared_at)}
+    />
+  );
+}
 
 export default async function OrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,12 +53,11 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
     notFound();
   }
 
-  const [customer, products] = await Promise.all([
+  const [customer, showCommunityType] = await Promise.all([
     order.customer_id ? getCustomerById(order.customer_id) : Promise.resolve(null),
-    getAllProducts(),
+    isCommunitiesEnabled(),
   ]);
   const delivery = splitDeliveryNotes(order.delivery_address);
-  const showCommunityType = await isCommunitiesEnabled();
 
   return (
     <div className="space-y-3">
@@ -105,28 +134,9 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         />
       </div>
 
-      <AdminOrderModifyPanel
-        key={`${order.id}-${order.items_revision ?? 0}-${order.order_items.length}-${order.total_amount}`}
-        orderId={order.id}
-        status={order.status}
-        paymentMethod={order.payment_method ?? 'pending'}
-        originalTotal={order.total_amount}
-        originalItems={order.order_items}
-        itemsRevision={order.items_revision ?? 0}
-        products={products}
-        adminModifiedFromPlaced={Boolean(order.modification_summary?.modifiedFromPlaced)}
-        customerModifiedAfterConfirm={Boolean(order.modification_summary?.customerModifiedAfterConfirm)}
-        canRevertToPlaced={Boolean(order.modification_summary?.canRevertToPlaced)}
-        placedTotal={order.modification_summary?.placedTotal}
-        placedItems={order.modification_summary?.placedItems ?? []}
-        shopDiffBaselineItems={order.modification_summary?.revertTargetItems ?? []}
-        adminCompareItems={order.modification_summary?.adminCompareItems ?? []}
-        customerDiffBaselineItems={order.modification_summary?.confirmBaselineItems ?? []}
-        confirmBaselineTotal={order.modification_summary?.confirmBaselineTotal ?? undefined}
-        revertTargetTotal={order.modification_summary?.revertTargetTotal ?? undefined}
-        relaxProductValidation={Boolean(order.modification_summary?.hasAdminModification)}
-        invoicePrepared={Boolean(order.invoice_prepared_at)}
-      />
+      <Suspense fallback={<PageSkeleton label="Loading invoice…" />}>
+        <OrderInvoicePanel order={order} />
+      </Suspense>
     </div>
   );
 }

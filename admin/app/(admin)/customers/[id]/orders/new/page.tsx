@@ -9,7 +9,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewCustomerOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [customer, products] = await Promise.all([getCustomerById(id), getAllProducts()]);
+  const [customer, products] = await Promise.all([
+    getCustomerById(id),
+    getAllProducts({ includeTransacted: false }),
+  ]);
   if (!customer) {
     notFound();
   }

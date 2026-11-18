@@ -206,7 +206,7 @@ export function buildProductTemplateCsv(categoriesEnabled: boolean, categoryName
       'Yes',
       'Yes',
       sampleCategory,
-      '/Users/YOUR_NAME/Desktop/products/mango.jpg',
+      'mango.jpg',
     ],
     [
       'Besan flour',
@@ -221,7 +221,7 @@ export function buildProductTemplateCsv(categoriesEnabled: boolean, categoryName
       'Yes',
       'Yes',
       sampleCategory,
-      '/Users/YOUR_NAME/Desktop/products/besan.jpg',
+      'besan.jpg',
     ],
     [
       'Grated coconut',
@@ -236,7 +236,7 @@ export function buildProductTemplateCsv(categoriesEnabled: boolean, categoryName
       'Yes',
       'Yes',
       sampleCategory,
-      '/Users/YOUR_NAME/Desktop/products/coconut.jpg',
+      'coconut.jpg',
     ],
     [
       'Cold pressed oil',
@@ -251,7 +251,7 @@ export function buildProductTemplateCsv(categoriesEnabled: boolean, categoryName
       'Yes',
       'Yes',
       sampleCategory,
-      '/Users/YOUR_NAME/Desktop/products/oil.jpg',
+      'oil.jpg',
     ],
   ];
   const headers = categoriesEnabled

@@ -10,7 +10,7 @@ export default async function NewOrderPage() {
   const [customers, addresses, products] = await Promise.all([
     getCustomers(),
     getCustomerAddresses(),
-    getAllProducts(),
+    getAllProducts({ includeTransacted: false }),
   ]);
 
   return (

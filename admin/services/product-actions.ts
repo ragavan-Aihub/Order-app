@@ -90,7 +90,7 @@ export async function updateProductAvailability(
       .eq('business_id', ctx.businessId)
       .maybeSingle();
     if (current && current.stock_qty === 0) {
-      return { error: 'Set available stock first. 0 remaining means this item is sold out.' };
+      return { error: 'Set available stock first. Stock 0 means Coming soon.' };
     }
   }
   const { data, error } = await ctx.supabase
@@ -701,6 +701,29 @@ function imageExtensionOk(filePath: string): boolean {
   return ['.png', '.webp', '.gif', '.jpg', '.jpeg'].some((ext) => lower.endsWith(ext));
 }
 
+function imageBasename(imagePathRaw: string): string {
+  const cleaned = imagePathRaw.trim().replace(/\\/g, '/');
+  const parts = cleaned.split('/');
+  return (parts[parts.length - 1] || cleaned).trim();
+}
+
+async function readUploadedImages(formData: FormData): Promise<Map<string, Buffer>> {
+  const byName = new Map<string, Buffer>();
+  for (const entry of formData.getAll('images')) {
+    if (!entry || typeof entry === 'string' || !('arrayBuffer' in entry)) {
+      continue;
+    }
+    const file = entry as File;
+    const name = file.name?.trim();
+    if (!name || !imageExtensionOk(name) || file.size <= 0 || file.size > MAX_IMAGE_BYTES) {
+      continue;
+    }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    byName.set(name.toLowerCase(), bytes);
+  }
+  return byName;
+}
+
 async function resolveSafeHomeFile(
   imagePathRaw: string,
   home: string,
@@ -716,7 +739,11 @@ async function resolveSafeHomeFile(
   const homeResolved = path.resolve(home);
   const homePrefix = homeResolved.endsWith(path.sep) ? homeResolved : `${homeResolved}${path.sep}`;
   if (resolved !== homeResolved && !resolved.startsWith(homePrefix)) {
-    return { ok: false, message: 'image_path must be under your home folder.' };
+    return {
+      ok: false,
+      message:
+        'Local Mac paths only work when admin runs on this computer. Choose Images and match the file name, or use an https image URL.',
+    };
   }
   if (!imageExtensionOk(resolved)) {
     return { ok: false, message: 'Image must be JPG, PNG, WebP, or GIF.' };
@@ -736,13 +763,77 @@ async function resolveSafeHomeFile(
   }
   const realPrefix = realHome.endsWith(path.sep) ? realHome : `${realHome}${path.sep}`;
   if (real !== realHome && !real.startsWith(realPrefix)) {
-    return { ok: false, message: 'image_path must be under your home folder.' };
+    return {
+      ok: false,
+      message:
+        'Local Mac paths only work when admin runs on this computer. Choose Images and match the file name, or use an https image URL.',
+    };
   }
   return { ok: true, path: real };
 }
 
+async function resolveImportImageBytes(
+  imagePathRaw: string,
+  home: string,
+  uploaded: Map<string, Buffer>,
+): Promise<{ ok: true; bytes: Buffer } | { ok: false; message: string }> {
+  const trimmed = imagePathRaw.trim();
+  if (!trimmed) {
+    return { ok: false, message: 'image_path is required.' };
+  }
+
+  const base = imageBasename(trimmed);
+  if (base && imageExtensionOk(base)) {
+    const fromUpload = uploaded.get(base.toLowerCase());
+    if (fromUpload) {
+      return { ok: true, bytes: fromUpload };
+    }
+  }
+
+  if (/^https:\/\//i.test(trimmed)) {
+    try {
+      const response = await fetch(trimmed, { redirect: 'follow' });
+      if (!response.ok) {
+        return { ok: false, message: `Could not download image (HTTP ${response.status}).` };
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
+        return { ok: false, message: 'Image must be a file of 5 MB or smaller.' };
+      }
+      return { ok: true, bytes: buffer };
+    } catch {
+      return { ok: false, message: 'Could not download this image URL.' };
+    }
+  }
+
+  if (!imageExtensionOk(trimmed) && !imageExtensionOk(base)) {
+    return { ok: false, message: 'Image must be JPG, PNG, WebP, or GIF.' };
+  }
+
+  const resolved = await resolveSafeHomeFile(trimmed, home);
+  if (!resolved.ok) {
+    if (base) {
+      return {
+        ok: false,
+        message: `Add “${base}” with Choose Images (same file name), or use an https URL.`,
+      };
+    }
+    return { ok: false, message: resolved.message };
+  }
+
+  try {
+    const { promises: fs } = await import('node:fs');
+    const stat = await fs.stat(resolved.path);
+    if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) {
+      return { ok: false, message: 'Image must be a file of 5 MB or smaller.' };
+    }
+    return { ok: true, bytes: await fs.readFile(resolved.path) };
+  } catch {
+    return { ok: false, message: 'Could not read this image file.' };
+  }
+}
+
 export async function importProductsFromCsv(formData: FormData): Promise<ProductImportResult> {
-  const { promises: fs } = await import('node:fs');
   const os = await import('node:os');
 
   const ctx = await requireAdmin();
@@ -830,6 +921,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
   }
 
   const home = os.homedir();
+  const uploadedImages = await readUploadedImages(formData);
   const errors: ProductImportIssue[] = [];
   let created = 0;
   let skipped = 0;
@@ -921,21 +1013,19 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
     if (activeRaw && !activeParsed.ok) {
       rowErrors.push({ row: line, field: 'active', message: 'Active must be Yes or No when provided.' });
     }
+    let imageBytes: Buffer | null = null;
     if (!imagePathRaw) {
       rowErrors.push({ row: line, field: 'image_path', message: 'image_path is required.' });
-    }
-
-    let safePath = '';
-    if (imagePathRaw) {
-      const resolved = await resolveSafeHomeFile(imagePathRaw, home);
-      if (!resolved.ok) {
-        rowErrors.push({ row: line, field: 'image_path', message: resolved.message });
+    } else {
+      const resolvedImage = await resolveImportImageBytes(imagePathRaw, home, uploadedImages);
+      if (!resolvedImage.ok) {
+        rowErrors.push({ row: line, field: 'image_path', message: resolvedImage.message });
       } else {
-        safePath = resolved.path;
+        imageBytes = resolvedImage.bytes;
       }
     }
 
-    if (rowErrors.length > 0 || unitPrice == null) {
+    if (rowErrors.length > 0 || unitPrice == null || !imageBytes) {
       errors.push(...rowErrors);
       skipped += 1;
       continue;
@@ -960,20 +1050,7 @@ export async function importProductsFromCsv(formData: FormData): Promise<Product
       }
     }
 
-    let bytes: Buffer;
-    try {
-      const stat = await fs.stat(safePath);
-      if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) {
-        errors.push({ row: line, field: 'image_path', message: 'Image must be a file of 5 MB or smaller.' });
-        skipped += 1;
-        continue;
-      }
-      bytes = await fs.readFile(safePath);
-    } catch {
-      errors.push({ row: line, field: 'image_path', message: 'Could not read this image file.' });
-      skipped += 1;
-      continue;
-    }
+    const bytes = imageBytes;
 
     let imageUrl: string;
     try {

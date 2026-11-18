@@ -21,10 +21,42 @@ type Notice = { id: number; message: string };
 
 const NoticeContext = createContext<((message: string) => void) | null>(null);
 
+type ActionCompleteContextValue = {
+  complete: (message: string) => void;
+  refreshing: boolean;
+};
+
+const ActionCompleteContext = createContext<ActionCompleteContextValue | null>(null);
+
+function RefreshPendingOverlay({ pending }: { pending: boolean }) {
+  if (!pending) {
+    return null;
+  }
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-900/25 backdrop-blur-[2px]"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 py-4 shadow-lg">
+        <Spinner size={22} />
+        <div>
+          <p className="text-base font-semibold text-stone-900">Updating…</p>
+          <p className="text-sm text-stone-600">This can take a few seconds.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ActionNoticeProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [notices, setNotices] = useState<Notice[]>([]);
   const nextId = useRef(0);
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const [refreshing, startTransition] = useTransition();
+  const queued = useRef<string | null>(null);
 
   const dismiss = useCallback((id: number) => {
     const timer = timers.current.get(id);
@@ -53,32 +85,55 @@ export function ActionNoticeProvider({ children }: { children: ReactNode }) {
     return () => pending.forEach((timer) => clearTimeout(timer));
   }, []);
 
+  useEffect(() => {
+    if (!refreshing && queued.current) {
+      const message = queued.current;
+      queued.current = null;
+      show(message);
+    }
+  }, [refreshing, show]);
+
+  const complete = useCallback(
+    (message: string) => {
+      queued.current = message;
+      startTransition(() => {
+        router.refresh();
+      });
+    },
+    [router],
+  );
+
+  const completeValue = useMemo(() => ({ complete, refreshing }), [complete, refreshing]);
+
   return (
     <NoticeContext.Provider value={show}>
-      {children}
-      <div
-        role="status"
-        aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4"
-      >
-        {notices.map((notice) => (
-          <div
-            key={notice.id}
-            className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-medium text-white shadow-lg ring-1 ring-emerald-800/20"
-          >
-            <CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden />
-            <p className="flex-1">{notice.message}</p>
-            <button
-              type="button"
-              onClick={() => dismiss(notice.id)}
-              aria-label="Dismiss message"
-              className="-m-1 rounded-md p-1 text-emerald-50 hover:bg-emerald-800"
+      <ActionCompleteContext.Provider value={completeValue}>
+        {children}
+        <RefreshPendingOverlay pending={refreshing} />
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed inset-x-0 top-4 z-[80] flex flex-col items-center gap-2 px-4"
+        >
+          {notices.map((notice) => (
+            <div
+              key={notice.id}
+              className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-medium text-white shadow-lg ring-1 ring-emerald-800/20"
             >
-              <X size={16} aria-hidden />
-            </button>
-          </div>
-        ))}
-      </div>
+              <CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden />
+              <p className="flex-1">{notice.message}</p>
+              <button
+                type="button"
+                onClick={() => dismiss(notice.id)}
+                aria-label="Dismiss message"
+                className="-m-1 rounded-md p-1 text-emerald-50 hover:bg-emerald-800"
+              >
+                <X size={16} aria-hidden />
+              </button>
+            </div>
+          ))}
+        </div>
+      </ActionCompleteContext.Provider>
     </NoticeContext.Provider>
   );
 }
@@ -97,30 +152,11 @@ export function useActionNotice() {
  * showing progress instead of looking finished while the page still shows old data.
  */
 export function useActionComplete() {
-  const router = useRouter();
-  const notice = useActionNotice();
-  const [refreshing, startTransition] = useTransition();
-  const queued = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!refreshing && queued.current) {
-      const message = queued.current;
-      queued.current = null;
-      notice.show(message);
-    }
-  }, [notice, refreshing]);
-
-  const complete = useCallback(
-    (message: string) => {
-      queued.current = message;
-      startTransition(() => {
-        router.refresh();
-      });
-    },
-    [router],
-  );
-
-  return { complete, refreshing };
+  const value = useContext(ActionCompleteContext);
+  if (!value) {
+    throw new Error('useActionComplete must be used inside ActionNoticeProvider.');
+  }
+  return value;
 }
 
 export function Spinner({ size = 16 }: { size?: number }) {

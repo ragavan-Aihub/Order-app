@@ -28,6 +28,7 @@ import {
   WEIGHT_PRESETS_GRAMS,
   weightOptionPrice,
 } from '@/lib/selling-units';
+import { stockToInputValue } from '@/lib/stock';
 import { saveProduct } from '@/services/product-actions';
 import { ProductDeleteButton } from '@/components/ProductDeleteButton';
 import { VariantOptionCard, VariantOptionRow } from '@/components/VariantOptionCard';
@@ -122,11 +123,7 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
   );
   const [customGrams, setCustomGrams] = useState('');
   const [stockQty, setStockQty] = useState(() =>
-    product?.stock_qty != null && Number.isFinite(product.stock_qty)
-      ? product.selling_type === 'kg' || product.selling_type === 'liter'
-        ? String(product.stock_qty / 1000)
-        : String(product.stock_qty)
-      : '',
+    stockToInputValue(product?.stock_qty, product?.selling_type ?? 'quantity'),
   );
 
   function togglePresetWeight(grams: number) {
@@ -555,10 +552,10 @@ export function ProductForm({ product, categoriesEnabled = false, categories = [
           />
           <span className="mt-1.5 block text-xs text-stone-500">
             {sellingType === 'kg'
-              ? 'Enter kilograms. 1 Kg allows ten 100 g orders (or four 250 g). 0 marks the product sold out.'
+              ? 'Enter kilograms. 1 Kg allows ten 100 g orders (or four 250 g). Leave blank for unlimited. When stock reaches 0, the product becomes Coming soon.'
               : sellingType === 'liter'
-                ? 'Enter liters. 1 L allows ten 100 ml orders. 0 marks the product sold out.'
-                : 'Use a number only for limited items. Each Add counts as 1 piece or pack. 0 marks the product sold out.'}
+                ? 'Enter liters. 1 L allows ten 100 ml orders. Leave blank for unlimited. When stock reaches 0, the product becomes Coming soon.'
+                : 'Use a number only for limited items. Leave blank for unlimited. When stock reaches 0, the product becomes Coming soon.'}
           </span>
         </label>
 

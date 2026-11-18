@@ -8,6 +8,9 @@ import { buildProductExportCsv, buildProductTemplateCsv } from '@/lib/product-ca
 import { importProductsFromCsv, type ProductImportIssue } from '@/services/product-actions';
 import type { Product } from '@/types/product';
 
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
+const CSV_EXT = /\.(csv|txt|xls)$/i;
+
 function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -16,6 +19,28 @@ function downloadCsv(filename: string, csv: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function splitImportFiles(list: FileList | null): { csv: File | null; images: File[] } {
+  const files = Array.from(list ?? []);
+  const csv =
+    files.find((file) => CSV_EXT.test(file.name) || file.type.includes('csv') || file.type === 'text/plain') ?? null;
+  const images = files.filter((file) => IMAGE_EXT.test(file.name) || file.type.startsWith('image/'));
+  return { csv, images };
+}
+
+function selectionLabel(csv: File | null, images: File[]) {
+  if (!csv && images.length === 0) {
+    return 'Choose CSV + images';
+  }
+  const parts: string[] = [];
+  if (csv) {
+    parts.push(csv.name);
+  }
+  if (images.length > 0) {
+    parts.push(`${images.length} image${images.length === 1 ? '' : 's'}`);
+  }
+  return parts.join(' · ');
 }
 
 export function ProductImport({
@@ -38,6 +63,7 @@ export function ProductImport({
     [categoriesEnabled, products],
   );
   const [file, setFile] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<number | null>(null);
   const [skipped, setSkipped] = useState(0);
@@ -51,10 +77,14 @@ export function ProductImport({
     setErrorLogCsv(null);
   }
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const next = event.target.files?.[0] ?? null;
-    setFile(next);
+  function onFilesChange(event: ChangeEvent<HTMLInputElement>) {
+    const next = splitImportFiles(event.target.files);
+    setFile(next.csv);
+    setImages(next.images);
     resetResult();
+    if (!next.csv && (event.target.files?.length ?? 0) > 0) {
+      setErrors([{ row: 0, field: 'file', message: 'Include the CSV in the same selection as the images.' }]);
+    }
   }
 
   async function onImport() {
@@ -66,6 +96,9 @@ export function ProductImport({
     const formData = new FormData();
     formData.set('file', file);
     formData.set('csv', await file.text());
+    for (const image of images) {
+      formData.append('images', image);
+    }
     const result = await importProductsFromCsv(formData);
     setSaving(false);
     setCreated(result.created);
@@ -97,9 +130,9 @@ export function ProductImport({
           Weights/volumes look like <span className="font-medium">250;500;1kg</span>.
         </li>
         <li>
-          <span className="font-medium">image_path</span> is a full path on this Mac for new imports. Exported rows leave
-          it blank. Optional <span className="font-medium">available</span> / <span className="font-medium">active</span>{' '}
-          are Yes/No.
+          <span className="font-medium">image_path</span> should be the image file name (e.g.{' '}
+          <span className="font-medium">kambu_dosa_mix.jpg</span>). Select the CSV and all product images together in
+          one step. Local Mac full paths also work when admin runs on this computer.
         </li>
         {categoriesEnabled ? (
           <li>
@@ -124,9 +157,15 @@ export function ProductImport({
         >
           Export products ({products.length})
         </button>
-        <label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800">
-          {file ? file.name : 'Choose CSV'}
-          <input type="file" accept=".csv,text/csv,.xls,text/plain" onChange={onFileChange} className="sr-only" />
+        <label className="inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800">
+          <span className="truncate">{selectionLabel(file, images)}</span>
+          <input
+            type="file"
+            accept=".csv,text/csv,.txt,.jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            onChange={onFilesChange}
+            className="sr-only"
+          />
         </label>
         <button
           type="button"
@@ -136,7 +175,7 @@ export function ProductImport({
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {saving ? <Spinner /> : null}
-          {saving ? 'Importing…' : 'Import CSV'}
+          {saving ? 'Importing…' : 'Import'}
         </button>
       </div>
       {created != null ? (

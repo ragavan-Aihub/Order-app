@@ -45,9 +45,9 @@ export const ProductCard = memo(function ProductCard({
   favoriteBusy = false,
   onFavoritePress,
 }: ProductCardProps) {
-  const comingSoon = product.available === false;
-  const soldOut = !comingSoon && stockLimitOf(product.stock_qty) === 0;
-  const blocked = comingSoon || soldOut;
+  // Stock 0 auto-marks Coming soon in the database; treat either as Coming soon in the UI.
+  const comingSoon = product.available === false || stockLimitOf(product.stock_qty) === 0;
+  const blocked = comingSoon;
   const needsOptions = sellingTypeOf(product) !== 'quantity';
   const unit = catalogUnitLabel(product);
   const price = catalogPriceAmountLabel(product);
@@ -66,12 +66,6 @@ export const ProductCard = memo(function ProductCard({
           <View style={styles.soonWrap} pointerEvents="none">
             <Text style={[styles.soon, compact && styles.soonCompact]} numberOfLines={1}>
               Coming soon
-            </Text>
-          </View>
-        ) : soldOut ? (
-          <View style={styles.soonWrap} pointerEvents="none">
-            <Text style={[styles.soon, compact && styles.soonCompact]} numberOfLines={1}>
-              Sold out
             </Text>
           </View>
         ) : null}
@@ -121,7 +115,7 @@ export const ProductCard = memo(function ProductCard({
         </Text>
       )}
     </Pressable>
-  ) : comingSoon || (soldOut && quantity <= 0) ? null : quantity > 0 ? (
+  ) : comingSoon ? null : quantity > 0 ? (
     <QuantityStepper
       compact
       dense
@@ -154,7 +148,7 @@ export const ProductCard = memo(function ProductCard({
         </Pressable>
       )}
       <View style={[styles.footer, compact && styles.footerCompact]}>
-        {needsOptions && !comingSoon && !soldOut ? (
+        {needsOptions && !comingSoon ? (
           <Pressable
             onPress={() => {
               hapticTap();

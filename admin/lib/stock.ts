@@ -79,7 +79,7 @@ export function stockLeftLabel(
     return null;
   }
   if (stock <= 0) {
-    return 'Sold out';
+    return 'Coming soon';
   }
   if (sellingType === 'kg') {
     return `${formatWeight(stock)} left`;

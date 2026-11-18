@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Suspense, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/LogoutButton';
 import {
@@ -147,59 +147,57 @@ export function AdminShell({
   }, [menuOpen]);
 
   return (
-    <Suspense fallback={null}>
     <NavigationPendingProvider>
-    <div className="min-h-dvh bg-[#F7F4EF] text-base text-stone-900">
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
-        <BrandMark />
-        <button
-          type="button"
-          aria-expanded={menuOpen}
-          aria-controls="admin-nav"
-          onClick={() => setMenuOpen((open) => !open)}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-200 px-3 text-base font-medium"
-        >
-          {menuOpen ? 'Close' : 'Menu'}
-        </button>
-      </header>
+      <div className="min-h-dvh bg-[#F7F4EF] text-base text-stone-900">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
+          <BrandMark />
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls="admin-nav"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-200 px-3 text-base font-medium"
+          >
+            {menuOpen ? 'Close' : 'Menu'}
+          </button>
+        </header>
 
-      {menuOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-stone-900/40 md:hidden"
-          aria-label="Close menu"
-          onClick={() => setMenuOpen(false)}
-        />
-      ) : null}
+        {menuOpen ? (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-stone-900/40 md:hidden"
+            aria-label="Close menu"
+            onClick={() => setMenuOpen(false)}
+          />
+        ) : null}
 
-      <div className="flex min-h-dvh">
-        <aside
-          id="admin-nav"
-          className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-stone-200 bg-white p-5 pt-[max(1.25rem,env(safe-area-inset-top))] transition-transform md:sticky md:inset-auto md:top-0 md:z-0 md:w-72 md:shrink-0 md:translate-x-0 ${
-            menuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-          }`}
-        >
-          <div className="mb-6 hidden shrink-0 md:block">
-            <BrandMark />
-          </div>
-          <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-            <NavLinks pathname={pathname} />
-          </nav>
-          <div className="shrink-0 space-y-2 border-t border-stone-100 pt-4">
-            <p className="truncate px-3 text-base font-medium text-stone-800" title={adminLabel}>
-              {adminLabel}
-            </p>
-            <p className="px-3 text-sm text-stone-500">Version {ADMIN_PANEL_VERSION}</p>
-            <LogoutButton />
-          </div>
-        </aside>
-        <main className="relative min-w-0 flex-1 p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:px-8 md:py-6 lg:px-10 lg:py-7">
-          <NavigationPendingOverlay />
-          {children}
-        </main>
+        <div className="flex min-h-dvh">
+          <aside
+            id="admin-nav"
+            className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-stone-200 bg-white p-5 pt-[max(1.25rem,env(safe-area-inset-top))] transition-transform md:sticky md:inset-auto md:top-0 md:z-0 md:w-72 md:shrink-0 md:translate-x-0 ${
+              menuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+            }`}
+          >
+            <div className="mb-6 hidden shrink-0 md:block">
+              <BrandMark />
+            </div>
+            <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+              <NavLinks pathname={pathname} />
+            </nav>
+            <div className="shrink-0 space-y-2 border-t border-stone-100 pt-4">
+              <p className="truncate px-3 text-base font-medium text-stone-800" title={adminLabel}>
+                {adminLabel}
+              </p>
+              <p className="px-3 text-sm text-stone-500">Version {ADMIN_PANEL_VERSION}</p>
+              <LogoutButton />
+            </div>
+          </aside>
+          <main className="relative min-w-0 flex-1 p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:px-8 md:py-6 lg:px-10 lg:py-7">
+            <NavigationPendingOverlay />
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
     </NavigationPendingProvider>
-    </Suspense>
   );
 }
