@@ -45,6 +45,7 @@ import { formatOrderNumber, formatPrice } from '@/utils/format';
 import { cartLineKey, cartLineTotal, formatOrderItemUnit } from '@/utils/selling-units';
 import {
   clearExpectingCartItems,
+  markExpectingCartItems,
   shouldHoldEmptyCart,
 } from '@/notifications/available-product-order';
 import { useTopInset } from '@/utils/safe-area';
