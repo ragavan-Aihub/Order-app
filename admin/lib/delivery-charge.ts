@@ -54,3 +54,37 @@ export function billTotalForMinCheck(
 ): number {
   return computeDeliveryBreakdown(itemsSubtotal, shop).billTotal;
 }
+
+export function freeDeliveryNudgeAmount(
+  itemsSubtotal: number,
+  freeFrom: number,
+): number | null {
+  if (freeFrom <= 0) {
+    return null;
+  }
+  const gap = freeFrom - itemsSubtotal;
+  if (gap <= 0) {
+    return null;
+  }
+  return Math.ceil(gap);
+}
+
+export function freeDeliveryNudgeMessage(
+  itemsSubtotal: number,
+  shop: DeliveryShopSettings | null | undefined,
+): string | null {
+  const listed = deliveryChargeOf(shop?.delivery_charge);
+  const freeFrom = freeDeliveryMinOf(shop?.free_delivery_min_order);
+  if (listed <= 0 || freeFrom <= 0) {
+    return null;
+  }
+  const { freeQualified } = computeDeliveryBreakdown(itemsSubtotal, shop);
+  if (freeQualified) {
+    return null;
+  }
+  const add = freeDeliveryNudgeAmount(itemsSubtotal, freeFrom);
+  if (add == null) {
+    return null;
+  }
+  return `Add ${formatPrice(add)} more for free delivery.`;
+}

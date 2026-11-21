@@ -1253,7 +1253,7 @@ export function AdminOrderForm({
               <p className="text-sm tabular-nums text-stone-600">
                 {itemCount} {itemCount === 1 ? 'item' : 'items'}
               </p>
-              <AdminOrderBillSummary itemsSubtotal={total} shop={shopRules} />
+              <AdminOrderBillSummary itemsSubtotal={total} itemCount={itemCount} shop={shopRules} />
 
               <div>
                 <p className={labelClass}>Payment</p>
