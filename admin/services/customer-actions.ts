@@ -762,6 +762,14 @@ export async function createAdminOrder(input: {
     return { error: itemsError.message };
   }
 
+  const { error: totalsError } = await ctx.supabase.rpc('order_apply_delivery_totals', {
+    p_order_id: order.id,
+  });
+  if (totalsError) {
+    await ctx.supabase.from('orders').delete().eq('id', order.id).eq('business_id', ctx.businessId);
+    return { error: totalsError.message };
+  }
+
   await logAdminAudit(auditCtx(ctx), {
     action: 'order.create_admin',
     entityType: 'order',

@@ -38,7 +38,9 @@ import type { CustomerAddress, CustomerListItem } from '@/services/customers';
 import { composeAddressLine, isValidPincode, stateFromPincode, type AddressLabel } from '@/types/address';
 import { ADMIN_CUSTOMER_SOURCE, customerSourceLabel, normalizeMobile } from '@/types/customer';
 import type { Product } from '@/types/product';
+import { AdminOrderBillSummary } from '@/components/AdminOrderBillSummary';
 import { formatPrice } from '@/utils/format';
+import type { DeliveryShopSettings } from '@/lib/delivery-charge';
 
 type CustomerOption = Pick<
   CustomerListItem,
@@ -50,6 +52,7 @@ type AdminOrderFormProps = {
   selectedCustomerId?: string;
   addresses: CustomerAddress[];
   products: Product[];
+  shopRules?: DeliveryShopSettings | null;
 };
 
 const fieldClass = 'min-h-10 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm';
@@ -179,6 +182,7 @@ export function AdminOrderForm({
   selectedCustomerId,
   addresses: initialAddresses,
   products,
+  shopRules = null,
 }: AdminOrderFormProps) {
   const router = useRouter();
   const notice = useActionNotice();
@@ -1246,18 +1250,10 @@ export function AdminOrderForm({
               <p className="mt-0.5 truncate text-sm text-stone-500">{summaryFor}</p>
             </div>
             <div className="space-y-4 p-5">
-              <dl className="space-y-2">
-                <div className="flex items-center justify-between text-sm text-stone-600">
-                  <dt className="sr-only">Items</dt>
-                  <dd className="tabular-nums">
-                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
-                  </dd>
-                </div>
-                <div className="flex items-baseline justify-between border-t border-stone-100 pt-3">
-                  <dt className="text-sm font-medium text-stone-900">Total</dt>
-                  <dd className="text-2xl font-bold tracking-tight tabular-nums text-stone-900">{formatPrice(total)}</dd>
-                </div>
-              </dl>
+              <p className="text-sm tabular-nums text-stone-600">
+                {itemCount} {itemCount === 1 ? 'item' : 'items'}
+              </p>
+              <AdminOrderBillSummary itemsSubtotal={total} shop={shopRules} />
 
               <div>
                 <p className={labelClass}>Payment</p>

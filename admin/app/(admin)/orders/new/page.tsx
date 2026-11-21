@@ -1,16 +1,18 @@
 import Link from 'next/link';
 
 import { AdminOrderForm } from '@/components/AdminOrderForm';
+import { getAdminBusiness } from '@/services/business';
 import { getCustomerAddresses, getCustomers } from '@/services/customers';
 import { getAllProducts } from '@/services/products';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewOrderPage() {
-  const [customers, addresses, products] = await Promise.all([
+  const [customers, addresses, products, business] = await Promise.all([
     getCustomers(),
     getCustomerAddresses(),
     getAllProducts({ includeTransacted: false }),
+    getAdminBusiness(),
   ]);
 
   return (
@@ -21,7 +23,19 @@ export default async function NewOrderPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-stone-900">Create order</h1>
       </div>
-      <AdminOrderForm customers={customers} addresses={addresses} products={products} />
+      <AdminOrderForm
+        customers={customers}
+        addresses={addresses}
+        products={products}
+        shopRules={
+          business
+            ? {
+                delivery_charge: business.delivery_charge,
+                free_delivery_min_order: business.free_delivery_min_order,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

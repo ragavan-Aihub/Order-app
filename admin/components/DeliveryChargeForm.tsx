@@ -57,7 +57,8 @@ export function DeliveryChargeForm({ business }: { business: Business }) {
       <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
         <span className="block text-base font-semibold">Delivery charge (₹)</span>
         <span className="mt-1 block text-sm leading-6 text-stone-600">
-          Added to the customer bill when free delivery does not apply. Leave empty or 0 for no charge.
+          Added to the customer bill when free delivery does not apply. Applies to app orders and phone orders
+          you create in admin. Leave empty or 0 for no charge.
         </span>
         <input
           type="number"

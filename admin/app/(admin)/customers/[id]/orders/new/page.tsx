@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminOrderForm } from '@/components/AdminOrderForm';
+import { getAdminBusiness } from '@/services/business';
 import { getCustomerById } from '@/services/customers';
 import { getAllProducts } from '@/services/products';
 
@@ -9,9 +10,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewCustomerOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [customer, products] = await Promise.all([
+  const [customer, products, business] = await Promise.all([
     getCustomerById(id),
     getAllProducts({ includeTransacted: false }),
+    getAdminBusiness(),
   ]);
   if (!customer) {
     notFound();
@@ -47,6 +49,14 @@ export default async function NewCustomerOrderPage({ params }: { params: Promise
         selectedCustomerId={customer.id}
         addresses={customer.addresses}
         products={products}
+        shopRules={
+          business
+            ? {
+                delivery_charge: business.delivery_charge,
+                free_delivery_min_order: business.free_delivery_min_order,
+              }
+            : null
+        }
       />
     </div>
   );
