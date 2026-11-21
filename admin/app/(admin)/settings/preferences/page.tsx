@@ -1,3 +1,4 @@
+import { DeliveryChargeForm } from '@/components/DeliveryChargeForm';
 import { MinOrderForm } from '@/components/MinOrderForm';
 import { getAdminBusiness } from '@/services/business';
 
@@ -23,6 +24,7 @@ export default async function PreferencesPage() {
         </p>
       </div>
       <MinOrderForm business={business} />
+      <DeliveryChargeForm business={business} />
     </div>
   );
 }

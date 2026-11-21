@@ -56,6 +56,8 @@ export type Order = {
   pincode: string;
   customer_address_id?: string | null;
   total_amount: number;
+  delivery_charge?: number | null;
+  delivery_charge_listed?: number | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   cancel_reason: string | null;

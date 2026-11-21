@@ -12,6 +12,8 @@ export type Business = {
   shop_closed: boolean;
   shop_closed_message: string | null;
   min_order_amount?: number | null;
+  delivery_charge?: number | null;
+  free_delivery_min_order?: number | null;
   announcement_active: boolean;
   announcement_title: string | null;
   announcement_body: string | null;

@@ -2,6 +2,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog } from '@/components/AppDialog';
 import { colors, radius, spacing } from '@/config/theme';
+import { OrderBillSummary } from '@/components/OrderBillSummary';
+import type { DeliveryBreakdown } from '@/utils/delivery-charge';
 import { formatPrice } from '@/utils/format';
 
 export function PlaceOrderConfirmSheet({
@@ -12,6 +14,8 @@ export function PlaceOrderConfirmSheet({
   itemCount,
   addressTitle,
   addressLine,
+  bill,
+  nudge,
   mode = 'place',
 }: {
   visible: boolean;
@@ -21,6 +25,8 @@ export function PlaceOrderConfirmSheet({
   itemCount: number;
   addressTitle: string;
   addressLine: string;
+  bill?: DeliveryBreakdown | null;
+  nudge?: string | null;
   mode?: 'place' | 'update';
 }) {
   const isUpdate = mode === 'update';
@@ -36,10 +42,14 @@ export function PlaceOrderConfirmSheet({
       onClose={onClose}
       actions={[{ label: confirmLabel, onPress: onConfirm }]}
     >
-      <View style={styles.summary}>
-        <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
-        <Text style={styles.itemCount}>{itemLabel}</Text>
-      </View>
+      {bill ? (
+        <OrderBillSummary breakdown={bill} compact nudge={nudge} />
+      ) : (
+        <View style={styles.summary}>
+          <Text style={styles.total}>{formatPrice(totalAmount)}</Text>
+        </View>
+      )}
+      <Text style={styles.itemCount}>{itemLabel}</Text>
       <View style={styles.delivery}>
         <Text style={styles.deliveryLabel} numberOfLines={1}>
           {addressTitle}

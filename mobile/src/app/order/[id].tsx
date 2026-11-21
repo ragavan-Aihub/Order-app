@@ -21,6 +21,7 @@ import { useCart } from '@/cart/CartContext';
 import { goModifyOrder } from '@/cart/modify-flow';
 import { showAppDialog } from '@/components/AppDialogHost';
 import { CancelOrderDialog } from '@/components/CancelOrderDialog';
+import { OrderBillSummary } from '@/components/OrderBillSummary';
 import { OrderProgress, latestStatusTime } from '@/components/OrderProgress';
 import { PaymentBadge } from '@/components/PaymentBadge';
 import { ProductImage } from '@/components/ProductImage';
@@ -343,10 +344,17 @@ export default function OrderDetailScreen() {
                   <Text style={styles.itemPriceCol}>{formatPrice(item.subtotal)}</Text>
                 </View>
               ))}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatPrice(order.total_amount)}</Text>
-              </View>
+              <OrderBillSummary
+                breakdown={{
+                  itemsSubtotal: order.order_items.reduce((sum, item) => sum + item.subtotal, 0),
+                  listedCharge: Number(order.delivery_charge_listed ?? order.delivery_charge ?? 0),
+                  charged: Number(order.delivery_charge ?? 0),
+                  freeQualified:
+                    Number(order.delivery_charge_listed ?? 0) > 0 &&
+                    Number(order.delivery_charge ?? 0) === 0,
+                  billTotal: order.total_amount,
+                }}
+              />
             </>
           )}
         </View>

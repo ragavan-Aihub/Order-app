@@ -14,7 +14,7 @@ export async function getAdminBusiness(): Promise<Business | null> {
   }
 
   const columns =
-    'id, business_name, logo_url, phone, email, address, description, banner_url, app_icon_url, notification_icon_url, shop_closed, shop_closed_message, min_order_amount, announcement_active, announcement_title, announcement_body, announcement_image_url, created_at, updated_at';
+    'id, business_name, logo_url, phone, email, address, description, banner_url, app_icon_url, notification_icon_url, shop_closed, shop_closed_message, min_order_amount, delivery_charge, free_delivery_min_order, announcement_active, announcement_title, announcement_body, announcement_image_url, created_at, updated_at';
   const { data, error } = await supabase
     .from('businesses')
     .select(columns)
@@ -37,7 +37,12 @@ export async function getAdminBusiness(): Promise<Business | null> {
     return null;
   }
 
-  return { ...(fallback.data as Business), min_order_amount: 0 };
+  return {
+    ...(fallback.data as Business),
+    min_order_amount: 0,
+    delivery_charge: 0,
+    free_delivery_min_order: 0,
+  };
 }
 
 export async function getAdminShopBanners(

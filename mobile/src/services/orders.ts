@@ -16,13 +16,14 @@ import type {
   OrderWithItems,
 } from '@/types/order';
 import { OPEN_ORDER_STATUSES, isOpenOrderStatus } from '@/types/order';
+import { computeDeliveryBreakdown } from '@/utils/delivery-charge';
 import { cartLineTotal } from '@/utils/selling-units';
 
 const OFFLINE_ORDER =
   'You are not connected to the internet. Please connect to the internet and try again';
 
 const ORDER_COLUMNS =
-  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, status, payment_method, cancel_reason, refund_status, placed_via, update_count, items_revision, created_at, updated_at';
+  'id, order_number, business_id, user_id, customer_name, mobile, delivery_address, pincode, customer_address_id, total_amount, delivery_charge, delivery_charge_listed, status, payment_method, cancel_reason, refund_status, placed_via, update_count, items_revision, created_at, updated_at';
 const ORDER_LOOKUP_COLUMNS =
   'id, order_number, status, customer_address_id, pincode, delivery_address, created_at, total_amount, placed_via, update_count';
 const UNDELIVERED_STATUSES = ['new', 'confirmed', 'packed', 'out_for_delivery'] as const;
@@ -489,7 +490,9 @@ export async function placeOrder(
     throw new Error('Please sign in.');
   }
 
-  const totalAmount = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
+  const itemsSubtotal = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
+  const bill = computeDeliveryBreakdown(itemsSubtotal, shop);
+  const totalAmount = bill.billTotal;
   const startedAt = new Date(Date.now() - 60_000).toISOString();
 
   try {

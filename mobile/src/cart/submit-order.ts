@@ -3,6 +3,7 @@ import { formatAddressForOrder, type SavedAddress } from '@/cart/address-book';
 import { refreshBusiness } from '@/services/business';
 import { isNetworkFailure } from '@/services/network';
 import { cartLineTotal } from '@/utils/selling-units';
+import { billTotalForMinCheck } from '@/utils/delivery-charge';
 import { belowMinOrder, minOrderAmountOf, minOrderMessage } from '@/utils/min-order';
 import { lineStockUnits, stockLimitOf, stockMessage } from '@/utils/stock';
 import {
@@ -76,7 +77,8 @@ export async function submitShopOrder(
   const shop = await refreshBusiness().catch(() => null);
   const minOrder = minOrderAmountOf(shop?.min_order_amount);
   const cartTotal = items.reduce((sum, item) => sum + cartLineTotal(item), 0);
-  if (belowMinOrder(cartTotal, minOrder)) {
+  const billTotal = billTotalForMinCheck(cartTotal, shop);
+  if (belowMinOrder(billTotal, minOrder)) {
     return { ok: false, reason: 'min_order', message: minOrderMessage(minOrder) };
   }
 

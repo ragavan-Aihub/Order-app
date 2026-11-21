@@ -144,13 +144,15 @@ export function AdminOrderModifyPanel({
   const router = useRouter();
   const { complete, refreshing } = useActionComplete();
   const canInvoice = status === 'confirmed';
-  const invoiceActionLabel = invoicePrepared || adminModifiedFromPlaced ? 'Update invoice' : 'Prepare invoice';
+  const invoiceSaved = invoicePrepared || adminModifiedFromPlaced;
+  const invoiceActionLabel = invoiceSaved ? 'Modify invoice' : 'Prepare invoice';
   const baseline = useMemo(() => linesFromOrderItems(originalItems), [originalItems]);
   const [editing, setEditing] = useState(false);
   const [lines, setLines] = useState<Line[]>(() => linesFromOrderItems(originalItems));
   const [query, setQuery] = useState('');
   const [reason, setReason] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [modifyEntryOpen, setModifyEntryOpen] = useState(false);
   const [revertOpen, setRevertOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -284,6 +286,19 @@ export function AdminOrderModifyPanel({
     setQuery('');
     setError(null);
     setEditing(true);
+  }
+
+  function requestStartEditing() {
+    if (invoiceSaved) {
+      setModifyEntryOpen(true);
+      return;
+    }
+    startEditing();
+  }
+
+  function confirmModifyEntry() {
+    setModifyEntryOpen(false);
+    startEditing();
   }
 
   function cancelEditing() {
@@ -496,7 +511,7 @@ export function AdminOrderModifyPanel({
             {canInvoice ? (
               <button
                 type="button"
-                onClick={startEditing}
+                onClick={requestStartEditing}
                 className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
               >
                 {invoiceActionLabel}
@@ -523,6 +538,15 @@ export function AdminOrderModifyPanel({
           showDiff={adminModifiedFromPlaced}
           showCustomerDiff={customerModifiedAfterConfirm}
         />
+        {modifyEntryOpen ? (
+          <ConfirmDialog
+            title="Modify invoice?"
+            body="The invoice is already saved. Only continue if you need to change billed quantities or lines. The customer can see invoice changes in the app."
+            confirmLabel="Modify invoice"
+            onCancel={() => setModifyEntryOpen(false)}
+            onConfirm={confirmModifyEntry}
+          />
+        ) : null}
         {revertOpen ? (
           <ConfirmDialog
             title="Reset to original order?"

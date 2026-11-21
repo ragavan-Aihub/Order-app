@@ -233,6 +233,47 @@ export async function updateMinOrderAmount(input: {
   return { error: null };
 }
 
+export async function updateDeliveryChargeSettings(input: {
+  businessId: string;
+  deliveryCharge: number;
+  freeDeliveryMinOrder: number;
+}): Promise<{ error: string | null }> {
+  const ctx = await requireAdminAuditContext();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  if (input.businessId !== ctx.businessId) {
+    return { error: 'This account cannot change this business.' };
+  }
+
+  const charge = Number(input.deliveryCharge);
+  const freeFrom = Number(input.freeDeliveryMinOrder);
+  if (!Number.isFinite(charge) || charge < 0 || !Number.isFinite(freeFrom) || freeFrom < 0) {
+    return { error: 'Enter valid amounts, or 0 for none.' };
+  }
+  const deliveryCharge = Math.round(charge * 100) / 100;
+  const freeDeliveryMinOrder = Math.round(freeFrom * 100) / 100;
+
+  const { error } = await ctx.supabase
+    .from('businesses')
+    .update({ delivery_charge: deliveryCharge, free_delivery_min_order: freeDeliveryMinOrder })
+    .eq('id', ctx.businessId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAudit(ctx, {
+    action: 'business.delivery_charge_update',
+    entityType: 'business',
+    entityId: ctx.businessId,
+    summary: `Delivery ₹${deliveryCharge}, free from ₹${freeDeliveryMinOrder}`,
+  });
+
+  revalidatePath('/settings/preferences');
+  return { error: null };
+}
+
 export async function saveShopBanners(input: {
   businessId: string;
   posters: { imageUrl: string; focusY: number; notify?: boolean }[];

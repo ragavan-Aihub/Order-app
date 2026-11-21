@@ -29,6 +29,7 @@ import { ModifyOrderBar } from '@/components/ModifyOrderBar';
 import { ProductImage } from '@/components/ProductImage';
 import { showAppDialog } from '@/components/AppDialogHost';
 import { MinOrderDialog } from '@/components/MinOrderDialog';
+import { OrderBillSummary } from '@/components/OrderBillSummary';
 import { PlaceOrderConfirmSheet } from '@/components/PlaceOrderConfirmSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -36,6 +37,12 @@ import { colors, radius, shadow, spacing } from '@/config/theme';
 import { useNetworkStatus } from '@/network/NetworkProvider';
 import { shopClosedMessage } from '@/components/ShopHomeNotice';
 import { refreshBusiness } from '@/services/business';
+import type { Business } from '@/types/business';
+import {
+  billTotalForMinCheck,
+  computeDeliveryBreakdown,
+  freeDeliveryNudgeMessage,
+} from '@/utils/delivery-charge';
 import { belowMinOrder, minOrderAmountOf } from '@/utils/min-order';
 import { hapticError } from '@/utils/haptics';
 import { checkOrderEditable, getMyOrderById } from '@/services/orders';
@@ -86,6 +93,7 @@ export default function CartScreen() {
   const [error, setError] = useState<string | null>(null);
   const [closedMessage, setClosedMessage] = useState<string | null>(null);
   const [minOrderAmount, setMinOrderAmount] = useState(0);
+  const [shop, setShop] = useState<Business | null>(null);
   const [footerHeight, setFooterHeight] = useState(96);
   const discarding = useRef(false);
   const leaving = useRef(false);
@@ -150,11 +158,13 @@ export default function CartScreen() {
       loadAddress().catch(() => undefined);
       void getSignedInUser().then((user) => setSignedIn(Boolean(user)));
       void refreshBusiness()
-        .then((shop) => {
-          setClosedMessage(shopClosedMessage(shop));
-          setMinOrderAmount(minOrderAmountOf(shop?.min_order_amount));
+        .then((nextShop) => {
+          setShop(nextShop);
+          setClosedMessage(shopClosedMessage(nextShop));
+          setMinOrderAmount(minOrderAmountOf(nextShop?.min_order_amount));
         })
         .catch(() => {
+          setShop(null);
           setClosedMessage(null);
           setMinOrderAmount(0);
         });
@@ -284,7 +294,9 @@ export default function CartScreen() {
   const addressTitle = selected ? savedAddressLabel(selected.label) : 'Choose address';
   const addressLine = selected ? savedAddressLine(selected) : 'Add a delivery address';
   const shopClosed = Boolean(closedMessage) && !editingOpen;
-  const underMinOrder = belowMinOrder(totalAmount, minOrderAmount);
+  const bill = useMemo(() => computeDeliveryBreakdown(totalAmount, shop), [shop, totalAmount]);
+  const deliveryNudge = useMemo(() => freeDeliveryNudgeMessage(totalAmount, shop), [shop, totalAmount]);
+  const underMinOrder = belowMinOrder(billTotalForMinCheck(totalAmount, shop), minOrderAmount);
   const placeOrderLabel = submitting
     ? editingOpen
       ? 'Updating…'
@@ -629,18 +641,23 @@ export default function CartScreen() {
         {checkoutHint && !error ? (
           <Text style={[styles.checkoutHint, styles.footerMessage]}>{checkoutHint}</Text>
         ) : null}
+        {deliveryNudge && !error ? (
+          <Text style={[styles.deliveryNudge, styles.footerMessage]}>{deliveryNudge}</Text>
+        ) : null}
         {openOrder && !editingOpen ? (
           <Text style={[styles.error, styles.footerMessage]}>
             Order #{formatOrderNumber(openOrder.order_number)} is already open at this address. Pick another
             address to place a new order, or modify the open one.
           </Text>
         ) : null}
+        <View style={styles.billSummaryWrap}>
+          <OrderBillSummary breakdown={bill} compact nudge={null} />
+        </View>
         <View style={styles.checkoutBar}>
           <View style={styles.checkoutLeft}>
             <Text style={styles.checkoutMeta}>
-              Total · {itemCount} {itemCount === 1 ? 'item' : 'items'}
+              {itemCount} {itemCount === 1 ? 'item' : 'items'}
             </Text>
-            <Text style={styles.checkoutTotal}>{formatPrice(totalAmount)}</Text>
           </View>
           <Pressable
             onPress={onPlaceOrder}
@@ -676,7 +693,9 @@ export default function CartScreen() {
           visible={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           onConfirm={confirmPlaceOrder}
-          totalAmount={totalAmount}
+          totalAmount={bill.billTotal}
+          bill={bill}
+          nudge={deliveryNudge}
           itemCount={itemCount}
           addressTitle={`Deliver to ${savedAddressLabel(selected.label)}`}
           addressLine={savedAddressLine(selected)}
@@ -907,6 +926,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.textMuted,
+  },
+  deliveryNudge: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6D28D9',
+  },
+  billSummaryWrap: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
   },
   checkoutBar: {
     flexDirection: 'row',

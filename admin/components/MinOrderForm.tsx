@@ -53,8 +53,9 @@ export function MinOrderForm({ business }: { business: Business }) {
       <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
         <span className="block text-base font-semibold">Minimum order amount (₹)</span>
         <span className="mt-1 block text-sm leading-6 text-stone-600">
-          The customer app cannot place or update an order below this total. Phone orders in admin are
-          not limited. Leave empty or 0 for no minimum.
+          The customer app cannot place or update an order below this total. If delivery charge applies,
+          it counts toward this minimum. Phone orders in admin are not limited. Leave empty or 0 for no
+          minimum.
         </span>
         <input
           type="number"

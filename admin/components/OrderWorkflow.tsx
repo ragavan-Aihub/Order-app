@@ -415,7 +415,7 @@ export function OrderWorkflow({
     <>
       {needsInvoice && variant !== 'row' ? (
         <p className="text-sm text-amber-900">
-          Save the invoice first (Prepare invoice). You can save even if quantities match the order.
+          Save the invoice first (Prepare invoice on this order). Use Modify invoice only if you need to change it later.
         </p>
       ) : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
