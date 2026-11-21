@@ -1,7 +1,7 @@
 import { env } from '@/config/env';
 import type { OrderStatus } from '@/types/order';
 
-const NOTIFY_STATUSES: OrderStatus[] = ['confirmed', 'out_for_delivery', 'delivered'];
+const NOTIFY_STATUSES: OrderStatus[] = ['confirmed', 'packed', 'out_for_delivery', 'delivered'];
 
 async function postOrderStatusPush(
   baseUrl: string,

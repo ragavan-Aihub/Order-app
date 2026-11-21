@@ -8,6 +8,7 @@ import { formatStepTime } from '@/utils/format';
 const STEPS = [
   { status: 'new', label: 'New', icon: 'bag-handle-outline' as const },
   { status: 'confirmed', label: 'Confirmed', icon: 'checkmark-circle-outline' as const },
+  { status: 'packed', label: 'Packed', icon: 'cube-outline' as const },
   { status: 'out_for_delivery', label: 'Out for Delivery', icon: 'bicycle-outline' as const, delivery: true },
   { status: 'delivered', label: 'Delivered', icon: 'home-outline' as const },
 ] as const;
@@ -16,10 +17,12 @@ function rank(status: string) {
   switch (status) {
     case 'confirmed':
       return 1;
-    case 'out_for_delivery':
+    case 'packed':
       return 2;
-    case 'delivered':
+    case 'out_for_delivery':
       return 3;
+    case 'delivered':
+      return 4;
     default:
       return 0;
   }

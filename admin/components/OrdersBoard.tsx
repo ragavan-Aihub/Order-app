@@ -109,6 +109,7 @@ export function OrdersBoard({
     const next: Record<OrderStatus, number> = {
       new: 0,
       confirmed: 0,
+      packed: 0,
       out_for_delivery: 0,
       delivered: 0,
       cancelled: 0,

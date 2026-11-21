@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 import { CartProvider } from '@/cart/CartContext';
+import { ProductFavoritesProvider } from '@/favorites/ProductFavoritesContext';
 import { AppDialogHost } from '@/components/AppDialogHost';
 import { AppUpdatePrompt } from '@/components/AppUpdatePrompt';
 import { loadAddressBook } from '@/cart/address-book';
@@ -125,6 +126,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <CartProvider>
         <NetworkProvider>
+          <ProductFavoritesProvider>
           <NotificationPermissionProvider>
           <StatusBar style="dark" />
           <AppUpdatePrompt />
@@ -173,6 +175,7 @@ export default function RootLayout() {
         </Stack>
           <AppDialogHost />
           </NotificationPermissionProvider>
+          </ProductFavoritesProvider>
         </NetworkProvider>
       </CartProvider>
     </SafeAreaProvider>

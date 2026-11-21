@@ -25,8 +25,8 @@ export type DeliveryMutationResult = {
   userMessage?: string;
 };
 
-/** Invoiced orders only. Confirm / invoice prep stay in admin. */
-const LIST_STATUSES: OrderStatus[] = ['new', 'confirmed', 'out_for_delivery'];
+/** Packed and on the road. Shop confirms, invoices, and packs in admin. */
+const LIST_STATUSES: OrderStatus[] = ['packed', 'out_for_delivery'];
 const ORDER_LIST_COLUMNS =
   'id, order_number, business_id, customer_name, mobile, delivery_address, pincode, total_amount, status, payment_method, cancel_reason, invoice_prepared_at, created_at, updated_at';
 
@@ -206,6 +206,7 @@ export async function updateDeliveryOrderStatus(
   );
   if (
     (status === 'out_for_delivery' || status === 'delivered') &&
+    currentStatus !== 'packed' &&
     currentStatus !== 'out_for_delivery' &&
     currentStatus !== 'delivered' &&
     !invoicePrepared

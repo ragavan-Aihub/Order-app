@@ -77,6 +77,7 @@ export const ORDER_AWAITING_SHOP_NOTE =
 const STATUS_LABELS: Record<string, string> = {
   new: 'New',
   confirmed: 'Confirmed',
+  packed: 'Packed',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
@@ -96,6 +97,8 @@ export function orderStatusTone(status: string): { bg: string; fg: string } {
   switch (status) {
     case 'confirmed':
       return { bg: '#DBEAFE', fg: '#1D4ED8' };
+    case 'packed':
+      return { bg: '#EDE9FE', fg: '#6D28D9' };
     case 'out_for_delivery':
       return { bg: '#E0E7FF', fg: '#4338CA' };
     case 'delivered':
@@ -187,6 +190,8 @@ export function formatOrderListHeadline(status: string): string {
       return 'Order placed';
     case 'confirmed':
       return 'Order confirmed';
+    case 'packed':
+      return 'Order packed';
     case 'out_for_delivery':
       return 'Out for delivery';
     case 'delivered':

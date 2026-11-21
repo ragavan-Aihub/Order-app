@@ -1,6 +1,7 @@
 export type OrderStatus =
   | 'new'
   | 'confirmed'
+  | 'packed'
   | 'out_for_delivery'
   | 'delivered'
   | 'cancelled';

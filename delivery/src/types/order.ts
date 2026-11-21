@@ -1,6 +1,7 @@
 export type OrderStatus =
   | 'new'
   | 'confirmed'
+  | 'packed'
   | 'out_for_delivery'
   | 'delivered'
   | 'cancelled';
@@ -52,14 +53,16 @@ export type OrderWithItems = Order & {
 export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'new', label: 'Placed' },
   { value: 'confirmed', label: 'Confirmed' },
+  { value: 'packed', label: 'Packed' },
   { value: 'out_for_delivery', label: 'Out for delivery' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
 export const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
-  new: ['out_for_delivery', 'cancelled'],
-  confirmed: ['out_for_delivery', 'cancelled'],
+  new: ['cancelled'],
+  confirmed: ['cancelled'],
+  packed: ['out_for_delivery', 'cancelled'],
   out_for_delivery: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],

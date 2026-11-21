@@ -113,6 +113,7 @@ export function parseReportFilters(
   const status: OrderStatus | 'all' =
     statusRaw === 'new' ||
     statusRaw === 'confirmed' ||
+    statusRaw === 'packed' ||
     statusRaw === 'out_for_delivery' ||
     statusRaw === 'delivered' ||
     statusRaw === 'cancelled' ||

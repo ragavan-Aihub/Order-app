@@ -66,9 +66,6 @@ const ITEM_SCROLL_THRESHOLD = 5;
 
 function primaryNextAction(status: OrderStatus): OrderStatus | null {
   const next = NEXT_STATUSES[status];
-  if (next.includes('out_for_delivery') && (status === 'new' || status === 'confirmed')) {
-    return 'out_for_delivery';
-  }
   if (next.includes('delivered')) {
     return 'delivered';
   }

@@ -678,9 +678,6 @@ export default function HomeScreen() {
         onIncrease={increase}
         onDecrease={decrease}
         onNotifyPress={(productId, productName) => void onNotifyPress(productId, productName)}
-        favorited={isFavorite(item.id)}
-        favoriteBusy={favoriteBusyId === item.id}
-        onFavoritePress={(productId) => void onFavoritePress(productId)}
         onLayout={
           highlightProductId === item.id ? () => tryScrollToHighlightedProduct(item.id) : undefined
         }
@@ -690,13 +687,10 @@ export default function HomeScreen() {
       addToCart,
       busyId,
       decrease,
-      favoriteBusyId,
       highlightFromPush,
       highlightProductId,
       increase,
-      isFavorite,
       isNotified,
-      onFavoritePress,
       onNotifyPress,
       quantityById,
       tryScrollToHighlightedProduct,

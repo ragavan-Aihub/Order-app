@@ -9,6 +9,9 @@ function StatusGlyph({ status }: { status: string }) {
   if (normalized === 'out_for_delivery') {
     return <MaterialCommunityIcons name="moped" size={15} color={colors.warning} />;
   }
+  if (normalized === 'packed') {
+    return <Ionicons name="cube" size={15} color="#6D28D9" />;
+  }
   if (normalized === 'confirmed') {
     return <Ionicons name="checkmark-circle" size={15} color={colors.success} />;
   }
@@ -20,7 +23,7 @@ function StatusGlyph({ status }: { status: string }) {
 
 export function OrderStatusBadge({ status }: { status: string }) {
   const label = orderStatusLabel(status);
-  const active = status === 'out_for_delivery';
+  const active = status === 'out_for_delivery' || status === 'packed';
   const placed = status === 'new';
 
   return (

@@ -69,8 +69,11 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                   )}
                 </p>
                 <p className="mt-1 text-sm text-stone-500">
+                  Created {formatDateTime(customer.created_at)}
+                </p>
+                <p className="mt-1 text-sm text-stone-500">
                   {customer.addressCount}/3 addresses · {customer.orderCount} orders
-                  {customer.lastOrderAt ? ` · ${formatDateTime(customer.lastOrderAt)}` : ''}
+                  {customer.lastOrderAt ? ` · Last order ${formatDateTime(customer.lastOrderAt)}` : ''}
                 </p>
               </Link>
             ))}
@@ -86,6 +89,7 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                     <th className="px-4 py-3 font-medium">Default address</th>
                     <th className="px-4 py-3 font-medium">Saved</th>
                     <th className="px-4 py-3 font-medium">Orders</th>
+                    <th className="px-4 py-3 font-medium">Created</th>
                     <th className="px-4 py-3 font-medium">Last order</th>
                     <th className="px-4 py-3 font-medium"> </th>
                   </tr>
@@ -113,6 +117,7 @@ export function CustomersBoard({ customers }: { customers: CustomerListItem[] })
                       </td>
                       <td className="px-4 py-3">{customer.addressCount}/3</td>
                       <td className="px-4 py-3">{customer.orderCount}</td>
+                      <td className="px-4 py-3 text-stone-600">{formatDateTime(customer.created_at)}</td>
                       <td className="px-4 py-3 text-stone-600">
                         {customer.lastOrderAt ? formatDateTime(customer.lastOrderAt) : '—'}
                       </td>

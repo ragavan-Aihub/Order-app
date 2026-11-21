@@ -143,7 +143,7 @@ export function AdminOrderModifyPanel({
 }) {
   const router = useRouter();
   const { complete, refreshing } = useActionComplete();
-  const canInvoice = status === 'confirmed' || status === 'out_for_delivery';
+  const canInvoice = status === 'confirmed';
   const invoiceActionLabel = invoicePrepared || adminModifiedFromPlaced ? 'Update invoice' : 'Prepare invoice';
   const baseline = useMemo(() => linesFromOrderItems(originalItems), [originalItems]);
   const [editing, setEditing] = useState(false);

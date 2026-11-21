@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const NOTIFY_STATUSES = new Set(['confirmed', 'out_for_delivery', 'delivered']);
+const NOTIFY_STATUSES = new Set(['confirmed', 'packed', 'out_for_delivery', 'delivered']);
 
 type PushPayload = {
   order_id?: string;
@@ -18,6 +18,11 @@ function messageForStatus(status: string, orderNumber: number | null): { title: 
       return {
         title: 'Order confirmed',
         body: `${label} is confirmed. The shop is preparing it.`,
+      };
+    case 'packed':
+      return {
+        title: 'Order packed',
+        body: `${label} is packed and will go out for delivery soon.`,
       };
     case 'out_for_delivery':
       return {

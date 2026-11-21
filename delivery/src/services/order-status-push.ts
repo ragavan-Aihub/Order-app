@@ -2,7 +2,7 @@ import { env } from '@/config/env';
 import { getSupabaseClient } from '@/services/supabase';
 import type { OrderStatus } from '@/types/order';
 
-const NOTIFY_STATUSES: OrderStatus[] = ['confirmed', 'out_for_delivery', 'delivered'];
+const NOTIFY_STATUSES: OrderStatus[] = ['confirmed', 'packed', 'out_for_delivery', 'delivered'];
 
 /** Best-effort customer push via Edge Function (admin session JWT). */
 export async function notifyOrderStatusPush(orderId: string, status: OrderStatus): Promise<void> {

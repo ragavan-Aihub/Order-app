@@ -3,6 +3,7 @@ import type { OrderModificationSummary } from '@/lib/order-modification-state';
 export type OrderStatus =
   | 'new'
   | 'confirmed'
+  | 'packed'
   | 'out_for_delivery'
   | 'delivered'
   | 'cancelled';
@@ -33,7 +34,7 @@ export type Order = {
   community_name?: string | null;
   item_count?: number;
   items_revision?: number;
-  /** Shop saved the invoice (required before out for delivery). */
+  /** Shop saved the invoice (required before packed / out for delivery). */
   invoice_prepared_at?: string | null;
   /** Admin changed lines away from the originally placed snapshot. */
   admin_modified_from_placed?: boolean;
@@ -126,6 +127,7 @@ export function orderChannelLabel(channel: string | null | undefined) {
 export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: 'new', label: 'Placed' },
   { value: 'confirmed', label: 'Confirmed' },
+  { value: 'packed', label: 'Packed' },
   { value: 'out_for_delivery', label: 'Out for delivery' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
@@ -201,6 +203,8 @@ export function orderStatusBadgeClass(status: string): string {
       return 'bg-emerald-100 text-emerald-800';
     case 'out_for_delivery':
       return 'bg-indigo-100 text-indigo-800';
+    case 'packed':
+      return 'bg-violet-100 text-violet-800';
     case 'confirmed':
       return 'bg-sky-100 text-sky-800';
     case 'cancelled':
@@ -261,7 +265,8 @@ export function paymentSummary(order: {
 
 export const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   new: ['confirmed', 'cancelled'],
-  confirmed: ['out_for_delivery', 'cancelled'],
+  confirmed: ['packed', 'cancelled'],
+  packed: ['out_for_delivery', 'cancelled'],
   out_for_delivery: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],

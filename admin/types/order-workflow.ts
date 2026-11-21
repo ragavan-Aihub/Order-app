@@ -3,6 +3,7 @@ import { NEXT_STATUSES, type OrderStatus } from '@/types/order';
 export const WORKFLOW_STEPS: { status: OrderStatus; label: string }[] = [
   { status: 'new', label: 'Placed' },
   { status: 'confirmed', label: 'Confirmed' },
+  { status: 'packed', label: 'Packed' },
   { status: 'out_for_delivery', label: 'Out for delivery' },
   { status: 'delivered', label: 'Delivered' },
 ];
@@ -24,6 +25,13 @@ const ACTIONS: Partial<Record<OrderStatus, WorkflowAction>> = {
     confirmLabel: 'Confirm order',
   },
   confirmed: {
+    target: 'packed',
+    label: 'Mark packed',
+    short: 'Packed',
+    confirmTitle: (no) => `Mark order ${no} as Packed?`,
+    confirmLabel: 'Yes, packed',
+  },
+  packed: {
     target: 'out_for_delivery',
     label: 'Mark out for delivery',
     short: 'Out for delivery',

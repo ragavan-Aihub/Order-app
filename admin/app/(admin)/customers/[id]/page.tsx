@@ -32,6 +32,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             'No phone'}{' '}
           · {customerSourceLabel(customer.source)}
         </p>
+        <p className="mt-1 text-sm text-stone-500">Created {formatDateTime(customer.created_at)}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
             href={`/customers/${customer.id}/orders/new`}

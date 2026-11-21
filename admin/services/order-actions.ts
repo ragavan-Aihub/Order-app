@@ -16,7 +16,7 @@ function revalidateOrder(orderId: string) {
   revalidatePath('/customers');
 }
 
-const INVOICE_REQUIRED_BEFORE_OFD = 'Prepare and save the invoice before sending this order out.';
+const INVOICE_REQUIRED_MESSAGE = 'Prepare and save the invoice before marking this order packed.';
 
 export async function updateOrderStatus(
   orderId: string,
@@ -76,12 +76,13 @@ export async function updateOrderStatus(
   }
 
   if (
-    (status === 'out_for_delivery' || status === 'delivered') &&
+    (status === 'packed' || status === 'out_for_delivery' || status === 'delivered') &&
+    currentStatus !== 'packed' &&
     currentStatus !== 'out_for_delivery' &&
     currentStatus !== 'delivered' &&
     !current.invoice_prepared_at
   ) {
-    return { error: INVOICE_REQUIRED_BEFORE_OFD };
+    return { error: INVOICE_REQUIRED_MESSAGE };
   }
 
   const paid = current.payment_method === 'cash' || current.payment_method === 'upi';
@@ -107,7 +108,7 @@ export async function updateOrderStatus(
 
   if (error) {
     if (/Prepare and save the invoice/i.test(error.message)) {
-      return { error: INVOICE_REQUIRED_BEFORE_OFD };
+      return { error: INVOICE_REQUIRED_MESSAGE };
     }
     return { error: error.message };
   }

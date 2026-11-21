@@ -1,6 +1,6 @@
 import { NEXT_STATUSES, orderStatusLabel, type OrderStatus } from '@/types/order';
 
-const FLOW: OrderStatus[] = ['new', 'confirmed', 'out_for_delivery', 'delivered'];
+const FLOW: OrderStatus[] = ['new', 'confirmed', 'packed', 'out_for_delivery', 'delivered'];
 
 export function normalizeOrderStatus(raw: string): OrderStatus {
   return (raw === 'preparing' ? 'confirmed' : raw) as OrderStatus;

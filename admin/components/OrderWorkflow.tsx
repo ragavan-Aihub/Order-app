@@ -350,13 +350,13 @@ export function OrderWorkflow({
   const ActionIcon = action?.target === 'delivered' ? Check : ArrowRight;
   const working = busy || refreshing;
   const iconSize = variant === 'row' ? 15 : 18;
-  const needsInvoice = action?.target === 'out_for_delivery' && !invoicePrepared;
+  const needsInvoice = action?.target === 'packed' && !invoicePrepared;
   const primary = action ? (
     <button
       type="button"
       onClick={openAdvance}
       disabled={working || needsInvoice}
-      title={needsInvoice ? 'Save the invoice before marking out for delivery.' : undefined}
+      title={needsInvoice ? 'Save the invoice before marking this order packed.' : undefined}
       aria-busy={working}
       className={`inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 ${
         variant === 'row'

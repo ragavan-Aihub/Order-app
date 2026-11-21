@@ -4,6 +4,7 @@ import { formatDateTime } from '@/utils/format';
 const TRACK: OrderStatus[] = [
   'new',
   'confirmed',
+  'packed',
   'out_for_delivery',
   'delivered',
   'cancelled',
@@ -41,7 +42,8 @@ export function OrderTimeline({
           const current = currentStatus === step;
           const reached = Boolean(event) || (step === 'new' && events.length === 0);
           const skippedDelivered =
-            currentStatus === 'cancelled' && (step === 'delivered' || step === 'out_for_delivery');
+            currentStatus === 'cancelled' &&
+            (step === 'delivered' || step === 'out_for_delivery' || step === 'packed');
           const done = reached && !current && !skippedDelivered;
           return (
             <li key={step} className="flex gap-3">
