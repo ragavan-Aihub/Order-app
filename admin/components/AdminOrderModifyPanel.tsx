@@ -8,6 +8,7 @@ import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { AdminOrderItemsTable } from '@/components/AdminOrderItemsTable';
 import { AdminQtyStepper } from '@/components/AdminQtyStepper';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableScroll } from '@/components/TableScroll';
 import { VariantOptionCard, VariantOptionRow } from '@/components/VariantOptionCard';
 import {
   ADMIN_PIECE_QTY_MAX,
@@ -70,6 +71,10 @@ function lineMissingSize(line: {
 
 const searchClass =
   'min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-stone-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100';
+
+/** Desktop column alignment for invoice line editor (matches header). */
+const invoiceEditGrid =
+  'md:grid md:grid-cols-[minmax(0,1fr)_5rem_9rem_5.5rem_2.5rem] md:items-center md:gap-x-2';
 
 function linesFromOrderItems(items: OrderItem[]): Line[] {
   return items
@@ -475,9 +480,9 @@ export function AdminOrderModifyPanel({
 
   if (!editing || !canInvoice) {
     return (
-      <div className={panelClass}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
+      <div className={`${panelClass} min-w-0`}>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold text-stone-900">Invoice</h2>
             {adminModifiedFromPlaced ? (
               <p className="mt-1 text-base text-amber-900">
@@ -497,13 +502,13 @@ export function AdminOrderModifyPanel({
               <p className="mt-1 text-base text-sky-900">Customer also changed lines after confirm — see below.</p>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
             {canInvoice && canRevertToPlaced ? (
               <button
                 type="button"
                 disabled={working}
                 onClick={() => setRevertOpen(true)}
-                className="min-h-11 rounded-lg border border-amber-400 bg-white px-4 text-base font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50"
+                className="min-h-11 w-full rounded-lg border border-amber-400 bg-white px-4 text-base font-semibold text-amber-950 shadow-sm hover:bg-amber-50 disabled:opacity-50 sm:w-auto"
               >
                 Reset to original order
               </button>
@@ -512,7 +517,7 @@ export function AdminOrderModifyPanel({
               <button
                 type="button"
                 onClick={requestStartEditing}
-                className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
+                className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-800 shadow-sm hover:bg-stone-50 sm:w-auto"
               >
                 {invoiceActionLabel}
               </button>
@@ -579,20 +584,20 @@ export function AdminOrderModifyPanel({
   }
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm ring-1 ring-emerald-100">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+    <div className="min-w-0 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm ring-1 ring-emerald-100">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold text-stone-900">{invoiceActionLabel}</h2>
-          <p className="mt-1 text-base text-stone-600">
+          <p className="mt-1 text-sm text-stone-600 sm:text-base">
             Invoice total {formatPrice(originalTotal)} · Preview {formatPrice(previewTotal)}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <button
             type="button"
             disabled={working}
             onClick={cancelEditing}
-            className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-4 text-base font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50 sm:w-auto"
           >
             Cancel
           </button>
@@ -603,7 +608,7 @@ export function AdminOrderModifyPanel({
             }
             onClick={() => setConfirmOpen(true)}
             aria-busy={working}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:w-auto"
           >
             {working ? <Spinner size={18} /> : null}
             {working ? 'Saving…' : 'Save invoice'}
@@ -617,47 +622,82 @@ export function AdminOrderModifyPanel({
         </p>
       ) : null}
 
-      <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem] gap-x-2 px-3 text-sm font-medium uppercase tracking-wide text-stone-500 sm:grid">
-        <span>Item</span>
-        <span className="text-center">Ordered qty</span>
-        <span className="text-center">Invoiced qty</span>
-        <span className="text-right">Amount</span>
-        <span />
-      </div>
-      <ul className="mt-1 space-y-2">
+      <TableScroll>
+        <div className="min-w-0 md:min-w-[34rem]">
+          <div
+            className={`${invoiceEditGrid} hidden border-b border-stone-100 bg-stone-50/90 px-3 py-2 text-xs font-medium uppercase tracking-wide text-stone-500 md:grid`}
+          >
+            <span>Item</span>
+            <span className="text-center">Ordered qty</span>
+            <span className="text-center">Invoiced qty</span>
+            <span className="text-right">Amount</span>
+            <span className="sr-only">Actions</span>
+          </div>
+          <ul className="space-y-2 p-1 md:space-y-2 md:p-0">
         {removedLines.map((line) => {
           const struck = 'text-stone-500 line-through decoration-stone-400 decoration-2';
           const packLabel = formatOrderItemPackLabel(orderItemByProductId.get(line.productId) ?? {});
+          const orderedLabel = formatLineMultiplier(orderedQtyOf(line) ?? line.quantity);
           return (
             <li
               key={`removed-${line.rowId}`}
-              className="grid grid-cols-1 items-center gap-2 rounded-lg border border-stone-300 bg-stone-100/90 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem]"
+              className="rounded-lg border border-stone-300 bg-stone-100/90 text-sm"
             >
-              <span className={`min-w-0 font-medium ${struck}`}>
-                {line.name}
-                {packLabel ? <span className="mt-0.5 block text-xs font-normal">{packLabel}</span> : null}
-                <span className="mt-0.5 block text-xs font-normal sm:hidden">
-                  Ordered qty {formatLineMultiplier(orderedQtyOf(line) ?? line.quantity)}
+              <div className="space-y-2 p-3 md:hidden">
+                <div className="flex items-start justify-between gap-2">
+                  <span className={`min-w-0 font-medium ${struck}`}>
+                    {line.name}
+                    {packLabel ? <span className="mt-0.5 block text-xs font-normal">{packLabel}</span> : null}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Restore ${line.name}`}
+                    onClick={() => restoreLine(line)}
+                    className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-md text-stone-600 hover:bg-stone-200/80"
+                    title="Restore line"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Ordered qty</p>
+                    <p className={`mt-0.5 font-semibold tabular-nums ${struck}`}>{orderedLabel}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Invoiced qty</p>
+                    <p className={`mt-0.5 text-xs font-bold uppercase tracking-wide text-stone-600 ${struck}`}>
+                      Removed
+                    </p>
+                  </div>
+                </div>
+                <div className={`flex items-center justify-between border-t border-stone-200 pt-2 ${struck}`}>
+                  <span className="text-sm text-stone-600">Amount</span>
+                  <span className="font-semibold tabular-nums">{formatPrice(line.subtotal)}</span>
+                </div>
+              </div>
+              <div className={`hidden px-3 py-2 md:grid ${invoiceEditGrid}`}>
+                <span className={`min-w-0 font-medium ${struck}`}>
+                  {line.name}
+                  {packLabel ? <span className="mt-0.5 block text-xs font-normal">{packLabel}</span> : null}
                 </span>
-              </span>
-              <span className={`hidden text-center font-semibold tabular-nums sm:block ${struck}`}>
-                {formatLineMultiplier(orderedQtyOf(line) ?? line.quantity)}
-              </span>
-              <span className={`text-center text-xs font-bold uppercase tracking-wide text-stone-600 ${struck}`}>
-                Removed
-              </span>
-              <span className={`text-right font-semibold tabular-nums ${struck}`}>
-                {formatPrice(line.subtotal)}
-              </span>
-              <button
-                type="button"
-                aria-label={`Restore ${line.name}`}
-                onClick={() => restoreLine(line)}
-                className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-end rounded-md text-stone-600 hover:bg-stone-200/80 sm:justify-self-center"
-                title="Restore line"
-              >
-                <Plus size={16} />
-              </button>
+                <span className={`text-center font-semibold tabular-nums ${struck}`}>{orderedLabel}</span>
+                <span className={`text-center text-xs font-bold uppercase tracking-wide text-stone-600 ${struck}`}>
+                  Removed
+                </span>
+                <span className={`text-right font-semibold tabular-nums ${struck}`}>
+                  {formatPrice(line.subtotal)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Restore ${line.name}`}
+                  onClick={() => restoreLine(line)}
+                  className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-center rounded-md text-stone-600 hover:bg-stone-200/80"
+                  title="Restore line"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
             </li>
           );
         })}
@@ -689,129 +729,166 @@ export function AdminOrderModifyPanel({
                   ? formatPackWeight(selectedPackGrams)
                   : packLabel
                 : packLabel;
-          return (
-            <li
-              key={line.rowId}
-              className="grid grid-cols-1 items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_9.5rem_5.5rem_2.5rem]"
-            >
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <p className="min-w-0 truncate font-medium text-stone-900">{line.name}</p>
-                  {canChangeVariant ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (pendingSize && pendingSize.rowId !== line.rowId) {
-                          setError(`Choose a size for ${pendingSize.name} first.`);
-                          setVariantRowId(pendingSize.rowId);
-                          return;
-                        }
-                        if (variantOpen && sizePending) {
-                          return;
-                        }
-                        setVariantRowId(variantOpen ? null : line.rowId);
-                      }}
-                      aria-expanded={variantOpen}
-                      aria-label={selectedLabel ? `Change size, ${selectedLabel}` : `Choose size for ${line.name}`}
-                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full"
-                    >
-                      {selectedLabel ? (
-                        <span className="inline-flex items-center rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-white">
-                          {selectedLabel}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full border border-dashed border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-500">
-                          Choose size
-                        </span>
-                      )}
-                      <ChevronDown
-                        size={14}
-                        className={`text-stone-400 transition ${variantOpen ? 'rotate-180' : ''}`}
+          const itemBlock = (
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="min-w-0 font-medium text-stone-900 md:truncate">{line.name}</p>
+                {canChangeVariant ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (pendingSize && pendingSize.rowId !== line.rowId) {
+                        setError(`Choose a size for ${pendingSize.name} first.`);
+                        setVariantRowId(pendingSize.rowId);
+                        return;
+                      }
+                      if (variantOpen && sizePending) {
+                        return;
+                      }
+                      setVariantRowId(variantOpen ? null : line.rowId);
+                    }}
+                    aria-expanded={variantOpen}
+                    aria-label={selectedLabel ? `Change size, ${selectedLabel}` : `Choose size for ${line.name}`}
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full"
+                  >
+                    {selectedLabel ? (
+                      <span className="inline-flex items-center rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedLabel}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full border border-dashed border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-500">
+                        Choose size
+                      </span>
+                    )}
+                    <ChevronDown
+                      size={14}
+                      className={`text-stone-400 transition ${variantOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                ) : packLabel ? (
+                  <p className="shrink-0 text-xs font-normal text-stone-500">{packLabel}</p>
+                ) : null}
+              </div>
+              {variantOpen && showWeights ? (
+                <div className="mt-1.5">
+                  <VariantOptionRow>
+                    {line.weightOptions.map((option) => (
+                      <VariantOptionCard
+                        key={option.id}
+                        label={formatWeight(option.weight_grams)}
+                        price={formatPrice(weightOptionPrice(line.perKg, option.weight_grams))}
+                        on={line.grams === option.weight_grams}
+                        onClick={() => patchLine(line.rowId, { weightGrams: option.weight_grams })}
                       />
-                    </button>
-                  ) : packLabel ? (
-                    <p className="shrink-0 text-xs font-normal text-stone-500">{packLabel}</p>
-                  ) : null}
+                    ))}
+                  </VariantOptionRow>
                 </div>
-                {variantOpen && showWeights ? (
-                  <div className="mt-1.5">
-                    <VariantOptionRow>
-                      {line.weightOptions.map((option) => (
-                        <VariantOptionCard
-                          key={option.id}
-                          label={formatWeight(option.weight_grams)}
-                          price={formatPrice(weightOptionPrice(line.perKg, option.weight_grams))}
-                          on={line.grams === option.weight_grams}
-                          onClick={() => patchLine(line.rowId, { weightGrams: option.weight_grams })}
-                        />
-                      ))}
-                    </VariantOptionRow>
+              ) : null}
+              {variantOpen && showVolumes ? (
+                <div className="mt-1.5">
+                  <VariantOptionRow>
+                    {line.volumeOptions.map((option) => (
+                      <VariantOptionCard
+                        key={option.id}
+                        label={formatVolume(option.volume_ml)}
+                        price={formatPrice(volumeOptionPrice(line.perL, option.volume_ml))}
+                        on={line.ml === option.volume_ml}
+                        onClick={() => patchLine(line.rowId, { volumeMl: option.volume_ml })}
+                      />
+                    ))}
+                  </VariantOptionRow>
+                </div>
+              ) : null}
+              {variantOpen && showPacks ? (
+                <div className="mt-1.5">
+                  <VariantOptionRow>
+                    {line.packOptions.map((pack) => (
+                      <VariantOptionCard
+                        key={pack.id}
+                        label={formatPackWeight(pack.weight_grams)}
+                        price={formatPrice(pack.selling_price)}
+                        on={line.packId === pack.id}
+                        onClick={() => patchLine(line.rowId, { packOptionId: pack.id })}
+                      />
+                    ))}
+                  </VariantOptionRow>
+                </div>
+              ) : null}
+              {!line.available ? <p className="mt-0.5 text-xs font-medium text-amber-700">Unavailable</p> : null}
+            </div>
+          );
+
+          return (
+            <li key={line.rowId} className="rounded-lg border border-stone-200 bg-white text-sm">
+              <div className="space-y-2 p-3 md:hidden">
+                <div className="flex items-start justify-between gap-2">
+                  {itemBlock}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${line.name}`}
+                    onClick={() => removeLine(line.rowId)}
+                    className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-md text-stone-500 hover:bg-stone-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 items-end gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Ordered qty</p>
+                    <p className="mt-0.5 font-semibold tabular-nums text-stone-700">
+                      {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
+                    </p>
                   </div>
-                ) : null}
-                {variantOpen && showVolumes ? (
-                  <div className="mt-1.5">
-                    <VariantOptionRow>
-                      {line.volumeOptions.map((option) => (
-                        <VariantOptionCard
-                          key={option.id}
-                          label={formatVolume(option.volume_ml)}
-                          price={formatPrice(volumeOptionPrice(line.perL, option.volume_ml))}
-                          on={line.ml === option.volume_ml}
-                          onClick={() => patchLine(line.rowId, { volumeMl: option.volume_ml })}
-                        />
-                      ))}
-                    </VariantOptionRow>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Invoiced qty</p>
+                    <div className={`mt-1 ${pendingSize ? 'pointer-events-none opacity-40' : ''}`}>
+                      <AdminQtyStepper
+                        quantity={line.quantity}
+                        sellingType={line.sellingType}
+                        productName={line.name}
+                        onChange={(quantity) => setQty(line.rowId, quantity, line.productId)}
+                      />
+                    </div>
                   </div>
-                ) : null}
-                {variantOpen && showPacks ? (
-                  <div className="mt-1.5">
-                    <VariantOptionRow>
-                      {line.packOptions.map((pack) => (
-                        <VariantOptionCard
-                          key={pack.id}
-                          label={formatPackWeight(pack.weight_grams)}
-                          price={formatPrice(pack.selling_price)}
-                          on={line.packId === pack.id}
-                          onClick={() => patchLine(line.rowId, { packOptionId: pack.id })}
-                        />
-                      ))}
-                    </VariantOptionRow>
-                  </div>
-                ) : null}
-                {!line.available ? (
-                  <p className="mt-0.5 text-xs font-medium text-amber-700">Unavailable</p>
-                ) : (
-                  <p className="mt-0.5 text-xs font-normal text-stone-500 sm:hidden">
-                    Ordered qty {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
-                  </p>
-                )}
+                </div>
+                <div className="flex items-center justify-between border-t border-stone-100 pt-2">
+                  <span className="text-sm text-stone-600">Amount</span>
+                  <span className="font-semibold tabular-nums text-stone-900">{formatPrice(line.subtotal)}</span>
+                </div>
               </div>
-              <span className="hidden text-center font-semibold tabular-nums text-stone-700 sm:block">
-                {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
-              </span>
-              <div className={`flex justify-center ${pendingSize ? 'pointer-events-none opacity-40' : ''}`}>
-                <AdminQtyStepper
-                  quantity={line.quantity}
-                  sellingType={line.sellingType}
-                  productName={line.name}
-                  onChange={(quantity) => setQty(line.rowId, quantity, line.productId)}
-                />
+              <div className={`hidden px-3 py-2 md:grid ${invoiceEditGrid}`}>
+                {itemBlock}
+                <span className="text-center font-semibold tabular-nums text-stone-700">
+                  {orderedQty == null ? '—' : formatLineMultiplier(orderedQty)}
+                </span>
+                <div className={`flex justify-center ${pendingSize ? 'pointer-events-none opacity-40' : ''}`}>
+                  <AdminQtyStepper
+                    quantity={line.quantity}
+                    sellingType={line.sellingType}
+                    productName={line.name}
+                    onChange={(quantity) => setQty(line.rowId, quantity, line.productId)}
+                  />
+                </div>
+                <span className="text-right font-semibold tabular-nums text-stone-900">
+                  {formatPrice(line.subtotal)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${line.name}`}
+                  onClick={() => removeLine(line.rowId)}
+                  className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-center rounded-md text-stone-500 hover:bg-stone-100"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
-              <span className="text-right font-semibold tabular-nums">{formatPrice(line.subtotal)}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${line.name}`}
-                onClick={() => removeLine(line.rowId)}
-                className="inline-flex min-h-9 min-w-9 items-center justify-center justify-self-end rounded-md text-stone-500 hover:bg-stone-100 sm:justify-self-center"
-              >
-                <Trash2 size={16} />
-              </button>
             </li>
           );
         })}
-      </ul>
+          </ul>
+        </div>
+      </TableScroll>
 
-      <div className="relative mt-4">
+      <div className="relative mt-4 min-w-0">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
         <input
           type="search"

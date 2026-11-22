@@ -60,7 +60,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
   const delivery = splitDeliveryNotes(order.delivery_address);
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div>
         <Link href="/orders" className="inline-flex items-center py-1 text-base font-medium text-emerald-800">
           ← Orders
