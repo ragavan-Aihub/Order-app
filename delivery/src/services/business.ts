@@ -1,6 +1,19 @@
 import { getSupabaseClient } from '@/services/supabase';
+import { withTimeout } from '@/utils/async';
 import { bytesFromBase64, imageMetaFromBytes, readImageBytesFromUri } from '@/utils/image-upload';
 import { prepareUpiQrBytes } from '@/utils/upi-qr-image';
+
+const UPI_UPLOAD_MS = 90_000;
+
+function friendlyUploadError(message: string): string {
+  if (/row-level security|violates.*policy|JWT|not authorized/i.test(message)) {
+    return 'Upload not allowed for this login. Use an admin delivery account, or add the QR in Admin → Profile.';
+  }
+  if (/network|fetch failed|timeout/i.test(message)) {
+    return 'Network error while uploading the QR. Check connection and try again.';
+  }
+  return message;
+}
 
 const BUCKET = 'business-logos';
 
@@ -71,8 +84,14 @@ export async function uploadBusinessUpiQrFromPickerAsset(
   businessId: string,
   asset: { uri: string; width?: number; height?: number; base64?: string | null },
 ): Promise<string> {
-  const bytes = await prepareUpiQrBytes(asset);
-  return uploadBusinessUpiQrBytes(businessId, bytes);
+  return withTimeout(
+    (async () => {
+      const bytes = await prepareUpiQrBytes(asset);
+      return uploadBusinessUpiQrBytes(businessId, bytes);
+    })(),
+    UPI_UPLOAD_MS,
+    'Uploading the UPI QR took too long. Try a smaller photo or check your connection.',
+  );
 }
 
 export async function uploadBusinessUpiQrBytes(businessId: string, bytes: Uint8Array): Promise<string> {
@@ -91,7 +110,7 @@ export async function uploadBusinessUpiQrBytes(businessId: string, bytes: Uint8A
   });
 
   if (uploadError) {
-    throw new Error(uploadError.message || 'Could not upload the QR image.');
+    throw new Error(friendlyUploadError(uploadError.message || 'Could not upload the QR image.'));
   }
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(objectPath);
@@ -103,7 +122,7 @@ export async function uploadBusinessUpiQrBytes(businessId: string, bytes: Uint8A
     .eq('id', businessId);
 
   if (updateError) {
-    throw new Error(updateError.message);
+    throw new Error(friendlyUploadError(updateError.message));
   }
 
   return publicUrl;

@@ -1,11 +1,15 @@
 import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 
 import { getBusinessBillHeader } from '@/services/business';
 import type { OrderWithItems, PaymentMethod } from '@/types/order';
+import { withTimeout } from '@/utils/async';
 import { formatOrderListDate, formatOrderNumber } from '@/utils/format';
+import { sharePdfFile } from '@/utils/share-pdf';
 import { formatOrderItemQty, formatOrderItemUnit } from '@/utils/selling-units';
+
+const PRINT_PDF_MS = 45_000;
+const SHOP_LOOKUP_MS = 12_000;
 
 function escapeHtml(value: string): string {
   return value
@@ -252,16 +256,16 @@ function billHtml(
 }
 
 /** Build a one-page PDF and open the share sheet (WhatsApp, and other apps). */
+export type ShareDeliveryBillHooks = {
+  onPdfReady?: () => void;
+};
+
 export async function shareDeliveryBill(
   order: OrderWithItems,
   businessId: string,
   paymentMethod: PaymentMethod = order.payment_method,
+  hooks?: ShareDeliveryBillHooks,
 ): Promise<void> {
-  const available = await Sharing.isAvailableAsync();
-  if (!available) {
-    throw new Error('Sharing is not available on this phone.');
-  }
-
   let shop = {
     name: 'Farm2Flavours',
     phone: null as string | null,
@@ -270,22 +274,40 @@ export async function shareDeliveryBill(
     logoUrl: null as string | null,
   };
   try {
-    shop = await getBusinessBillHeader(businessId);
-  } catch {
-    // The bill can still go out with the shop name fallback.
+    shop = await withTimeout(
+      getBusinessBillHeader(businessId),
+      SHOP_LOOKUP_MS,
+      'Could not load shop details for the bill. Check your connection and try again.',
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.startsWith('Could not load shop details')) {
+      throw error;
+    }
+    // Offline shop row: fall back to default header.
   }
   // Skip oversized / slow logos so PDF generation cannot hang the share sheet.
   const logoSrc = await logoDataUri(shop.logoUrl);
 
   const pageHeight = 760 + order.order_items.length * 36;
-  const { uri } = await Print.printToFileAsync({
-    html: billHtml(order, shop, paymentMethod, logoSrc),
-    width: 595,
-    height: pageHeight,
-    textZoom: 100,
-  });
+  let uri: string | undefined;
+  try {
+    ({ uri } = await withTimeout(
+      Print.printToFileAsync({
+        html: billHtml(order, shop, paymentMethod, logoSrc),
+        width: 595,
+        height: pageHeight,
+        textZoom: 100,
+      }),
+      PRINT_PDF_MS,
+      'Creating the bill PDF took too long. Try again, or use a smaller logo under Admin → Profile.',
+    ));
+  } catch (error) {
+    const base = error instanceof Error ? error.message : 'Could not create the bill PDF.';
+    throw new Error(base);
+  }
   if (!uri) {
-    throw new Error('Could not create the bill.');
+    throw new Error('Could not create the bill PDF.');
   }
 
   const safeName = shop.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Farm2Flavours';
@@ -302,17 +324,11 @@ export async function shareDeliveryBill(
     // Temp print URI is still shareable if rename/copy fails.
   }
 
-  try {
-    await Sharing.shareAsync(shareUri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Share bill',
-      UTI: 'com.adobe.pdf',
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/cancel|dismiss|did not share/i.test(message)) {
-      return;
-    }
-    throw error;
-  }
+  hooks?.onPdfReady?.();
+
+  await sharePdfFile(shareUri, {
+    mimeType: 'application/pdf',
+    dialogTitle: 'Share bill',
+    UTI: 'com.adobe.pdf',
+  });
 }

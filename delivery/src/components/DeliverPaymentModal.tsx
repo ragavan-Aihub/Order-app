@@ -18,6 +18,7 @@ import { colors, radius, shadow, spacing } from '@/config/theme';
 import { getBusinessUpiQrUrl, uploadBusinessUpiQrFromPickerAsset } from '@/services/business';
 import { deliverOrderWithPayment, recordDeliveryPaymentOnly } from '@/services/orders';
 import type { PaymentMethod } from '@/types/order';
+import { friendlyFailureMessage } from '@/utils/async';
 import { formatPrice } from '@/utils/format';
 
 type Props = {
@@ -28,7 +29,7 @@ type Props = {
   onClose: () => void;
   onDelivered: () => void;
   /** After a successful delivery, offer to send the PDF bill. */
-  onShareBill?: (payment: PaymentMethod) => Promise<void>;
+  onShareBill?: (payment: PaymentMethod, hooks?: { onPdfReady?: () => void }) => Promise<void>;
   onRefreshOrder?: () => void | Promise<void>;
   /** Order already delivered (e.g. in admin) — only collect payment. */
   paymentOnly?: boolean;
@@ -56,6 +57,7 @@ export function DeliverPaymentModal({
   const [offerShare, setOfferShare] = useState(false);
   const [savedPayment, setSavedPayment] = useState<PaymentMethod>('pending');
   const [sharing, setSharing] = useState(false);
+  const [sharePhase, setSharePhase] = useState<'preparing' | 'sheet' | null>(null);
 
   const loadQr = useCallback(async () => {
     setLoadingQr(true);
@@ -76,6 +78,7 @@ export function DeliverPaymentModal({
       setConflict(null);
       setOfferShare(false);
       setSharing(false);
+      setSharePhase(null);
       return;
     }
     void loadQr();
@@ -104,7 +107,7 @@ export function DeliverPaymentModal({
       const url = await uploadBusinessUpiQrFromPickerAsset(businessId, asset);
       setQrUrl(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not upload QR.');
+      setError(friendlyFailureMessage(err, 'Could not upload QR.'));
     } finally {
       setUploading(false);
     }
@@ -153,14 +156,16 @@ export function DeliverPaymentModal({
       return;
     }
     setSharing(true);
+    setSharePhase('preparing');
     setError(null);
     try {
-      await onShareBill?.(savedPayment);
+      await onShareBill?.(savedPayment, { onPdfReady: () => setSharePhase('sheet') });
       onDelivered();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not share the bill.');
+      setError(friendlyFailureMessage(err, 'Could not share the bill.'));
     } finally {
       setSharing(false);
+      setSharePhase(null);
     }
   }
 
@@ -203,10 +208,18 @@ export function DeliverPaymentModal({
           keyboardShouldPersistTaps="handled"
         >
           {offerShare ? (
-            <View style={styles.infoCard}>
-              <Ionicons name="logo-whatsapp" size={28} color="#15803D" />
-              <Text style={styles.infoText}>Share this bill on WhatsApp for the customer?</Text>
-            </View>
+            <>
+              <View style={styles.infoCard}>
+                <Ionicons name="share-social-outline" size={28} color="#15803D" />
+                <Text style={styles.infoText}>
+                  Share the PDF bill on WhatsApp or another app for the customer?
+                </Text>
+              </View>
+              <Text style={styles.shareLaterHint}>
+                Not now? Use <Text style={styles.shareLaterEmphasis}>Share bill</Text> under Customer on this order
+                anytime.
+              </Text>
+            </>
           ) : null}
 
           {offerShare ? null : <PaymentMethodPicker value={payChoice} onChange={setPayChoice} />}
@@ -276,11 +289,16 @@ export function DeliverPaymentModal({
                 accessibilityRole="button"
               >
                 {sharing ? (
-                  <ActivityIndicator color={colors.surface} />
+                  <>
+                    <ActivityIndicator color={colors.surface} />
+                    <Text style={styles.confirmLabel}>
+                      {sharePhase === 'preparing' ? 'Preparing…' : 'Opening…'}
+                    </Text>
+                  </>
                 ) : (
                   <>
-                    <Text style={styles.confirmLabel}>WhatsApp</Text>
-                    <Ionicons name="share-outline" size={20} color={colors.surface} />
+                    <Text style={styles.confirmLabel}>Share bill</Text>
+                    <Ionicons name="share-social-outline" size={20} color={colors.surface} />
                   </>
                 )}
               </Pressable>
@@ -386,6 +404,16 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 21,
     fontSize: 15,
+  },
+  shareLaterHint: {
+    marginTop: -4,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  shareLaterEmphasis: {
+    fontWeight: '700',
+    color: colors.text,
   },
   footer: {
     flexDirection: 'row',

@@ -34,6 +34,8 @@ cp admin/.env.example admin/.env
 cp delivery/.env.example delivery/.env
 ```
 
+Fill in **staging** Supabase URLs and keys for local dev — not production. See [docs/supabase-environments.md](docs/supabase-environments.md). Check targets anytime: `npm run env:which`.
+
 Use only the Supabase anon key in both apps. Never put the service-role key in either application.
 
 Admin login uses email and password from a user the developer creates in Supabase. There is no admin sign-up page. See `supabase/documentation/admin-setup.md`.

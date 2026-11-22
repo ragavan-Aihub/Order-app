@@ -236,7 +236,10 @@ export default function DeliveryOrderScreen() {
     try {
       await shareDeliveryBill(order, profile.business_id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not share the bill.';
+      const message =
+        err instanceof Error && err.message.trim()
+          ? err.message
+          : 'Could not share the bill. Check connection and try again.';
       setNotice({ variant: 'error', title: 'Bill not shared', message });
     } finally {
       setSharingBill(false);
@@ -355,11 +358,16 @@ export default function DeliveryOrderScreen() {
               onPress={() => void shareBill()}
               disabled={sharingBill}
               accessibilityRole="button"
-              accessibilityLabel="Share bill"
+              accessibilityLabel="Share bill on WhatsApp or other apps"
+              accessibilityHint="Opens the share sheet with a PDF invoice"
             >
-              <Ionicons name="document-text-outline" size={compact ? 16 : 18} color={colors.primaryDark} />
+              {sharingBill ? (
+                <ActivityIndicator size="small" color={colors.primaryDark} />
+              ) : (
+                <Ionicons name="share-social-outline" size={compact ? 16 : 18} color={colors.primaryDark} />
+              )}
               <Text style={[styles.actionBtnLabel, compact && styles.actionBtnLabelCompact]}>
-                {sharingBill ? '…' : 'Bill'}
+                {sharingBill ? 'Sharing…' : compact ? 'Share' : 'Share bill'}
               </Text>
             </Pressable>
           ) : null}
