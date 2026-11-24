@@ -2,7 +2,7 @@
   "expo": {
     "name": "Farm2Flavours",
     "slug": "farm2flavour",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "farm2flavour",
@@ -15,7 +15,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 28,
+      "versionCode": 29,
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
       "permissions": ["POST_NOTIFICATIONS"],

@@ -5,10 +5,12 @@
 
 -- Bug fix (people can tap Later, unless you also raise the minimum):
 --   customer_app_release_kind = 'bugfix'
---   customer_app_latest_version = '1.0.1'
---   customer_app_latest_version_code = 24
+--   customer_app_latest_version = '1.1.0'
+--   customer_app_latest_version_code = 30
 
 -- New feature (same, kind = 'feature', version like 1.1.0):
+--   customer_app_latest_version = '1.1.0'
+--   customer_app_latest_version_code = 29
 
 -- Critical fix (old apps cannot continue until they update):
 --   also set customer_app_min_version_code to that same versionCode
@@ -19,11 +21,11 @@ declare
 begin
   update public.businesses
   set
-    customer_app_latest_version = '1.0.0',
-    customer_app_latest_version_code = 23,
+    customer_app_latest_version = '1.1.0',
+    customer_app_latest_version_code = 29,
     customer_app_min_version_code = 0,
-    customer_app_release_kind = 'none',
-    customer_app_release_notes = null,
+    customer_app_release_kind = 'feature',
+    customer_app_release_notes = 'Packed orders, delivery charge on bills, and cart improvements.',
     customer_app_update_url = null
   where id = v_business_id;
 

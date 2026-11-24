@@ -6,8 +6,8 @@ How to ship a **bug fix** or a **new feature**. The customer and delivery apps u
 
 | | Customer app (`mobile/app.json`) | Delivery app (`delivery/app.json`) |
 |--|----------------------------------|-------------------------------------|
-| **Version** (people see this) | `expo.version` — today **1.0.1** | `expo.version` — today **1.1.0** |
-| **Version code** (Play Store only) | `android.versionCode` — today **26** | `android.versionCode` — today **6** |
+| **Version** (people see this) | `expo.version` — today **1.1.0** | `expo.version` — today **1.1.0** |
+| **Version code** (Play Store only) | `android.versionCode` — today **29** | `android.versionCode` — today **8** |
 
 Rules:
 
@@ -64,6 +64,9 @@ Add a row each time you ship. Copy the “What’s new” line into Play Console
 
 | Date | App | Kind | Version | Version code | What’s new |
 |------|-----|------|---------|--------------|------------|
+| Nov 2026 | Customer | Feature | 1.1.0 | 29 | Packed order status, delivery charge and free-delivery threshold in cart, favorites. Run `set-customer-app-version.sql` after uploading this build so older APKs get the in-app update prompt. |
+| Nov 2026 | Delivery | Bug fix | 1.1.0 | 8 | Bill share no longer hangs; Share bill UI; UPI QR upload timeouts and clearer errors. |
+| Nov 2026 | Admin panel | Feature | 1.2.0 | — | Packed workflow, delivery charge settings, phone-order delivery totals, responsive prepare-invoice editor, staging env docs. Deploy on Vercel. |
 | Nov 2026 | Customer | Feature | 1.0.1 | 26 | Product share HTTPS (`EXPO_PUBLIC_SHARE_BASE_URL` → `order-app-eta-eight.vercel.app`), App Links intent filters, share sheet without requiring expo-clipboard native module. Preview APK for testers. |
 | Nov 2026 | Delivery | Feature | 1.1.0 | 6 | Light-green invoice PDF; preview APK for testers. |
 | — | Customer | — | 1.0.0 | 23 | Older build (not Play production). |
