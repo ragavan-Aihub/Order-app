@@ -26,6 +26,7 @@ import {
   weightOptionPrice,
 } from '@/lib/selling-units';
 import { markAdminInvoicePrepared, replaceAdminOrderItems, revertAdminOrderToPlaced } from '@/services/order-actions';
+import { getOrderReceiptPrintData } from '@/services/receipt-print-data';
 import {
   isPaymentCollected,
   type OrderItem,
@@ -161,6 +162,7 @@ export function AdminOrderModifyPanel({
   const [modifyEntryOpen, setModifyEntryOpen] = useState(false);
   const [revertOpen, setRevertOpen] = useState(false);
   const [printPromptOpen, setPrintPromptOpen] = useState(false);
+  const [autoPrintDefault, setAutoPrintDefault] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(itemsRevision);
@@ -453,7 +455,15 @@ export function AdminOrderModifyPanel({
         ? `Invoice saved · ${formatPrice(previewTotal)}`
         : 'Invoice prepared — ready for out for delivery',
     );
-    setPrintPromptOpen(true);
+    void (async () => {
+      const printData = await getOrderReceiptPrintData(orderId);
+      const after = printData.data?.settings.afterInvoiceSave ?? 'ask';
+      if (after === 'skip') {
+        return;
+      }
+      setAutoPrintDefault(after === 'print_default');
+      setPrintPromptOpen(true);
+    })();
   }
 
   async function applyRevert() {
@@ -972,9 +982,13 @@ export function AdminOrderModifyPanel({
       <PrintReceiptDialog
         orderId={orderId}
         open={printPromptOpen}
-        onClose={() => setPrintPromptOpen(false)}
+        onClose={() => {
+          setPrintPromptOpen(false);
+          setAutoPrintDefault(false);
+        }}
+        autoPrintDefault={autoPrintDefault}
         title="Print receipt?"
-        body="Invoice saved. Print A4 (standard) or thermal now, or choose Not now and print later from the orders list."
+        body="Invoice saved. Print with your default design, switch format, or choose Not now and print later from the orders list."
       />
     </div>
   );

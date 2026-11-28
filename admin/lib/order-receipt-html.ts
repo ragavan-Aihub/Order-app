@@ -1,4 +1,10 @@
 import { buildReceiptLines, formatReceiptQty, type ReceiptLine } from '@/lib/receipt-lines';
+import {
+  DEFAULT_PRINT_SETTINGS,
+  normalizePrintSettings,
+  type PrintSettings,
+  type ReceiptFormat,
+} from '@/lib/print-settings';
 import type { OrderItem, OrderModificationItemSnapshot, PaymentMethod } from '@/types/order';
 import { formatOrderNumber } from '@/utils/format';
 
@@ -22,7 +28,7 @@ export type ReceiptOrder = {
   order_items: OrderItem[];
 };
 
-export type ReceiptFormat = 'a4' | 'thermal';
+export type { ReceiptFormat };
 
 function escapeHtml(value: string): string {
   return value
@@ -84,17 +90,67 @@ const ICON_CAL =
 const ICON_USER =
   '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 12a4 4 0 10-4-4 4 4 0 004 4zm0 2c-4 0-8 2-8 4v2h16v-2c0-2-4-4-8-4z"/></svg>';
 
-function itemRows(lines: ReceiptLine[]): string {
+function itemHeaderCells(settings: PrintSettings): string {
+  const cells: string[] = [];
+  if (settings.items.itemName) {
+    cells.push('<th>Item</th>');
+  }
+  if (settings.items.orderQty) {
+    cells.push('<th class="num">Order qty</th>');
+  }
+  if (settings.items.recdQty) {
+    cells.push('<th class="num">Recd qty</th>');
+  }
+  if (settings.items.rate) {
+    cells.push('<th class="num">Rate</th>');
+  }
+  if (settings.items.amount) {
+    cells.push('<th class="num">Amount</th>');
+  }
+  return cells.join('');
+}
+
+function thermalItemHeaderCells(settings: PrintSettings): string {
+  const cells: string[] = [];
+  if (settings.items.itemName) {
+    cells.push('<th>Item</th>');
+  }
+  if (settings.items.orderQty) {
+    cells.push('<th class="num">Ord</th>');
+  }
+  if (settings.items.recdQty) {
+    cells.push('<th class="num">Recd</th>');
+  }
+  if (settings.items.rate) {
+    cells.push('<th class="num">Rate</th>');
+  }
+  if (settings.items.amount) {
+    cells.push('<th class="num">Amt</th>');
+  }
+  return cells.join('');
+}
+
+function itemRows(lines: ReceiptLine[], settings: PrintSettings): string {
   return lines
-    .map(
-      (line) => `<tr>
-        <td>${escapeHtml(line.productName)}</td>
-        <td class="num">${escapeHtml(formatReceiptQty(line.orderQty))}</td>
-        <td class="num">${escapeHtml(formatReceiptQty(line.recdQty))}</td>
-        <td class="num">${escapeHtml(formatInr(line.rate))}</td>
-        <td class="num">${escapeHtml(formatInr(line.amount))}</td>
-      </tr>`,
-    )
+    .map((line) => {
+      const cells: string[] = [];
+      if (settings.items.itemName) {
+        cells.push(`<td>${escapeHtml(line.productName)}</td>`);
+      }
+      if (settings.items.orderQty) {
+        cells.push(`<td class="num">${escapeHtml(formatReceiptQty(line.orderQty))}</td>`);
+      }
+      if (settings.items.recdQty) {
+        cells.push(`<td class="num">${escapeHtml(formatReceiptQty(line.recdQty))}</td>`);
+      }
+      if (settings.items.rate) {
+        cells.push(`<td class="num">${escapeHtml(formatInr(line.rate))}</td>`);
+      }
+      if (settings.items.amount) {
+        cells.push(`<td class="num">${escapeHtml(formatInr(line.amount))}</td>`);
+      }
+      return `<tr>${cells.join('')}</tr>`;
+    })
     .join('');
 }
 
@@ -103,17 +159,39 @@ function a4Html(
   shop: ReceiptShop,
   lines: ReceiptLine[],
   logoSrc: string | null,
+  settings: PrintSettings,
 ): string {
   const shopLines = [
-    shop.phone ? `<div class="shop-line">${ICON_PHONE}<span>${escapeHtml(shop.phone)}</span></div>` : '',
-    shop.email ? `<div class="shop-line">${ICON_MAIL}<span>${escapeHtml(shop.email)}</span></div>` : '',
-    shop.address ? `<div class="shop-line">${ICON_PIN}<span>${escapeHtml(shop.address)}</span></div>` : '',
+    settings.shop.phone && shop.phone
+      ? `<div class="shop-line">${ICON_PHONE}<span>${escapeHtml(shop.phone)}</span></div>`
+      : '',
+    settings.shop.email && shop.email
+      ? `<div class="shop-line">${ICON_MAIL}<span>${escapeHtml(shop.email)}</span></div>`
+      : '',
+    settings.shop.address && shop.address
+      ? `<div class="shop-line">${ICON_PIN}<span>${escapeHtml(shop.address)}</span></div>`
+      : '',
   ].join('');
 
   const customerAddress = `${order.delivery_address}${order.pincode ? `, ${order.pincode}` : ''}`;
-  const logo = logoSrc
-    ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="" />`
-    : `<div class="logo logo-fallback">${escapeHtml(shop.name.slice(0, 1))}</div>`;
+  const showLogo = settings.shop.logo;
+  const logo = showLogo
+    ? logoSrc
+      ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="" />`
+      : `<div class="logo logo-fallback">${escapeHtml(shop.name.slice(0, 1))}</div>`
+    : '';
+
+  const customerLines = [
+    settings.customer.name
+      ? `<div class="customer-line">${ICON_USER}<strong>${escapeHtml(order.customer_name)}</strong></div>`
+      : '',
+    settings.customer.phone
+      ? `<div class="customer-line">${ICON_PHONE}<span>${escapeHtml(order.mobile)}</span></div>`
+      : '',
+    settings.customer.address
+      ? `<div class="customer-line">${ICON_PIN}<span>${escapeHtml(customerAddress)}</span></div>`
+      : '',
+  ].join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -165,7 +243,7 @@ function a4Html(
         <div class="brand">
           ${logo}
           <div>
-            <div class="shop-name">${escapeHtml(shop.name)}</div>
+            ${settings.shop.name ? `<div class="shop-name">${escapeHtml(shop.name)}</div>` : ''}
             ${shopLines}
           </div>
         </div>
@@ -178,55 +256,70 @@ function a4Html(
       <div class="title-row">
         <div>
           <h1>Invoice</h1>
-          <div class="date">${ICON_CAL}<span>${escapeHtml(formatBillDate(order.created_at))}</span></div>
+          ${
+            settings.customer.date
+              ? `<div class="date">${ICON_CAL}<span>${escapeHtml(formatBillDate(order.created_at))}</span></div>`
+              : ''
+          }
         </div>
-        <div class="pill">#${escapeHtml(formatOrderNumber(order.order_number))}</div>
+        ${
+          settings.customer.orderNumber
+            ? `<div class="pill">#${escapeHtml(formatOrderNumber(order.order_number))}</div>`
+            : ''
+        }
       </div>
-      <div class="customer">
-        <div class="customer-line">${ICON_USER}<strong>${escapeHtml(order.customer_name)}</strong></div>
-        <div class="customer-line">${ICON_PHONE}<span>${escapeHtml(order.mobile)}</span></div>
-        <div class="customer-line">${ICON_PIN}<span>${escapeHtml(customerAddress)}</span></div>
-      </div>
+      ${customerLines ? `<div class="customer">${customerLines}</div>` : ''}
       <table>
         <thead>
-          <tr>
-            <th>Item</th>
-            <th class="num">Order qty</th>
-            <th class="num">Recd qty</th>
-            <th class="num">Rate</th>
-            <th class="num">Amount</th>
-          </tr>
+          <tr>${itemHeaderCells(settings)}</tr>
         </thead>
-        <tbody>${itemRows(lines)}</tbody>
+        <tbody>${itemRows(lines, settings)}</tbody>
       </table>
-      <div class="paybar"><span>To Pay</span><strong>${escapeHtml(formatInr(order.total_amount))}</strong></div>
-      <div class="method">${ICON_CAL}<span>Payment Method: ${escapeHtml(paymentLabel(order.payment_method))}</span></div>
-      <div class="thanks">Thank you for your order!</div>
+      ${
+        settings.payment.total
+          ? `<div class="paybar"><span>To Pay</span><strong>${escapeHtml(formatInr(order.total_amount))}</strong></div>`
+          : ''
+      }
+      ${
+        settings.payment.method
+          ? `<div class="method">${ICON_CAL}<span>Payment Method: ${escapeHtml(paymentLabel(order.payment_method))}</span></div>`
+          : ''
+      }
+      ${settings.payment.thanks ? `<div class="thanks">Thank you for your order!</div>` : ''}
     </div>
   </div>
 </body>
 </html>`;
 }
 
-function thermalHtml(order: ReceiptOrder, shop: ReceiptShop, lines: ReceiptLine[]): string {
+function thermalHtml(
+  order: ReceiptOrder,
+  shop: ReceiptShop,
+  lines: ReceiptLine[],
+  settings: PrintSettings,
+): string {
+  const width = settings.thermalWidthMm;
+  const bodyWidth = width === 58 ? '50mm' : '72mm';
   const customerAddress = `${order.delivery_address}${order.pincode ? `, ${order.pincode}` : ''}`;
   const shopBlock = [
-    shop.phone ? `<div>${escapeHtml(shop.phone)}</div>` : '',
-    shop.email ? `<div>${escapeHtml(shop.email)}</div>` : '',
-    shop.address ? `<div>${escapeHtml(shop.address)}</div>` : '',
+    settings.shop.phone && shop.phone ? `<div>${escapeHtml(shop.phone)}</div>` : '',
+    settings.shop.email && shop.email ? `<div>${escapeHtml(shop.email)}</div>` : '',
+    settings.shop.address && shop.address ? `<div>${escapeHtml(shop.address)}</div>` : '',
   ].join('');
 
-  const itemBlock = lines
-    .map(
-      (line) => `<tr>
-      <td class="item">${escapeHtml(line.productName)}</td>
-      <td class="num">${escapeHtml(formatReceiptQty(line.orderQty))}</td>
-      <td class="num">${escapeHtml(formatReceiptQty(line.recdQty))}</td>
-      <td class="num">${escapeHtml(formatInr(line.rate))}</td>
-      <td class="num">${escapeHtml(formatInr(line.amount))}</td>
-    </tr>`,
-    )
-    .join('');
+  const customerBlock = [
+    settings.customer.name ? `<div><strong>${escapeHtml(order.customer_name)}</strong></div>` : '',
+    settings.customer.phone ? `<div>${escapeHtml(order.mobile)}</div>` : '',
+    settings.customer.address ? `<div>${escapeHtml(customerAddress)}</div>` : '',
+    settings.customer.orderNumber || settings.customer.date
+      ? `<div class="muted">${[
+          settings.customer.orderNumber ? `Order #${escapeHtml(formatOrderNumber(order.order_number))}` : '',
+          settings.customer.date ? escapeHtml(formatBillDate(order.created_at)) : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}</div>`
+      : '',
+  ].join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -234,14 +327,14 @@ function thermalHtml(order: ReceiptOrder, shop: ReceiptShop, lines: ReceiptLine[
   <meta charset="utf-8" />
   <title>Receipt #${escapeHtml(formatOrderNumber(order.order_number))}</title>
   <style>
-    @page { size: 80mm auto; margin: 2mm; }
+    @page { size: ${width}mm auto; margin: 2mm; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; background: #fff; }
     body {
       font-family: "Courier New", Courier, monospace;
       color: #111;
-      font-size: 11px;
-      width: 72mm;
+      font-size: ${width === 58 ? '10px' : '11px'};
+      width: ${bodyWidth};
       margin: 0 auto;
       padding: 2mm;
     }
@@ -263,36 +356,31 @@ function thermalHtml(order: ReceiptOrder, shop: ReceiptShop, lines: ReceiptLine[
 <body>
   <div class="section">
     <div class="section-title">1. Shop details</div>
-    <div class="shop-name">${escapeHtml(shop.name)}</div>
+    ${settings.shop.name ? `<div class="shop-name">${escapeHtml(shop.name)}</div>` : ''}
     <div class="center muted">${shopBlock}</div>
   </div>
   <div class="section">
     <div class="section-title">2. Customer details</div>
-    <div><strong>${escapeHtml(order.customer_name)}</strong></div>
-    <div>${escapeHtml(order.mobile)}</div>
-    <div>${escapeHtml(customerAddress)}</div>
-    <div class="muted">Order #${escapeHtml(formatOrderNumber(order.order_number))} · ${escapeHtml(formatBillDate(order.created_at))}</div>
+    ${customerBlock}
   </div>
   <div class="section">
     <div class="section-title">3. Item details</div>
     <table>
       <thead>
-        <tr>
-          <th>Item</th>
-          <th class="num">Ord</th>
-          <th class="num">Recd</th>
-          <th class="num">Rate</th>
-          <th class="num">Amt</th>
-        </tr>
+        <tr>${thermalItemHeaderCells(settings)}</tr>
       </thead>
-      <tbody>${itemBlock}</tbody>
+      <tbody>${itemRows(lines, settings)}</tbody>
     </table>
   </div>
   <div class="section">
     <div class="section-title">4. Payment details</div>
-    <div class="total-row"><span>To Pay</span><span>${escapeHtml(formatInr(order.total_amount))}</span></div>
-    <div>Payment: ${escapeHtml(paymentLabel(order.payment_method))}</div>
-    <div class="thanks">Thank you!</div>
+    ${
+      settings.payment.total
+        ? `<div class="total-row"><span>To Pay</span><span>${escapeHtml(formatInr(order.total_amount))}</span></div>`
+        : ''
+    }
+    ${settings.payment.method ? `<div>Payment: ${escapeHtml(paymentLabel(order.payment_method))}</div>` : ''}
+    ${settings.payment.thanks ? `<div class="thanks">Thank you!</div>` : ''}
   </div>
 </body>
 </html>`;
@@ -305,11 +393,13 @@ export function buildOrderReceiptHtml(
     format: ReceiptFormat;
     placedItems?: OrderModificationItemSnapshot[];
     logoSrc?: string | null;
+    settings?: PrintSettings | Record<string, unknown> | null;
   },
 ): string {
+  const settings = normalizePrintSettings(options.settings ?? DEFAULT_PRINT_SETTINGS);
   const lines = buildReceiptLines(order.order_items, options.placedItems ?? []);
   if (options.format === 'thermal') {
-    return thermalHtml(order, shop, lines);
+    return thermalHtml(order, shop, lines, settings);
   }
-  return a4Html(order, shop, lines, options.logoSrc ?? null);
+  return a4Html(order, shop, lines, options.logoSrc ?? null, settings);
 }

@@ -1,6 +1,7 @@
 'use server';
 
 import type { ReceiptOrder, ReceiptShop } from '@/lib/order-receipt-html';
+import { normalizePrintSettings, type PrintSettings } from '@/lib/print-settings';
 import { loadOrderModificationSummaryForOrder } from '@/services/order-modifications';
 import { getOrderById } from '@/services/orders';
 import { getAdminBusiness } from '@/services/business';
@@ -11,6 +12,7 @@ export type OrderReceiptPrintData = {
   shop: ReceiptShop;
   placedItems: OrderModificationItemSnapshot[];
   canPrint: boolean;
+  settings: PrintSettings;
 };
 
 export async function getOrderReceiptPrintData(
@@ -63,6 +65,7 @@ export async function getOrderReceiptPrintData(
 
   const invoiceReady = Boolean(order.invoice_prepared_at || summary.modifiedFromPlaced);
   const canPrint = invoiceReady && order.status !== 'cancelled';
+  const settings = normalizePrintSettings(business?.print_settings);
 
   return {
     error: null,
@@ -71,6 +74,7 @@ export async function getOrderReceiptPrintData(
       shop,
       placedItems,
       canPrint,
+      settings,
     },
   };
 }

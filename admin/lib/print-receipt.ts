@@ -1,4 +1,5 @@
 import { buildOrderReceiptHtml, type ReceiptFormat, type ReceiptOrder, type ReceiptShop } from '@/lib/order-receipt-html';
+import type { PrintSettings } from '@/lib/print-settings';
 import type { OrderModificationItemSnapshot } from '@/types/order';
 
 export type PrintReceiptInput = {
@@ -7,6 +8,7 @@ export type PrintReceiptInput = {
   placedItems?: OrderModificationItemSnapshot[];
   format: ReceiptFormat;
   logoSrc?: string | null;
+  settings?: PrintSettings | null;
 };
 
 /** Open a hidden iframe, print the receipt HTML, then clean up. */
@@ -19,6 +21,7 @@ export function printOrderReceipt(input: PrintReceiptInput): void {
     format: input.format,
     placedItems: input.placedItems,
     logoSrc: input.logoSrc,
+    settings: input.settings,
   });
 
   const iframe = document.createElement('iframe');

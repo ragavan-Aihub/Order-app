@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { env } from '@/config/env';
+import { sanitizePrintSettingsForSave, type PrintSettings } from '@/lib/print-settings';
 import { notifyShopAnnouncement } from '@/lib/shop-announcement-push';
 import { logAdminAudit, requireAdminAuditContext } from '@/services/admin-audit';
 
@@ -116,6 +117,40 @@ export async function updateBusinessBranding(input: {
 
   revalidatePath('/settings/branding');
   revalidatePath('/settings/business-info');
+  return { error: null };
+}
+
+export async function updatePrintSettings(input: {
+  businessId: string;
+  settings: PrintSettings;
+}): Promise<{ error: string | null }> {
+  const ctx = await requireAdminAuditContext();
+  if ('error' in ctx) {
+    return { error: ctx.error };
+  }
+  if (input.businessId !== ctx.businessId) {
+    return { error: 'This account cannot change this business.' };
+  }
+
+  const settings = sanitizePrintSettingsForSave(input.settings);
+  const { error } = await ctx.supabase
+    .from('businesses')
+    .update({ print_settings: settings })
+    .eq('id', ctx.businessId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAudit(ctx, {
+    action: 'business.print_settings_update',
+    entityType: 'business',
+    entityId: ctx.businessId,
+    summary: `Print settings saved (default ${settings.defaultFormat}, ${settings.thermalWidthMm}mm)`,
+  });
+
+  revalidatePath('/settings/print');
+  revalidatePath('/orders');
   return { error: null };
 }
 

@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Power,
   Image,
+  Printer,
   SlidersHorizontal,
   KeyRound,
   LayoutGrid,
@@ -48,6 +49,7 @@ const mainLinks: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/settings/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/settings/shop-closed', label: 'Shop status', icon: Power },
   { href: '/settings/preferences', label: 'Preferences', icon: SlidersHorizontal },
+  { href: '/settings/print', label: 'Print settings', icon: Printer },
   ...(SHOW_LATER_PHASE_MENUS ? laterPhaseLinks : []),
 ];
 

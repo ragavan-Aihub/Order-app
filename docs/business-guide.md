@@ -373,8 +373,8 @@ While the order is **Placed**, **Confirmed**, or **Out for delivery**, open the 
 1. Tap **Prepare invoice**. Ordered qty stays visible on each line.
 2. Change invoice qty (for Kg/Liter you can type values such as 0.70), add products, or remove a line with trash. Minus does not delete the line.
 3. Tap **Review invoice**, check ordered vs billed totals, optionally add a short reason for the customer, then **Save invoice**.
-4. After save, the admin asks **Print receipt?** — choose **Print A4** (standard layout, same look as the delivery bill), **Print thermal** (80mm slip with shop, customer, item, and payment sections), or **Not now**.
-5. If you choose Not now, use **Print receipt** on the orders list or the order detail page any time after the invoice is saved (until the order is cancelled).
+4. After save, print follows **Print settings** (sidebar): ask for A4/thermal, auto-print the default design, or skip. You can still print later from the orders list or order detail.
+5. Open **Print settings** to change default design (A4 or thermal), thermal width (80mm/58mm), after-save behavior, and which fields appear in each receipt section (shop, customer, items, payment). Defaults match common POS invoices; required fields stay locked.
 6. Tap **Cancel** to leave without saving. **Reset to original order** restores billed lines to the original request (customer edits from before the shop invoice are kept).
 
 Saving the invoice updates the live order so the customer app shows billed qty and total (no app update needed). The original order stays in history. The customer sees **Shop modified** and **View changes** (added, removed, qty, old/new total). These invoice saves do not use up the customer's 5 self-service modifications. After the first shop invoice save, the customer cannot keep modifying that order in the app.
