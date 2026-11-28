@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MoreMenu, menuItemClass } from '@/components/MoreMenu';
 import { OrderStepper } from '@/components/OrderStepper';
 import { PaymentMethodPicker, type PaymentChoice } from '@/components/PaymentMethodPicker';
+import { PrintReceiptButton } from '@/components/PrintReceiptButton';
 import { updateOrderPayment, updateOrderRefund, updateOrderStatus } from '@/services/order-actions';
 import {
   CANCEL_REASON_PRESETS,
@@ -279,6 +280,7 @@ export function OrderWorkflow({
   const cancellable = canCancel(current);
   const canChangePayment = payState === 'paid';
   const canMarkRefunded = payState === 'refund_pending';
+  const canPrintReceipt = invoicePrepared && current !== 'cancelled';
   const hasMenu = Boolean(detailsHref || cancellable || allowCorrection || canChangePayment || canMarkRefunded);
 
   const menu = hasMenu ? (
@@ -594,10 +596,11 @@ export function OrderWorkflow({
             placedAt={placedAt}
           />
           {paidLine}
-          {primary || collectButton ? (
+          {primary || collectButton || canPrintReceipt ? (
             <div className="flex flex-wrap gap-2">
               {primary && (action || current === 'delivered') ? primary : null}
               {collectButton}
+              <PrintReceiptButton orderId={orderId} canPrint={canPrintReceipt} />
             </div>
           ) : null}
           {feedback}

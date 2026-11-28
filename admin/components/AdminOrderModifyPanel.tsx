@@ -8,6 +8,7 @@ import { Spinner, useActionComplete } from '@/components/ActionNotice';
 import { AdminOrderItemsTable } from '@/components/AdminOrderItemsTable';
 import { AdminQtyStepper } from '@/components/AdminQtyStepper';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PrintReceiptDialog } from '@/components/PrintReceiptDialog';
 import { TableScroll } from '@/components/TableScroll';
 import { VariantOptionCard, VariantOptionRow } from '@/components/VariantOptionCard';
 import {
@@ -159,6 +160,7 @@ export function AdminOrderModifyPanel({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [modifyEntryOpen, setModifyEntryOpen] = useState(false);
   const [revertOpen, setRevertOpen] = useState(false);
+  const [printPromptOpen, setPrintPromptOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(itemsRevision);
@@ -451,6 +453,7 @@ export function AdminOrderModifyPanel({
         ? `Invoice saved · ${formatPrice(previewTotal)}`
         : 'Invoice prepared — ready for out for delivery',
     );
+    setPrintPromptOpen(true);
   }
 
   async function applyRevert() {
@@ -965,6 +968,14 @@ export function AdminOrderModifyPanel({
           </div>
         </ConfirmDialog>
       ) : null}
+
+      <PrintReceiptDialog
+        orderId={orderId}
+        open={printPromptOpen}
+        onClose={() => setPrintPromptOpen(false)}
+        title="Print receipt?"
+        body="Invoice saved. Print A4 (standard) or thermal now, or choose Not now and print later from the orders list."
+      />
     </div>
   );
 }
