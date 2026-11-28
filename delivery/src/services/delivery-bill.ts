@@ -1,12 +1,13 @@
 import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 
+import { buildReceiptLines, type ReceiptLineSnapshot } from '@/lib/receipt-lines';
 import { getBusinessBillHeader } from '@/services/business';
+import { getSupabaseClient } from '@/services/supabase';
 import type { OrderWithItems, PaymentMethod } from '@/types/order';
 import { withTimeout } from '@/utils/async';
 import { formatOrderListDate, formatOrderNumber } from '@/utils/format';
 import { sharePdfFile } from '@/utils/share-pdf';
-import { formatOrderItemQty, formatOrderItemUnit } from '@/utils/selling-units';
 
 const PRINT_PDF_MS = 45_000;
 const SHOP_LOOKUP_MS = 12_000;
@@ -111,27 +112,49 @@ const ICON_CAL =
 const ICON_USER =
   '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 12a4 4 0 10-4-4 4 4 0 004 4zm0 2c-4 0-8 2-8 4v2h16v-2c0-2-4-4-8-4z"/></svg>';
 
+async function loadPlacedItems(orderId: string, businessId: string): Promise<ReceiptLineSnapshot[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+  const { data, error } = await supabase
+    .from('order_modifications')
+    .select('previous_items, created_at')
+    .eq('order_id', orderId)
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error || !data?.length) {
+    return [];
+  }
+  const previous = data[0]?.previous_items;
+  if (!Array.isArray(previous)) {
+    return [];
+  }
+  return previous.filter(
+    (line): line is ReceiptLineSnapshot =>
+      Boolean(line && typeof line === 'object' && typeof (line as ReceiptLineSnapshot).product_name === 'string'),
+  );
+}
+
 function billHtml(
   order: OrderWithItems,
   shop: { name: string; phone: string | null; email: string | null; address: string | null },
   paymentMethod: PaymentMethod,
   logoSrc: string | null,
+  placedItems: ReceiptLineSnapshot[],
 ): string {
-  const rows = order.order_items
-    .map((item) => {
-      const unit =
-        item.product_price != null && Number.isFinite(Number(item.product_price))
-          ? Number(item.product_price)
-          : item.quantity > 0
-            ? item.subtotal / item.quantity
-            : item.subtotal;
-      return `<tr>
-        <td>${escapeHtml(formatOrderItemUnit(item))}</td>
-        <td class="num">${escapeHtml(formatOrderItemQty(item))}</td>
-        <td class="num">${escapeHtml(formatInr(unit))}</td>
-        <td class="num">${escapeHtml(formatInr(item.subtotal))}</td>
-      </tr>`;
-    })
+  const lines = buildReceiptLines(order.order_items, placedItems);
+  const rows = lines
+    .map(
+      (line) => `<tr>
+        <td>${escapeHtml(line.productName)}</td>
+        <td class="num">${escapeHtml(line.orderQtyLabel)}</td>
+        <td class="num">${escapeHtml(line.recdQtyLabel)}</td>
+        <td class="num">${escapeHtml(formatInr(line.rate))}</td>
+        <td class="num">${escapeHtml(formatInr(line.amount))}</td>
+      </tr>`,
+    )
     .join('');
 
   const shopLines = [
@@ -180,9 +203,9 @@ function billHtml(
     .customer-line strong { color: #18181b; }
     .customer-line svg { flex: none; margin-top: 1px; color: #3f3f46; }
     table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th { background: #e8f8e4; color: #166534; font-size: 13px; text-align: left; padding: 8px 10px; }
-    th.num, td.num { text-align: right; }
-    td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+    th { background: #e8f8e4; color: #166534; font-size: 12px; text-align: left; padding: 8px 8px; }
+    th.num, td.num { text-align: right; white-space: nowrap; }
+    td { padding: 9px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
     .paybar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; background: #eef9ea; border-radius: 10px; padding: 12px 14px; color: #166534; font-weight: 800; font-size: 18px; }
     .paybar strong { font-size: 22px; }
     .method { display: flex; align-items: center; gap: 8px; margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
@@ -226,7 +249,13 @@ function billHtml(
       </div>
       <table>
         <thead>
-          <tr><th>Item</th><th class="num">Qty</th><th class="num">Unit Price</th><th class="num">Amount</th></tr>
+          <tr>
+            <th>Item</th>
+            <th class="num">Order qty</th>
+            <th class="num">Recd qty</th>
+            <th class="num">Rate</th>
+            <th class="num">Amount</th>
+          </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
@@ -288,13 +317,14 @@ export async function shareDeliveryBill(
   }
   // Skip oversized / slow logos so PDF generation cannot hang the share sheet.
   const logoSrc = await logoDataUri(shop.logoUrl);
+  const placedItems = await loadPlacedItems(order.id, businessId);
 
-  const pageHeight = 760 + order.order_items.length * 36;
+  const pageHeight = 760 + Math.max(order.order_items.length, placedItems.length, 1) * 40;
   let uri: string | undefined;
   try {
     ({ uri } = await withTimeout(
       Print.printToFileAsync({
-        html: billHtml(order, shop, paymentMethod, logoSrc),
+        html: billHtml(order, shop, paymentMethod, logoSrc, placedItems),
         width: 595,
         height: pageHeight,
         textZoom: 100,

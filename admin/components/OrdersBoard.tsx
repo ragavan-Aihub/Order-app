@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { PaymentStatusBadge, StatusBadge } from '@/components/OrderBadges';
 import { OrderWorkflow } from '@/components/OrderWorkflow';
+import { PrintReceiptButton } from '@/components/PrintReceiptButton';
 import { TableScroll } from '@/components/TableScroll';
 import { normalizeStatus } from '@/types/order-workflow';
 import { deliveryTypeLabel, type CommunityListItem } from '@/types/community';
@@ -447,10 +448,20 @@ export function OrdersBoard({
                 </>
               );
               if (!LIST_QUICK_ACTIONS) {
+                const canPrint =
+                  Boolean(order.invoice_prepared_at || order.admin_modified_from_placed) &&
+                  normalizeStatus(order.status) !== 'cancelled';
                 return (
-                  <Link key={order.id} href={`/orders/${order.id}`} className={cardClass}>
-                    {summary}
-                  </Link>
+                  <div key={order.id} className={cardClass}>
+                    <Link href={`/orders/${order.id}`} className="block">
+                      {summary}
+                    </Link>
+                    {canPrint ? (
+                      <div className="mt-3">
+                        <PrintReceiptButton orderId={order.id} canPrint />
+                      </div>
+                    ) : null}
+                  </div>
                 );
               }
               return (
@@ -476,7 +487,7 @@ export function OrdersBoard({
           </div>
           <div className="hidden md:block">
             <TableScroll>
-              <table className={`w-full text-left text-sm ${communitiesEnabled ? 'min-w-[68rem]' : 'min-w-[56rem]'}`}>
+              <table className={`w-full text-left text-sm ${communitiesEnabled ? 'min-w-[72rem]' : 'min-w-[60rem]'}`}>
                 <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
                   <tr>
                     <th className="px-3 py-2 font-medium">Order No</th>
@@ -493,11 +504,16 @@ export function OrdersBoard({
                       </>
                     ) : null}
                     <th className="px-3 py-2 font-medium">Placed</th>
+                    <th className="px-3 py-2 font-medium">Print</th>
                     {LIST_QUICK_ACTIONS ? <th className="px-3 py-2 font-medium">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {paged.map((order) => (
+                  {paged.map((order) => {
+                    const canPrint =
+                      Boolean(order.invoice_prepared_at || order.admin_modified_from_placed) &&
+                      normalizeStatus(order.status) !== 'cancelled';
+                    return (
                     <tr key={order.id} className={orderListRowClass(order)}>
                       <td className="px-3 py-2 font-semibold">
                         <Link href={`/orders/${order.id}`} className="text-stone-900 hover:text-emerald-800 hover:underline">
@@ -529,6 +545,9 @@ export function OrdersBoard({
                         </>
                       ) : null}
                       <td className="px-3 py-2 whitespace-nowrap text-stone-600">{formatDateTime(order.created_at)}</td>
+                      <td className="px-3 py-2">
+                        <PrintReceiptButton orderId={order.id} canPrint={canPrint} variant="icon" />
+                      </td>
                       {LIST_QUICK_ACTIONS ? (
                         <td className="px-3 py-2">
                           <OrderWorkflow
@@ -544,7 +563,8 @@ export function OrdersBoard({
                         </td>
                       ) : null}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </TableScroll>

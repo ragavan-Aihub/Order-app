@@ -1,3 +1,5 @@
+import type { PrintSettings } from '@/lib/print-settings';
+
 export type Business = {
   id: string;
   business_name: string;
@@ -18,6 +20,8 @@ export type Business = {
   announcement_title: string | null;
   announcement_body: string | null;
   announcement_image_url: string | null;
+  /** Raw JSON from businesses.print_settings; normalize with normalizePrintSettings. */
+  print_settings?: PrintSettings | Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

@@ -373,11 +373,13 @@ While the order is **Placed**, **Confirmed**, or **Out for delivery**, open the 
 1. Tap **Prepare invoice**. Ordered qty stays visible on each line.
 2. Change invoice qty (for Kg/Liter you can type values such as 0.70), add products, or remove a line with trash. Minus does not delete the line.
 3. Tap **Review invoice**, check ordered vs billed totals, optionally add a short reason for the customer, then **Save invoice**.
-4. Tap **Cancel** to leave without saving. **Reset to original order** restores billed lines to the original request (customer edits from before the shop invoice are kept).
+4. After save, print follows **Print settings** (sidebar): ask for A4/thermal, auto-print the default design, or skip. You can still print later from the orders list or order detail.
+5. Open **Print settings** to change default design (A4 or thermal), thermal width (80mm/58mm), after-save behavior, and which fields appear in each receipt section (shop, customer, items, payment). Defaults match common POS invoices; required fields stay locked.
+6. Tap **Cancel** to leave without saving. **Reset to original order** restores billed lines to the original request (customer edits from before the shop invoice are kept).
 
 Saving the invoice updates the live order so the customer app shows billed qty and total (no app update needed). The original order stays in history. The customer sees **Shop modified** and **View changes** (added, removed, qty, old/new total). These invoice saves do not use up the customer's 5 self-service modifications. After the first shop invoice save, the customer cannot keep modifying that order in the app.
 
-Payment method and whether the order is paid do not change automatically. If the total went up or down, use the payment panel or collect/refund manually. The delivery bill PDF uses the invoice (live) lines.
+Payment method and whether the order is paid do not change automatically. If the total went up or down, use the payment panel or collect/refund manually. Printed receipts and the delivery bill PDF show **Order qty** and **Recd qty** (billed) on each line, plus rate and amount.
 
 #### Moving an order to the next status
 
